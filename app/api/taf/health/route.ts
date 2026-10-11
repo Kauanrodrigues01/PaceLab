@@ -18,12 +18,15 @@ export async function GET() {
       );
     }
 
-    // Tenta uma consulta simples para validar a conexão ativa com o banco SQL
+    const start = Date.now();
     await prisma.$queryRaw`SELECT 1`;
+    const latencyMs = Date.now() - start;
+
     return NextResponse.json({
       status: "connected",
       orm: "Prisma",
       database: "PostgreSQL",
+      latencyMs,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -40,3 +43,4 @@ export async function GET() {
     );
   }
 }
+
