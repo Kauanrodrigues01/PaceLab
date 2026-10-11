@@ -272,6 +272,7 @@ export function GoalAndBackupSettings({
               <input
                 id="target-distance-meters"
                 type="number"
+                inputMode="numeric"
                 min="500"
                 max="10000"
                 step="50"
@@ -301,6 +302,7 @@ export function GoalAndBackupSettings({
               <input
                 id="target-duration-minutes"
                 type="number"
+                inputMode="numeric"
                 min="1"
                 max="60"
                 value={durationMinutes}

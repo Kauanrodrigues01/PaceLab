@@ -54,4 +54,18 @@ describe("Home Page (Fase 9)", () => {
     expect(screen.getByText("100% Privado e Seguro")).toBeInTheDocument();
     expect(screen.getByText("Criado para Mobile & Desktop")).toBeInTheDocument();
   });
+
+  it("renderiza o card de destaque especial do módulo Meu TAF com link para /meu-taf", () => {
+    render(<Home />);
+
+    const card = screen.getByTestId("home-meu-taf-card");
+    expect(card).toBeInTheDocument();
+
+    expect(
+      screen.getByText(/Meu TAF — Preparação Física para 12 Minutos/i)
+    ).toBeInTheDocument();
+
+    const meuTafLinks = screen.getAllByRole("link", { name: /Meu TAF/i });
+    expect(meuTafLinks.some((l) => l.getAttribute("href") === "/meu-taf")).toBe(true);
+  });
 });

@@ -12,9 +12,11 @@ import {
   History,
   Activity,
   Flame,
+  Trophy,
 } from "lucide-react";
 
 const navItems = [
+  { href: "/meu-taf", label: "Meu TAF", icon: Trophy, highlight: true },
   { href: "/calculadora", label: "Pace", icon: Calculator },
   { href: "/medias", label: "Médias", icon: BarChart2 },
   { href: "/taf", label: "TAF", icon: Medal },
@@ -47,6 +49,24 @@ export function Navbar() {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
+
+            if (item.highlight) {
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm transition-all ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow-sm shadow-blue-500/25 font-bold"
+                      : "bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/60 dark:border-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 font-bold"
+                  }`}
+                >
+                  <Icon className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                  {item.label}
+                </Link>
+              );
+            }
+
             return (
               <Link
                 key={item.href}

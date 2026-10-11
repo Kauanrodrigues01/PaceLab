@@ -324,6 +324,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
             <div className="flex-1 relative">
               <input
                 type="number"
+                inputMode="numeric"
                 min="0"
                 max="24"
                 value={hours}
@@ -339,6 +340,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
             <div className="flex-1 relative">
               <input
                 type="number"
+                inputMode="numeric"
                 min="0"
                 max="59"
                 value={minutes}
@@ -356,6 +358,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
             <div className="flex-1 relative">
               <input
                 type="number"
+                inputMode="numeric"
                 min="0"
                 max="59"
                 value={seconds}
@@ -386,6 +389,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
         <div className="relative mb-3">
           <input
             type="number"
+            inputMode="decimal"
             min="0.1"
             max="200"
             step="0.01"

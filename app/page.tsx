@@ -12,6 +12,7 @@ import {
   Zap,
   ShieldCheck,
   Smartphone,
+  Trophy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 
@@ -93,8 +94,15 @@ export default function Home() {
         {/* CTAs do Hero */}
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <Link
-            href="/calculadora"
+            href="/meu-taf"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transition-all"
+          >
+            <Trophy className="w-4 h-4 text-amber-300" />
+            Meu TAF (12 Min)
+          </Link>
+          <Link
+            href="/calculadora"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
           >
             <Calculator className="w-4 h-4" />
             Abrir Calculadora
@@ -107,6 +115,51 @@ export default function Home() {
             Simulador de TAF
           </Link>
         </div>
+      </div>
+
+      {/* Card Especial de Destaque do Meu TAF (Fase G) */}
+      <div
+        data-testid="home-meu-taf-card"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 text-white p-6 sm:p-8 shadow-xl border border-blue-500/20"
+      >
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="max-w-2xl space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/15 backdrop-blur-md text-blue-100 border border-white/20">
+                <Trophy className="w-3.5 h-3.5 text-amber-300" />
+                Módulo Especial de Preparação
+              </span>
+              <span className="text-[11px] font-semibold text-blue-200 bg-blue-900/40 px-2.5 py-0.5 rounded-full border border-blue-400/30">
+                Guarda Municipal & Concursos
+              </span>
+            </div>
+
+            <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+              Meu TAF — Preparação Física para 12 Minutos
+            </h3>
+
+            <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed">
+              Painel completo com simulados de 12 minutos, parciais de 400m, recordes pessoais,
+              diário de treinos (RPE 1-10), 5 gráficos interativos de evolução e comparador de períodos rumo aos 2.300 m.
+            </p>
+          </div>
+
+          <div className="shrink-0 flex flex-col sm:flex-row md:flex-col items-start md:items-end gap-2.5">
+            <Link
+              href="/meu-taf"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm bg-white text-blue-900 hover:bg-blue-50 shadow-lg hover:shadow-xl transition-all group w-full sm:w-auto"
+            >
+              <span>Acessar Meu TAF</span>
+              <ArrowRight className="w-4 h-4 text-blue-700 group-hover:translate-x-1 transition-transform" />
+            </Link>
+            <span className="text-[11px] text-blue-200/80 font-medium">
+              Offline First • PostgreSQL Prisma
+            </span>
+          </div>
+        </div>
+
+        {/* Grafismo decorativo de fundo */}
+        <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
       </div>
 
       {/* Grade de Ferramentas */}

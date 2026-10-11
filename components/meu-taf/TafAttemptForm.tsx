@@ -294,6 +294,7 @@ export function TafAttemptForm({
             <div className="flex-1 relative">
               <input
                 type="number"
+                inputMode="numeric"
                 min="1"
                 max="60"
                 value={minutes}
@@ -308,6 +309,7 @@ export function TafAttemptForm({
             <div className="flex-1 relative">
               <input
                 type="number"
+                inputMode="numeric"
                 min="0"
                 max="59"
                 value={seconds}
@@ -358,6 +360,7 @@ export function TafAttemptForm({
         <div className="relative mb-3">
           <input
             type="number"
+            inputMode="numeric"
             min="100"
             max="10000"
             step="10"
@@ -521,6 +524,7 @@ export function TafAttemptForm({
                   <div className="flex items-center gap-1">
                     <input
                       type="number"
+                      inputMode="numeric"
                       min="1"
                       max="600"
                       value={lap.durationSeconds}
