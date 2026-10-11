@@ -1,0 +1,125 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import TafPage from "@/app/taf/page";
+
+describe("TafPage (Fase 5)", () => {
+  beforeEach(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it("renderiza a página com os valores padrão e calcula o ritmo inicial", () => {
+    render(<TafPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Calculadora de TAF (Teste de Aptidão Física)" })
+    ).toBeInTheDocument();
+
+    // Aviso legal obrigatório
+    expect(
+      screen.getByText("Aviso Importante e Termo de Referência")
+    ).toBeInTheDocument();
+
+    // Valores calculados padrão (2300m em 12min -> pace 5:13)
+    expect(screen.getByText("5:13")).toBeInTheDocument();
+    expect(screen.getByText("11.50")).toBeInTheDocument(); // velocidade em km/h
+    expect(screen.getByText("Status: Abaixo da Meta")).toBeInTheDocument();
+    expect(screen.getByText("91.3% Atingido")).toBeInTheDocument();
+
+    // Tabela de voltas na pista
+    expect(screen.getByText("Volta 1")).toBeInTheDocument();
+  });
+
+  it("calcula nova meta (12 min e 2400 m -> pace 5:00 e tempo de volta 2:00)", async () => {
+    const user = userEvent.setup();
+    render(<TafPage />);
+
+    const targetInput = screen.getByLabelText("Meta de Distância");
+    await user.clear(targetInput);
+    await user.type(targetInput, "2400");
+
+    const currentInput = screen.getByLabelText("Sua Distância Atual (Opcional)");
+    await user.clear(currentInput);
+    await user.type(currentInput, "2400");
+
+    const calcButton = screen.getByRole("button", { name: "Calcular Metas do TAF" });
+    await user.click(calcButton);
+
+    // 2400m em 12min = pace 5:00 min/km e velocidade 12.00 km/h
+    expect(screen.getByText("5:00")).toBeInTheDocument();
+    expect(screen.getByText("12.00")).toBeInTheDocument();
+    expect(screen.getByText("Status: Apto na Meta")).toBeInTheDocument();
+    expect(screen.getByText("100.0% Atingido")).toBeInTheDocument();
+    expect(screen.getAllByText("2:00")[0]).toBeInTheDocument(); // 400m em 2:00
+  });
+
+  it("alterna para o modo Distância Fixa com Tempo Máximo e calcula", async () => {
+    const user = userEvent.setup();
+    render(<TafPage />);
+
+    const fixedTab = screen.getByRole("button", { name: /Distância Fixa/i });
+    await user.click(fixedTab);
+
+    expect(
+      screen.getByText("TAF com Distância Fixa e Tempo Limite")
+    ).toBeInTheDocument();
+
+    const distInput = screen.getByLabelText("Distância a Percorrer");
+    await user.clear(distInput);
+    await user.type(distInput, "2400");
+
+    const timeInput = screen.getByLabelText("Tempo Máximo Permitido");
+    await user.clear(timeInput);
+    await user.type(timeInput, "12:00");
+
+    const calcButton = screen.getByRole("button", { name: "Calcular Limite de Pace" });
+    await user.click(calcButton);
+
+    expect(screen.getByText("Pace Máximo Permitido")).toBeInTheDocument();
+    expect(screen.getByText("5:00")).toBeInTheDocument();
+    expect(screen.getByText("12.00")).toBeInTheDocument();
+  });
+
+  it("exibe mensagem de erro quando campos forem inválidos", async () => {
+    const user = userEvent.setup();
+    render(<TafPage />);
+
+    const durationInput = screen.getByLabelText("Duração do Teste");
+    await user.clear(durationInput);
+    await user.type(durationInput, "0");
+
+    const calcButton = screen.getByRole("button", { name: "Calcular Metas do TAF" });
+    await user.click(calcButton);
+
+    expect(
+      screen.getByText("A duração do teste deve ser maior que 0 minutos.")
+    ).toBeInTheDocument();
+  });
+
+  it("limpa os campos ao clicar em Limpar", async () => {
+    const user = userEvent.setup();
+    render(<TafPage />);
+
+    const clearButton = screen.getByRole("button", { name: "Limpar" });
+    await user.click(clearButton);
+
+    const targetInput = screen.getByLabelText("Meta de Distância");
+    expect(targetInput).toHaveValue("");
+  });
+
+  it("salva estratégia calculada no histórico", async () => {
+    const user = userEvent.setup();
+    render(<TafPage />);
+
+    const saveButton = screen.getByRole("button", { name: /Salvar esta Estratégia no Histórico/i });
+    await user.click(saveButton);
+
+    expect(screen.getByText("Estratégia Salva no Histórico!")).toBeInTheDocument();
+  });
+});
