@@ -3,13 +3,14 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MeuTafPage from "@/app/meu-taf/page";
 import { tafService } from "@/lib/services/tafService";
+import { setupMockTafApi } from "@/test/helpers/mockTafApi";
 
 describe("MeuTafPage - Fase F (Comparador de Períodos & Configuração de Meta / Backup)", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
-    global.fetch = vi.fn().mockRejectedValue(new Error("Offline Mode"));
+    setupMockTafApi();
     URL.createObjectURL = vi.fn(() => "blob:mock-url");
     URL.revokeObjectURL = vi.fn();
   });
@@ -213,7 +214,7 @@ describe("MeuTafPage - Fase F (Comparador de Períodos & Configuração de Meta 
         );
       });
 
-      // Verifica se a meta salva no localStorage foi atualizada para 2400m
+      // Verifica se a meta salva no banco de dados (Supabase) foi atualizada para 2400m
       const storedGoal = await tafService.getGoal();
       expect(storedGoal.targetDistanceMeters).toBe(2400);
     });
@@ -259,7 +260,7 @@ describe("MeuTafPage - Fase F (Comparador de Períodos & Configuração de Meta 
       });
     });
 
-    it("executa teste de conexão com o banco e sincronização Prisma", async () => {
+    it("executa teste de conexão com o banco Supabase", async () => {
       const user = userEvent.setup();
       render(<MeuTafPage />);
 
@@ -269,20 +270,44 @@ describe("MeuTafPage - Fase F (Comparador de Períodos & Configuração de Meta 
       const testDbBtn = screen.getByRole("button", { name: /Testar Conexão/i });
       await user.click(testDbBtn);
 
-      // Como o fetch é mockado para falhar no teste offline, exibe toast amigável de modo local
       await waitFor(() => {
         expect(screen.getByTestId("toast-notification")).toHaveTextContent(
-          /Banco remoto não acessível\. Operando em Modo Local Offline First/i
+          /Conexão ativa com PostgreSQL via Prisma ORM!/i
         );
       });
+    });
 
-      const migrateBtn = screen.getByRole("button", {
-        name: /Sincronizar com o PostgreSQL/i,
+    it("exibe aviso quando o teste de conexão com o banco falha", async () => {
+      const user = userEvent.setup();
+      render(<MeuTafPage />);
+
+      const tabConfig = await screen.findByRole("button", { name: /Meta & Banco/i });
+      await user.click(tabConfig);
+
+      // Simula falha na rota de health
+      global.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/taf/health")) {
+          return {
+            ok: false,
+            status: 503,
+            json: async () => ({ status: "error", error: "Database offline" }),
+          } as Response;
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+        } as Response;
       });
-      await user.click(migrateBtn);
+
+      const testDbBtn = screen.getByRole("button", { name: /Testar Conexão/i });
+      await user.click(testDbBtn);
 
       await waitFor(() => {
-        expect(screen.getByTestId("toast-notification")).toBeInTheDocument();
+        expect(screen.getByTestId("toast-notification")).toHaveTextContent(
+          /Não foi possível conectar ao banco de dados Supabase/i
+        );
       });
     });
 

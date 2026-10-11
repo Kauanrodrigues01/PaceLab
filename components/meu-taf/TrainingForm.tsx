@@ -264,7 +264,10 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       </div>
 
       {errorMessage && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-xl text-xs font-medium text-red-700 dark:text-red-300 flex items-center gap-2">
+        <div
+          data-testid="form-error-message"
+          className="mb-4 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-xl text-xs font-medium text-red-700 dark:text-red-300 flex items-center gap-2"
+        >
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{errorMessage}</span>
         </div>
@@ -378,7 +381,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       {/* Distância em km com atalhos rápidos */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+          <label htmlFor="training-distance-km" className="text-xs font-bold text-slate-700 dark:text-slate-300">
             Distância Percorrida (Quilômetros)
           </label>
           <span className="text-xs text-slate-500 font-medium">
@@ -388,6 +391,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
 
         <div className="relative mb-3">
           <input
+            id="training-distance-km"
             type="number"
             inputMode="decimal"
             min="0.1"

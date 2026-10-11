@@ -45,9 +45,9 @@ export function GoalAndBackupSettings({
     connected: boolean;
     orm: string;
     database?: string;
+    latencyMs?: number;
   }>({ connected: false, orm: "Prisma" });
   const [isCheckingDb, setIsCheckingDb] = useState(false);
-  const [isMigrating, setIsMigrating] = useState(false);
 
   // Importação de arquivo
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -117,7 +117,7 @@ export function GoalAndBackupSettings({
       if (res.connected) {
         showToast("Conexão ativa com PostgreSQL via Prisma ORM!");
       } else {
-        showToast("Banco remoto não acessível. Operando em Modo Local Offline First.", "error");
+        showToast("Não foi possível conectar ao banco de dados Supabase.", "error");
       }
     } catch {
       showToast("Falha ao consultar status do banco de dados.", "error");
@@ -126,33 +126,10 @@ export function GoalAndBackupSettings({
     }
   };
 
-  // Migrar dados do localStorage para o Prisma
-  const handleMigrate = async () => {
-    setIsMigrating(true);
-    try {
-      const res = await tafService.migrateFromLocalStorage();
-      if (res.success) {
-        showToast(
-          `Sincronização concluída: ${res.migratedAttempts} simulados e ${res.migratedTrainings} treinos gravados no banco!`
-        );
-        onDataRefreshed();
-      } else {
-        showToast(
-          res.error || "Não foi possível migrar os dados para o Prisma.",
-          "error"
-        );
-      }
-    } catch {
-      showToast("Erro durante a migração para o banco de dados.", "error");
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
   // Exportar Backup JSON
   const handleExportJson = () => {
     try {
-      const jsonStr = tafService.exportBackupJson();
+      const jsonStr = tafService.exportBackupJson(goal, attempts, trainings);
       const blob = new Blob([jsonStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -408,7 +385,7 @@ export function GoalAndBackupSettings({
               Central de Banco de Dados Relacional (Prisma ORM)
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Arquitetura híbrida offline-first com persistência SQL e fallback local seguro.
+              Persistência relacional direta com PostgreSQL gerenciado no Supabase via Prisma ORM.
             </p>
           </div>
 
@@ -426,7 +403,13 @@ export function GoalAndBackupSettings({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Status do Banco */}
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                dbStatus.connected
+                  ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400"
+                  : "bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400"
+              }`}
+            >
               <Database className="w-5 h-5" />
             </div>
             <div>
@@ -435,32 +418,27 @@ export function GoalAndBackupSettings({
               </span>
               <p className="text-xs text-slate-500 mt-0.5">
                 {dbStatus.connected
-                  ? "Conectado ao PostgreSQL via Prisma ORM."
-                  : "Operando em Modo Local (localStorage) com resiliência offline."}
+                  ? `Conectado ao PostgreSQL do Supabase via Prisma ORM${
+                      dbStatus.latencyMs !== undefined ? ` (${dbStatus.latencyMs}ms de latência)` : ""
+                    }.`
+                  : "Desconectado. Verifique sua conexão com a internet ou o status do banco."}
               </p>
             </div>
           </div>
 
-          {/* Sincronização / Migração */}
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between">
+          {/* Nuvem e Segurança */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
             <div>
               <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
-                Sincronizar Dados Locais para o Prisma
+                Persistência Exclusiva na Nuvem
               </span>
-              <p className="text-xs text-slate-500 mt-0.5 mb-3">
-                Transfira em 1 clique todo o histórico armazenado no seu navegador para o banco PostgreSQL.
+              <p className="text-xs text-slate-500 mt-0.5">
+                Todos os seus simulados, parciais e treinos são gravados de forma segura diretamente nas tabelas PostgreSQL do Supabase.
               </p>
             </div>
-
-            <button
-              type="button"
-              onClick={handleMigrate}
-              disabled={isMigrating}
-              className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isMigrating ? "animate-spin" : ""}`} />
-              {isMigrating ? "Migrando Dados..." : "Sincronizar com o PostgreSQL"}
-            </button>
           </div>
         </div>
       </div>

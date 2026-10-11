@@ -44,13 +44,18 @@ export default function MeuTafPage() {
     database?: string;
   }>({ connected: false, orm: "Prisma" });
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
 
-  // Carrega dados iniciais
+  // Carrega dados iniciais do Supabase
   const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
     try {
       const [fetchedGoal, fetchedAttempts, fetchedTrainings, health] = await Promise.all([
         tafService.getGoal(),
@@ -65,6 +70,10 @@ export default function MeuTafPage() {
       setDbStatus(health);
     } catch (err) {
       console.error("Erro ao carregar dados do Meu TAF:", err);
+      setLoadError("Não foi possível carregar os dados do Supabase. Verifique sua conexão com a internet.");
+      setDbStatus({ connected: false, orm: "Prisma" });
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -98,10 +107,9 @@ export default function MeuTafPage() {
           : "Novo teste registrado no histórico com sucesso!"
       );
     } catch (err) {
-      showToast(
-        err instanceof Error ? err.message : "Erro ao salvar teste",
-        "error"
-      );
+      const msg = err instanceof Error ? err.message : "Erro ao salvar teste";
+      showToast(msg, "error");
+      throw err;
     }
   };
 
@@ -139,10 +147,9 @@ export default function MeuTafPage() {
           : "Novo treino registrado no diário com sucesso!"
       );
     } catch (err) {
-      showToast(
-        err instanceof Error ? err.message : "Erro ao salvar treino no diário",
-        "error"
-      );
+      const msg = err instanceof Error ? err.message : "Erro ao salvar treino no diário";
+      showToast(msg, "error");
+      throw err;
     }
   };
 
@@ -215,21 +222,21 @@ export default function MeuTafPage() {
           </p>
         </div>
 
-        {/* Status do Banco / Offline */}
+        {/* Status do Banco Supabase */}
         <div className="relative z-10 flex flex-col items-start md:items-end justify-center">
           <div
             data-testid="db-status-badge"
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold backdrop-blur-md border ${
               dbStatus.connected
                 ? "bg-emerald-500/20 text-emerald-200 border-emerald-400/30"
-                : "bg-amber-500/20 text-amber-200 border-amber-400/30"
+                : "bg-rose-500/20 text-rose-200 border-rose-400/30"
             }`}
           >
             <Database className="w-3.5 h-3.5" />
             <span>
               {dbStatus.connected
-                ? "Prisma ORM • PostgreSQL Conectado"
-                : "Modo Local • Offline First"}
+                ? "Supabase • PostgreSQL Conectado"
+                : "Offline • Conexão Indisponível"}
             </span>
           </div>
           <span className="text-[11px] text-blue-200/70 mt-1">
@@ -240,6 +247,26 @@ export default function MeuTafPage() {
         {/* Grafismo decorativo de fundo */}
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
       </div>
+
+      {/* Banner de Erro de Conexão com o Supabase */}
+      {loadError && (
+        <div
+          data-testid="db-load-error-banner"
+          className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-800 dark:text-rose-200 text-xs font-medium"
+        >
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{loadError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={loadData}
+            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition-colors shrink-0"
+          >
+            Tentar Novamente
+          </button>
+        </div>
+      )}
 
       {/* Grid de KPIs do Topo */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -341,6 +368,14 @@ export default function MeuTafPage() {
           </p>
         </div>
       </div>
+
+      {/* Indicador de Carregamento Inicial do Supabase */}
+      {isLoading && (
+        <div data-testid="loading-indicator" className="flex items-center justify-center gap-2 py-1 text-xs text-blue-600 dark:text-blue-400 font-medium animate-pulse">
+          <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <span>Carregando dados do Supabase...</span>
+        </div>
+      )}
 
       {/* Navegação por Abas do Hub */}
       <div className="flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-1 scrollbar-none">

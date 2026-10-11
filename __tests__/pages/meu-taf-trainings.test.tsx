@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MeuTafPage from "@/app/meu-taf/page";
 import { tafService } from "@/lib/services/tafService";
+import { setupMockTafApi } from "@/test/helpers/mockTafApi";
 
 describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
-    // Simula API offline para usar fallback do localStorage
-    global.fetch = vi.fn().mockRejectedValue(new Error("Offline Mode"));
+    setupMockTafApi();
   });
 
   it("permite navegar para a aba Diário de Treinos e exibe formulário e estado vazio inicial", async () => {
@@ -285,5 +285,48 @@ describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => 
     expect(within(list).getByText("3.00")).toBeInTheDocument();
     expect(within(list).queryByText("5.00")).not.toBeInTheDocument();
     expect(within(list).getByText("3 km")).toBeInTheDocument(); // volume atualizado
+  });
+
+  it("exibe mensagem de erro e não reseta campos se a API do Supabase falhar ao salvar treino", async () => {
+    const user = userEvent.setup();
+    render(<MeuTafPage />);
+
+    const tabTreinos = await screen.findByRole("button", { name: /Diário de Treinos/i });
+    await user.click(tabTreinos);
+
+    // Força a API a retornar erro 500 no POST de treino
+    global.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/taf/trainings") && init?.method === "POST") {
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ error: "Erro de gravação no Supabase" }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    }) as unknown as typeof fetch;
+
+    const shortcut5km = screen.getByRole("button", { name: "5 km" });
+    await user.click(shortcut5km);
+
+    const submitBtn = screen.getByRole("button", { name: /Registrar Treino no Diário/i });
+    await user.click(submitBtn);
+
+    // Mensagem de erro exibida no formulário e no toast
+    expect(await screen.findByTestId("form-error-message")).toHaveTextContent(
+      "Erro de gravação no Supabase"
+    );
+    expect(screen.getByTestId("toast-notification")).toHaveTextContent(
+      "Erro de gravação no Supabase"
+    );
+
+    // Distância continua mantida
+    const distInput = screen.getByLabelText(/Distância Percorrida/i) as HTMLInputElement;
+    expect(distInput.value).toBe("5");
   });
 });

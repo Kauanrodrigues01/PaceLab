@@ -3,13 +3,14 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MeuTafPage from "@/app/meu-taf/page";
 import { tafService } from "@/lib/services/tafService";
+import { setupMockTafApi } from "@/test/helpers/mockTafApi";
 
 describe("MeuTafPage - Fase E (Painel de Evolução & 5 Gráficos Recharts)", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
-    global.fetch = vi.fn().mockRejectedValue(new Error("Offline Mode"));
+    setupMockTafApi();
   });
 
   it("navega para a aba Gráficos de Evolução e exibe os 4 KPIs e containers dos 5 gráficos em estado vazio", async () => {

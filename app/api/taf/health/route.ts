@@ -11,7 +11,6 @@ export async function GET() {
           status: "disconnected",
           orm: "Prisma",
           error: "DATABASE_URL não configurada",
-          fallbackMode: "offline_local_storage",
           timestamp: new Date().toISOString(),
         },
         { status: 503 }
@@ -36,7 +35,6 @@ export async function GET() {
         status: "disconnected",
         orm: "Prisma",
         error: message,
-        fallbackMode: "offline_local_storage",
         timestamp: new Date().toISOString(),
       },
       { status: 503 }

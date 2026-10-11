@@ -64,7 +64,7 @@ export function logDatabaseEnvStatus(): void {
     hasWarned = true;
     console.warn(
       `\n\x1b[33m[PaceLab]\x1b[0m ⚠️  Aviso de Conexão: ${config.error}\n` +
-      `[PaceLab] ℹ️  A aplicação manterá a operação resiliente via Modo Local (Offline First com localStorage).\n`
+      `[PaceLab] ℹ️  As calculadoras e histórico operam via localStorage, enquanto o módulo Meu TAF requer o Supabase.\n`
     );
   }
 }

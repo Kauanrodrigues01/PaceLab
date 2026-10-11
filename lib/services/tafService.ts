@@ -4,211 +4,126 @@ import {
   TafGoalConfig,
 } from "@/types";
 
-const STORAGE_KEYS = {
-  GOAL: "pacelab_taf_goal_v1",
-  ATTEMPTS: "pacelab_taf_attempts_v1",
-  TRAININGS: "pacelab_trainings_v1",
-};
-
 export const DEFAULT_GOAL: TafGoalConfig = {
   targetDistanceMeters: 2300,
   targetDurationMinutes: 12,
   targetExamDate: null,
 };
 
-// ─── Helpers de LocalStorage ──────────────────────────────────────────────────
-function getLocalItem<T>(key: string, defaultValue: T): T {
-  if (typeof window === "undefined") return defaultValue;
-  try {
-    const item = window.localStorage.getItem(key);
-    return item ? (JSON.parse(item) as T) : defaultValue;
-  } catch (error) {
-    console.warn(`Erro ao ler localStorage key: ${key}`, error);
-    return defaultValue;
-  }
-}
-
-function setLocalItem<T>(key: string, value: T): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch (error) {
-    console.warn(`Erro ao gravar localStorage key: ${key}`, error);
-  }
-}
-
-// ─── Serviço Unificado de Persistência Híbrida (Prisma + Fallback Local) ───────
+// ─── Serviço de Persistência Direta no Supabase (PostgreSQL via Prisma API) ───
 export const tafService = {
-  // ─── Metas ─────────────────────────────────────────────────────────────────
+  // ─── Metas da Prova ────────────────────────────────────────────────────────
   async getGoal(): Promise<TafGoalConfig> {
     try {
       const res = await fetch("/api/taf/goals", { cache: "no-store" });
       if (res.ok) {
-        const data = await res.json();
-        setLocalItem(STORAGE_KEYS.GOAL, data);
-        return data;
+        return await res.json();
       }
     } catch {
-      // Falha de rede ou offline: segue para o fallback local
+      // Retorna meta padrão se offline ou falha de rede
     }
-    return getLocalItem<TafGoalConfig>(STORAGE_KEYS.GOAL, DEFAULT_GOAL);
+    return DEFAULT_GOAL;
   },
 
   async saveGoal(goal: TafGoalConfig): Promise<TafGoalConfig> {
-    // 1. Atualização otimista local
-    setLocalItem(STORAGE_KEYS.GOAL, goal);
+    const res = await fetch("/api/taf/goals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(goal),
+    });
 
-    try {
-      const res = await fetch("/api/taf/goals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(goal),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLocalItem(STORAGE_KEYS.GOAL, data);
-        return data;
-      }
-    } catch {
-      // Permanece salvo localmente
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Erro ao salvar meta no banco de dados");
     }
-    return goal;
+
+    return await res.json();
   },
 
   // ─── Tentativas de TAF (12 min) ───────────────────────────────────────────
   async getAttempts(): Promise<TafAttempt[]> {
-    try {
-      const res = await fetch("/api/taf/attempts", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setLocalItem(STORAGE_KEYS.ATTEMPTS, data);
-        return data;
-      }
-    } catch {
-      // Offline fallback
+    const res = await fetch("/api/taf/attempts", { cache: "no-store" });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Erro ao carregar simulados do banco de dados");
     }
-    return getLocalItem<TafAttempt[]>(STORAGE_KEYS.ATTEMPTS, []);
+    return await res.json();
   },
 
-  async saveAttempt(attempt: TafAttempt): Promise<TafAttempt> {
-    const localList = getLocalItem<TafAttempt[]>(STORAGE_KEYS.ATTEMPTS, []);
-    const existingIndex = localList.findIndex((a) => a.id === attempt.id);
-    const updatedList =
-      existingIndex >= 0
-        ? localList.map((a) => (a.id === attempt.id ? attempt : a))
-        : [attempt, ...localList];
+  async saveAttempt(attempt: TafAttempt, isUpdate = false): Promise<TafAttempt> {
+    const url = isUpdate
+      ? `/api/taf/attempts/${encodeURIComponent(attempt.id)}`
+      : "/api/taf/attempts";
+    const method = isUpdate ? "PUT" : "POST";
 
-    setLocalItem(STORAGE_KEYS.ATTEMPTS, updatedList);
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(attempt),
+    });
 
-    try {
-      const isUpdate = existingIndex >= 0;
-      const url = isUpdate
-        ? `/api/taf/attempts/${encodeURIComponent(attempt.id)}`
-        : "/api/taf/attempts";
-      const method = isUpdate ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(attempt),
-      });
-
-      if (res.ok) {
-        const saved = await res.json();
-        const refreshedList = updatedList.map((a) =>
-          a.id === attempt.id ? saved : a
-        );
-        setLocalItem(STORAGE_KEYS.ATTEMPTS, refreshedList);
-        return saved;
-      }
-    } catch {
-      // Mantém versão local
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Erro ao salvar simulado no banco de dados");
     }
 
-    return attempt;
+    return await res.json();
   },
 
   async deleteAttempt(id: string): Promise<boolean> {
-    const localList = getLocalItem<TafAttempt[]>(STORAGE_KEYS.ATTEMPTS, []);
-    const filtered = localList.filter((a) => a.id !== id);
-    setLocalItem(STORAGE_KEYS.ATTEMPTS, filtered);
+    const res = await fetch(`/api/taf/attempts/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
 
-    try {
-      const res = await fetch(`/api/taf/attempts/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      });
-      return res.ok;
-    } catch {
-      return true;
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Erro ao excluir simulado no banco de dados");
     }
+
+    return true;
   },
 
   // ─── Diário de Treinos ─────────────────────────────────────────────────────
   async getTrainings(): Promise<TrainingSession[]> {
-    try {
-      const res = await fetch("/api/taf/trainings", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setLocalItem(STORAGE_KEYS.TRAININGS, data);
-        return data;
-      }
-    } catch {
-      // Offline fallback
+    const res = await fetch("/api/taf/trainings", { cache: "no-store" });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Erro ao carregar diário de treinos do banco de dados");
     }
-    return getLocalItem<TrainingSession[]>(STORAGE_KEYS.TRAININGS, []);
+    return await res.json();
   },
 
-  async saveTraining(training: TrainingSession): Promise<TrainingSession> {
-    const localList = getLocalItem<TrainingSession[]>(STORAGE_KEYS.TRAININGS, []);
-    const existingIndex = localList.findIndex((t) => t.id === training.id);
-    const updatedList =
-      existingIndex >= 0
-        ? localList.map((t) => (t.id === training.id ? training : t))
-        : [training, ...localList];
+  async saveTraining(training: TrainingSession, isUpdate = false): Promise<TrainingSession> {
+    const url = isUpdate
+      ? `/api/taf/trainings/${encodeURIComponent(training.id)}`
+      : "/api/taf/trainings";
+    const method = isUpdate ? "PUT" : "POST";
 
-    setLocalItem(STORAGE_KEYS.TRAININGS, updatedList);
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(training),
+    });
 
-    try {
-      const isUpdate = existingIndex >= 0;
-      const url = isUpdate
-        ? `/api/taf/trainings/${encodeURIComponent(training.id)}`
-        : "/api/taf/trainings";
-      const method = isUpdate ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(training),
-      });
-
-      if (res.ok) {
-        const saved = await res.json();
-        const refreshedList = updatedList.map((t) =>
-          t.id === training.id ? saved : t
-        );
-        setLocalItem(STORAGE_KEYS.TRAININGS, refreshedList);
-        return saved;
-      }
-    } catch {
-      // Mantém versão local
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Erro ao salvar treino no banco de dados");
     }
 
-    return training;
+    return await res.json();
   },
 
   async deleteTraining(id: string): Promise<boolean> {
-    const localList = getLocalItem<TrainingSession[]>(STORAGE_KEYS.TRAININGS, []);
-    const filtered = localList.filter((t) => t.id !== id);
-    setLocalItem(STORAGE_KEYS.TRAININGS, filtered);
+    const res = await fetch(`/api/taf/trainings/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
 
-    try {
-      const res = await fetch(`/api/taf/trainings/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      });
-      return res.ok;
-    } catch {
-      return true;
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Erro ao excluir treino no banco de dados");
     }
+
+    return true;
   },
 
   // ─── Status do Banco SQL / Prisma ──────────────────────────────────────────
@@ -216,71 +131,36 @@ export const tafService = {
     connected: boolean;
     orm: string;
     database?: string;
+    latencyMs?: number;
     error?: string;
   }> {
     try {
       const res = await fetch("/api/taf/health", { cache: "no-store" });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       return {
         connected: res.ok && data.status === "connected",
         orm: "Prisma",
         database: data.database,
+        latencyMs: data.latencyMs,
         error: data.error,
       };
     } catch (err) {
       return {
         connected: false,
         orm: "Prisma",
-        error: err instanceof Error ? err.message : "Sem conexão de rede",
+        error: err instanceof Error ? err.message : "Sem conexão de rede com o banco",
       };
     }
   },
 
-  // ─── Sincronização / Migração do LocalStorage para o Prisma ─────────────────
-  async migrateFromLocalStorage(): Promise<{
-    success: boolean;
-    migratedAttempts: number;
-    migratedTrainings: number;
-    goalUpdated: boolean;
-    error?: string;
-  }> {
-    const goal = getLocalItem<TafGoalConfig>(STORAGE_KEYS.GOAL, DEFAULT_GOAL);
-    const attempts = getLocalItem<TafAttempt[]>(STORAGE_KEYS.ATTEMPTS, []);
-    const trainings = getLocalItem<TrainingSession[]>(STORAGE_KEYS.TRAININGS, []);
-
-    try {
-      const res = await fetch("/api/taf/migrate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal, attempts, trainings }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Falha na sincronização");
-      }
-
-      const result = await res.json();
-      return result;
-    } catch (err) {
-      return {
-        success: false,
-        migratedAttempts: 0,
-        migratedTrainings: 0,
-        goalUpdated: false,
-        error: err instanceof Error ? err.message : "Erro desconhecido",
-      };
-    }
-  },
-
-  // ─── Backup & Restauração (JSON / CSV) ────────────────────────────────────
-  exportBackupJson(): string {
-    const goal = getLocalItem<TafGoalConfig>(STORAGE_KEYS.GOAL, DEFAULT_GOAL);
-    const attempts = getLocalItem<TafAttempt[]>(STORAGE_KEYS.ATTEMPTS, []);
-    const trainings = getLocalItem<TrainingSession[]>(STORAGE_KEYS.TRAININGS, []);
-
+  // ─── Backup & Exportação (JSON / CSV) ──────────────────────────────────────
+  exportBackupJson(
+    goal: TafGoalConfig = DEFAULT_GOAL,
+    attempts: TafAttempt[] = [],
+    trainings: TrainingSession[] = []
+  ): string {
     const backup = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       appName: "PaceLab",
       goal,
@@ -303,27 +183,35 @@ export const tafService = {
         throw new Error("Arquivo JSON inválido");
       }
 
+      let attemptsCount = 0;
+      let trainingsCount = 0;
+
       if (parsed.goal) {
-        setLocalItem(STORAGE_KEYS.GOAL, parsed.goal);
-      }
-      if (Array.isArray(parsed.attempts)) {
-        setLocalItem(STORAGE_KEYS.ATTEMPTS, parsed.attempts);
-      }
-      if (Array.isArray(parsed.trainings)) {
-        setLocalItem(STORAGE_KEYS.TRAININGS, parsed.trainings);
+        await this.saveGoal(parsed.goal).catch(() => null);
       }
 
-      // Tenta sincronizar com o banco Prisma se estiver online
-      try {
-        await this.migrateFromLocalStorage();
-      } catch {
-        // Ignora erro se estiver offline
+      if (Array.isArray(parsed.attempts)) {
+        for (const att of parsed.attempts) {
+          if (att.distanceMeters && att.actualDurationSeconds) {
+            await this.saveAttempt(att, false).catch(() => null);
+            attemptsCount++;
+          }
+        }
+      }
+
+      if (Array.isArray(parsed.trainings)) {
+        for (const tr of parsed.trainings) {
+          if (tr.distanceKm && tr.durationSeconds) {
+            await this.saveTraining(tr, false).catch(() => null);
+            trainingsCount++;
+          }
+        }
       }
 
       return {
         success: true,
-        attemptsCount: Array.isArray(parsed.attempts) ? parsed.attempts.length : 0,
-        trainingsCount: Array.isArray(parsed.trainings) ? parsed.trainings.length : 0,
+        attemptsCount,
+        trainingsCount,
       };
     } catch (err) {
       return {

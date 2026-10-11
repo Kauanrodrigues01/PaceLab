@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MeuTafPage from "@/app/meu-taf/page";
 import { tafService } from "@/lib/services/tafService";
+import { setupMockTafApi } from "@/test/helpers/mockTafApi";
 
 describe("MeuTafPage - Fase C (Histórico de 12 Minutos e Interface do TAF)", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
-    // Simula API offline por padrão para usar fallback do localStorage sem rede externa
-    global.fetch = vi.fn().mockRejectedValue(new Error("Offline Mode"));
+    setupMockTafApi();
   });
 
   it("renderiza o cabeçalho, status offline/banco e KPIs iniciais vazios", async () => {
@@ -24,7 +24,7 @@ describe("MeuTafPage - Fase C (Histórico de 12 Minutos e Interface do TAF)", ()
 
     // Status de banco
     expect(screen.getByTestId("db-status-badge")).toHaveTextContent(
-      "Modo Local • Offline First"
+      "Supabase • PostgreSQL Conectado"
     );
 
     // KPIs iniciais
@@ -260,5 +260,46 @@ describe("MeuTafPage - Fase C (Histórico de 12 Minutos e Interface do TAF)", ()
     // Exibe ambos
     expect(screen.getByText("2.350")).toBeInTheDocument();
     expect(screen.getByText("1.950")).toBeInTheDocument();
+  });
+
+  it("exibe mensagem de erro e não reseta campos se a API do Supabase falhar ao salvar", async () => {
+    const user = userEvent.setup();
+    render(<MeuTafPage />);
+
+    await screen.findByRole("heading", { name: "Meu TAF" });
+
+    // Força a API a retornar erro 500 no POST de tentativa
+    global.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/taf/attempts") && init?.method === "POST") {
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ error: "Falha de conexão com o Supabase" }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as Response;
+    }) as unknown as typeof fetch;
+
+    const shortcut2400 = screen.getByRole("button", { name: /2\.400 m/i });
+    await user.click(shortcut2400);
+
+    const submitBtn = screen.getByTestId("submit-attempt-btn");
+    await user.click(submitBtn);
+
+    // Mensagem de erro exibida no formulário e no toast
+    expect(await screen.findByTestId("form-error-message")).toHaveTextContent(
+      "Falha de conexão com o Supabase"
+    );
+    expect(screen.getByTestId("toast-notification")).toHaveTextContent(
+      "Falha de conexão com o Supabase"
+    );
+
+    // Prévia calculada continua mantida
+    expect(screen.getByText("5:00")).toBeInTheDocument();
   });
 });

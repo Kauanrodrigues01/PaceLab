@@ -4,7 +4,6 @@ import { GET as getAttempts, POST as postAttempt } from "@/app/api/taf/attempts/
 import { PUT as putAttempt, DELETE as deleteAttempt } from "@/app/api/taf/attempts/[id]/route";
 import { GET as getTrainings, POST as postTraining } from "@/app/api/taf/trainings/route";
 import { PUT as putTraining, DELETE as deleteTraining } from "@/app/api/taf/trainings/[id]/route";
-import { POST as postMigrate } from "@/app/api/taf/migrate/route";
 import { GET as getHealth } from "@/app/api/taf/health/route";
 import { prisma } from "@/lib/prisma";
 
@@ -264,48 +263,5 @@ describe("API Routes do TAF com Prisma ORM", () => {
     });
     expect(delRes.status).toBe(200);
   });
-
-  it("POST /api/taf/migrate executa transação no Prisma", async () => {
-    vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
-      return callback({
-        tafGoal: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
-        tafAttempt: { upsert: vi.fn() },
-        trainingSession: { upsert: vi.fn() },
-      } as never);
-    });
-
-    const migrateReq = new Request("http://localhost/api/taf/migrate", {
-      method: "POST",
-      body: JSON.stringify({
-        goal: { targetDistanceMeters: 2300, targetDurationMinutes: 12 },
-        attempts: [
-          {
-            id: "att-mig",
-            actualDurationSeconds: 720,
-            distanceMeters: 2300,
-            speedKmh: 11.5,
-            paceSeconds: 313,
-            paceFormatted: "5:13",
-          },
-        ],
-        trainings: [
-          {
-            id: "tr-mig",
-            distanceKm: 5,
-            durationSeconds: 1800,
-            speedKmh: 10,
-            paceSeconds: 360,
-            paceFormatted: "6:00",
-          },
-        ],
-      }),
-    });
-
-    const migrateRes = await postMigrate(migrateReq);
-    const data = await migrateRes.json();
-    expect(migrateRes.status).toBe(200);
-    expect(data.success).toBe(true);
-    expect(data.migratedAttempts).toBe(1);
-    expect(data.migratedTrainings).toBe(1);
-  });
 });
+
