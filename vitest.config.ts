@@ -13,7 +13,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       include: ['lib/**/*.ts'],
-      exclude: ['lib/storage/**'],
+      exclude: ['lib/storage/**', 'lib/prisma.ts', 'lib/supabase/**'],
       thresholds: {
         lines: 90,
         functions: 90,

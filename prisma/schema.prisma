@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// 1. Metas do TAF
+model TafGoal {
+  id                    String    @id @default(uuid())
+  userId                String?   @map("user_id")
+  targetDistanceMeters  Int       @default(2300) @map("target_distance_meters")
+  targetDurationMinutes Int       @default(12) @map("target_duration_minutes")
+  targetExamDate        DateTime? @map("target_exam_date")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("taf_goals")
+}
+
+// 2. Tentativas de Teste do TAF (12 minutos ou duração personalizada)
+model TafAttempt {
+  id                    String   @id @default(uuid())
+  userId                String?  @map("user_id")
+  testDate              DateTime @default(now()) @map("test_date")
+  targetDurationSeconds Int      @default(720) @map("target_duration_seconds")
+  actualDurationSeconds Int      @map("actual_duration_seconds")
+  distanceMeters        Int      @map("distance_meters")
+  speedKmh              Float    @map("speed_kmh")
+  paceSeconds           Int      @map("pace_seconds")
+  paceFormatted         String   @map("pace_formatted")
+  locationType          String?  @map("location_type")
+  notes                 String?  @map("notes")
+  laps                  Json?    @default("[]")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, testDate(sort: Desc)])
+  @@index([userId, targetDurationSeconds])
+  @@map("taf_attempts")
+}
+
+// 3. Diário de Treinos
+model TrainingSession {
+  id              String   @id @default(uuid())
+  userId          String?  @map("user_id")
+  sessionDate     DateTime @default(now()) @map("session_date")
+  activityType    String   @map("activity_type") // 'corrida_continua', 'corrida_intervalada', 'caminhada', 'teste_taf', 'outro'
+  distanceKm      Float    @map("distance_km")
+  durationSeconds Int      @map("duration_seconds")
+  speedKmh        Float    @map("speed_kmh")
+  paceSeconds     Int      @map("pace_seconds")
+  paceFormatted   String   @map("pace_formatted")
+  perceivedEffort Int?     @map("perceived_effort") // RPE 1 a 10
+  bodyWeightKg    Float?   @map("body_weight_kg")
+  notes           String?  @map("notes")
+  splits          Json?    @default("[]")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, sessionDate(sort: Desc)])
+  @@index([userId, activityType])
+  @@map("training_sessions")
+}

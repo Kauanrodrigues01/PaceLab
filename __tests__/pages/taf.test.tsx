@@ -122,4 +122,35 @@ describe("TafPage (Fase 5)", () => {
 
     expect(screen.getByText("Estratégia Salva no Histórico!")).toBeInTheDocument();
   });
+
+  it("exibe atalhos de meta de distância aumentando de 100 em 100 metros e atualiza o campo ao clicar", async () => {
+    const user = userEvent.setup();
+    render(<TafPage />);
+
+    // Verifica que não pula de 200 em 200, tendo opções de 100 em 100m
+    const expectedShortcuts = [
+      "2.000 m",
+      "2.100 m",
+      "2.200 m",
+      "2.300 m",
+      "2.400 m",
+      "2.500 m",
+      "2.600 m",
+      "2.700 m",
+      "2.800 m",
+      "2.900 m",
+      "3.000 m",
+    ];
+
+    expectedShortcuts.forEach((label) => {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    });
+
+    // Clica no atalho de 2.500 m
+    const btn2500 = screen.getByRole("button", { name: "2.500 m" });
+    await user.click(btn2500);
+
+    const targetInput = screen.getByLabelText("Meta de Distância");
+    expect(targetInput).toHaveValue("2500");
+  });
 });

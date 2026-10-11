@@ -58,12 +58,18 @@ export default function TafPage() {
   const [fixedResult, setFixedResult] = useState<FixedTargetResult | null>(null);
   const [savedToHistory, setSavedToHistory] = useState(false);
 
-  // Atalhos rápidos
+  // Atalhos rápidos (aumentando de 100 em 100 metros)
   const targetShortcuts = [
     { label: "2.000 m", value: "2000" },
+    { label: "2.100 m", value: "2100" },
+    { label: "2.200 m", value: "2200" },
     { label: "2.300 m", value: "2300" },
     { label: "2.400 m", value: "2400" },
+    { label: "2.500 m", value: "2500" },
+    { label: "2.600 m", value: "2600" },
+    { label: "2.700 m", value: "2700" },
     { label: "2.800 m", value: "2800" },
+    { label: "2.900 m", value: "2900" },
     { label: "3.000 m", value: "3000" },
   ];
 
@@ -390,16 +396,30 @@ export default function TafPage() {
               description="Exemplo: Percorrer 2.400 metros em até 12 minutos."
             >
               <form onSubmit={handleCalcFixedDistance} className="space-y-4">
-                <Input
-                  label="Distância a Percorrer"
-                  id="input-fixed-dist"
-                  value={fixedDistInput}
-                  onChange={(e) => setFixedDistInput(e.target.value)}
-                  rightAddon="metros"
-                  placeholder="2400"
-                  error={errors.fixedDist}
-                  inputMode="numeric"
-                />
+                <div>
+                  <Input
+                    label="Distância a Percorrer"
+                    id="input-fixed-dist"
+                    value={fixedDistInput}
+                    onChange={(e) => setFixedDistInput(e.target.value)}
+                    rightAddon="metros"
+                    placeholder="2400"
+                    error={errors.fixedDist}
+                    inputMode="numeric"
+                  />
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {targetShortcuts.map((sc) => (
+                      <button
+                        key={sc.value}
+                        type="button"
+                        onClick={() => setFixedDistInput(sc.value)}
+                        className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium transition-colors"
+                      >
+                        {sc.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 <Input
                   label="Tempo Máximo Permitido"

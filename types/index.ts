@@ -136,3 +136,114 @@ export interface HistoryEntry {
 export type ValidationResult =
   | { valid: true }
   | { valid: false; message: string };
+
+// ─── Evolução do TAF & Persistência Relacional (Prisma ORM) ───────────────────
+export interface LapDetail {
+  lapNumber: number;
+  durationSeconds: Seconds;
+  distanceMeters: number;
+  paceFormatted?: string;
+}
+
+export interface TafAttempt {
+  id: string;
+  userId?: string | null;
+  testDate: string; // ISO 8601
+  targetDurationSeconds: Seconds; // Padrão 720 (12 min)
+  actualDurationSeconds: Seconds;
+  distanceMeters: number;
+  speedKmh: KmPerHour;
+  paceSeconds: SecondsPerKm;
+  paceFormatted: string; // e.g. "5:13"
+  locationType?: string | null; // e.g. "Pista de Atletismo (400m)", "Rua plana"
+  notes?: string | null;
+  laps?: LapDetail[];
+  createdAt: string;
+  updatedAt: string;
+  // Campos computados em tempo de execução
+  isPersonalRecord?: boolean;
+  deltaPreviousMeters?: number | null;
+  deficitTargetMeters?: number;
+}
+
+export type ActivityType =
+  | "corrida_continua"
+  | "corrida_intervalada"
+  | "caminhada"
+  | "teste_taf"
+  | "outro";
+
+export interface SplitDetail {
+  kilometer: number;
+  durationSeconds: Seconds;
+  paceFormatted: string;
+}
+
+export interface TrainingSession {
+  id: string;
+  userId?: string | null;
+  sessionDate: string; // ISO 8601
+  activityType: ActivityType;
+  distanceKm: Kilometers;
+  durationSeconds: Seconds;
+  speedKmh: KmPerHour;
+  paceSeconds: SecondsPerKm;
+  paceFormatted: string;
+  perceivedEffort?: number | null; // RPE 1 a 10
+  bodyWeightKg?: number | null;
+  notes?: string | null;
+  splits?: SplitDetail[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TafGoalConfig {
+  id?: string;
+  userId?: string | null;
+  targetDistanceMeters: number; // Padrão 2300 (Guarda Municipal Fortaleza)
+  targetDurationMinutes: number; // Padrão 12
+  targetExamDate?: string | null; // ISO 8601 YYYY-MM-DD
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PeriodMetrics {
+  startDate: string;
+  endDate: string;
+  totalSessions: number;
+  totalDistanceKm: Kilometers;
+  totalDurationSeconds: Seconds;
+  averagePaceSeconds: SecondsPerKm;
+  averagePaceFormatted: string;
+  averageSpeedKmh: KmPerHour;
+  tafTestsCount: number;
+  bestTafDistanceMeters: number | null;
+  averageRpe: number | null;
+  hasLowSampleWarning: boolean;
+}
+
+export interface PeriodComparisonResult {
+  periodA: PeriodMetrics;
+  periodB: PeriodMetrics;
+  deltaDistanceKm: Kilometers;
+  deltaDistancePercent: number;
+  deltaPaceSeconds: SecondsPerKm; // Negativo = mais rápido
+  deltaTafDistanceMeters: number | null;
+  summaryText: string;
+}
+
+export interface WeeklyVolume {
+  weekLabel: string;
+  weekStart: string;
+  weekEnd: string;
+  distanceKm: Kilometers;
+  sessionsCount: number;
+}
+
+export interface MonthlyVolume {
+  monthLabel: string;
+  monthKey: string; // "2026-10"
+  distanceKm: Kilometers;
+  sessionsCount: number;
+}
+
