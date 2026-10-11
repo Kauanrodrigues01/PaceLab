@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { TafAttempt, TafGoalConfig } from "@/types";
+import { TafAttempt, TafGoalConfig, TrainingSession } from "@/types";
 import { tafService, DEFAULT_GOAL } from "@/lib/services/tafService";
 import { getPersonalRecord, processTafAttempts } from "@/lib/math/evolution";
 import { TafAttemptForm } from "@/components/meu-taf/TafAttemptForm";
 import { TafAttemptList } from "@/components/meu-taf/TafAttemptList";
+import { TrainingForm } from "@/components/meu-taf/TrainingForm";
+import { TrainingList } from "@/components/meu-taf/TrainingList";
 import {
   Trophy,
   Target,
@@ -28,6 +30,11 @@ export default function MeuTafPage() {
   const [goal, setGoal] = useState<TafGoalConfig>(DEFAULT_GOAL);
   const [attempts, setAttempts] = useState<TafAttempt[]>([]);
   const [editingAttempt, setEditingAttempt] = useState<TafAttempt | null>(null);
+
+  // Estados do Diário de Treinos (Fase D)
+  const [trainings, setTrainings] = useState<TrainingSession[]>([]);
+  const [editingTraining, setEditingTraining] = useState<TrainingSession | null>(null);
+
   const [dbStatus, setDbStatus] = useState<{
     connected: boolean;
     orm: string;
@@ -42,14 +49,16 @@ export default function MeuTafPage() {
   // Carrega dados iniciais
   const loadData = useCallback(async () => {
     try {
-      const [fetchedGoal, fetchedAttempts, health] = await Promise.all([
+      const [fetchedGoal, fetchedAttempts, fetchedTrainings, health] = await Promise.all([
         tafService.getGoal(),
         tafService.getAttempts(),
+        tafService.getTrainings(),
         tafService.checkDatabaseHealth(),
       ]);
 
       setGoal(fetchedGoal);
       setAttempts(fetchedAttempts);
+      setTrainings(fetchedTrainings);
       setDbStatus(health);
     } catch (err) {
       console.error("Erro ao carregar dados do Meu TAF:", err);
@@ -104,6 +113,47 @@ export default function MeuTafPage() {
       showToast("Teste excluído com sucesso.");
     } catch {
       showToast("Erro ao excluir teste", "error");
+    }
+  };
+
+  // Salvar sessão de treino (Fase D)
+  const handleSaveTraining = async (training: TrainingSession) => {
+    try {
+      const saved = await tafService.saveTraining(training);
+
+      setTrainings((prev) => {
+        const index = prev.findIndex((t) => t.id === saved.id);
+        if (index >= 0) {
+          return prev.map((t) => (t.id === saved.id ? saved : t));
+        }
+        return [saved, ...prev];
+      });
+
+      setEditingTraining(null);
+      showToast(
+        editingTraining
+          ? "Treino atualizado com sucesso!"
+          : "Novo treino registrado no diário com sucesso!"
+      );
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "Erro ao salvar treino no diário",
+        "error"
+      );
+    }
+  };
+
+  // Excluir sessão de treino (Fase D)
+  const handleDeleteTraining = async (id: string) => {
+    try {
+      await tafService.deleteTraining(id);
+      setTrainings((prev) => prev.filter((t) => t.id !== id));
+      if (editingTraining?.id === id) {
+        setEditingTraining(null);
+      }
+      showToast("Treino excluído com sucesso.");
+    } catch {
+      showToast("Erro ao excluir treino", "error");
     }
   };
 
@@ -378,17 +428,23 @@ export default function MeuTafPage() {
         </div>
       )}
 
-      {/* Placeholder das próximas abas */}
+      {/* Conteúdo da Aba 2: Diário de Treinos (Fase D) */}
       {activeTab === "treinos" && (
-        <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center">
-          <Flame className="w-10 h-10 text-blue-500 mx-auto mb-2" />
-          <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 mb-1">
-            Diário de Treinos
-          </h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Módulo em preparação para a Fase D: registro de corrida contínua, intervalados,
-            escala RPE de esforço e peso corporal.
-          </p>
+        <div className="space-y-6">
+          <TrainingForm
+            editingTraining={editingTraining}
+            onSave={handleSaveTraining}
+            onCancelEdit={() => setEditingTraining(null)}
+          />
+
+          <TrainingList
+            trainings={trainings}
+            onEdit={(trn) => {
+              setEditingTraining(trn);
+              window.scrollTo({ top: 200, behavior: "smooth" });
+            }}
+            onDelete={handleDeleteTraining}
+          />
         </div>
       )}
 
