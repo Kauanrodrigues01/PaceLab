@@ -9,6 +9,8 @@ import { TafAttemptList } from "@/components/meu-taf/TafAttemptList";
 import { TrainingForm } from "@/components/meu-taf/TrainingForm";
 import { TrainingList } from "@/components/meu-taf/TrainingList";
 import { EvolutionDashboard } from "@/components/meu-taf/EvolutionDashboard";
+import { PeriodComparator } from "@/components/meu-taf/PeriodComparator";
+import { GoalAndBackupSettings } from "@/components/meu-taf/GoalAndBackupSettings";
 import {
   Trophy,
   Target,
@@ -458,30 +460,25 @@ export default function MeuTafPage() {
         />
       )}
 
+      {/* Conteúdo da Aba 4: Comparador de Períodos (Fase F) */}
       {activeTab === "comparador" && (
-        <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center">
-          <GitCompare className="w-10 h-10 text-blue-500 mx-auto mb-2" />
-          <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 mb-1">
-            Comparador de Períodos
-          </h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Módulo em preparação para a Fase F: comparação analítica entre Período 1 e
-            Período 2 com deltas e avisos metodológicos.
-          </p>
-        </div>
+        <PeriodComparator
+          trainings={trainings}
+          attempts={attempts}
+          targetDurationSeconds={720}
+        />
       )}
 
+      {/* Conteúdo da Aba 5: Meta da Prova & Backup (Fase F) */}
       {activeTab === "config" && (
-        <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center">
-          <Settings className="w-10 h-10 text-blue-500 mx-auto mb-2" />
-          <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 mb-1">
-            Meta da Prova & Backup
-          </h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Módulo em preparação para a Fase F: ajuste da meta oficial da prova, sincronização
-            em 1 clique com o Prisma/PostgreSQL e exportação de backups em JSON/CSV.
-          </p>
-        </div>
+        <GoalAndBackupSettings
+          goal={goal}
+          attempts={attempts}
+          trainings={trainings}
+          onGoalSaved={(savedGoal) => setGoal(savedGoal)}
+          onDataRefreshed={loadData}
+          showToast={showToast}
+        />
       )}
     </div>
   );
