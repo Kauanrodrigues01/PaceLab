@@ -8,6 +8,7 @@ import { TafAttemptForm } from "@/components/meu-taf/TafAttemptForm";
 import { TafAttemptList } from "@/components/meu-taf/TafAttemptList";
 import { TrainingForm } from "@/components/meu-taf/TrainingForm";
 import { TrainingList } from "@/components/meu-taf/TrainingList";
+import { EvolutionDashboard } from "@/components/meu-taf/EvolutionDashboard";
 import {
   Trophy,
   Target,
@@ -448,17 +449,13 @@ export default function MeuTafPage() {
         </div>
       )}
 
+      {/* Conteúdo da Aba 3: Painel de Evolução & 5 Gráficos (Fase E) */}
       {activeTab === "graficos" && (
-        <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center">
-          <LineChart className="w-10 h-10 text-blue-500 mx-auto mb-2" />
-          <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 mb-1">
-            Painel de Evolução Visual
-          </h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Módulo em preparação para a Fase E: 5 gráficos interativos Recharts
-            (Testes 12m, Distância por treino, Pace, Volume Semanal e Evolução dos Recordes).
-          </p>
-        </div>
+        <EvolutionDashboard
+          attempts={attempts}
+          trainings={trainings}
+          goal={goal}
+        />
       )}
 
       {activeTab === "comparador" && (
