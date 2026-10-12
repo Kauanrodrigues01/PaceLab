@@ -302,4 +302,24 @@ describe("MeuTafPage - Fase C (Histórico de 12 Minutos e Interface do TAF)", ()
     // Prévia calculada continua mantida
     expect(screen.getByText("5:00")).toBeInTheDocument();
   });
+
+  it("renderiza o seletor multimodal do TAF (Corrida 12 Min, Barra, Flexão, Abdominal) e links para treinos", async () => {
+    render(<MeuTafPage />);
+
+    expect(await screen.findByRole("heading", { name: "Meu TAF" })).toBeInTheDocument();
+
+    const selector = screen.getByTestId("taf-multimodal-selector");
+    expect(selector).toBeInTheDocument();
+
+    // Módulos
+    expect(screen.getByText("Corrida 12 Min")).toBeInTheDocument();
+    expect(screen.getByText("Módulo Ativo")).toBeInTheDocument();
+    expect(screen.getByText("Barra Fixa")).toBeInTheDocument();
+    expect(screen.getByText("Flexão de Braço")).toBeInTheDocument();
+    expect(screen.getByText("Abdominal Remador")).toBeInTheDocument();
+
+    // Links para diário de treinos
+    const treinosLinks = screen.getAllByRole("link", { name: /Diário de Treinos/i });
+    expect(treinosLinks.some((l) => l.getAttribute("href") === "/treinos")).toBe(true);
+  });
 });

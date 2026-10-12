@@ -13,7 +13,7 @@ Dedicado exclusivamente a funcionalidades de conveniência no navegador, garanti
 
 | Chave no `localStorage` | Tipo de Dado | Onde é Usado | O que Armazena |
 | :--- | :--- | :--- | :--- |
-| **`pacelab_history_v1`** | Array de `HistoryEntry` | `/historico`, `/calculadora`, `/medias`, `/taf`, `/intervalado`, `/metas` | Rascunho/bloco de notas de cálculos gerais feitos nas calculadoras (distância km, tempo total, pace médio, velocidade km/h, data e notas). |
+| **`pacelab_history_v1`** | Array de `HistoryEntry` | `/historico`, `/calculadora`, `/taf`, `/intervalado`, `/metas` | Rascunho/bloco de notas de cálculos gerais feitos nas calculadoras (distância km, tempo total, pace médio, velocidade km/h, data e notas). |
 | **`theme`** | String (`"light"` \| `"dark"` \| `"system"`) | Todo o site (`ThemeProvider`) | Preferência visual de tema (modo claro ou modo escuro). |
 
 ### 1.2. Armazenamento na Nuvem (`Supabase • PostgreSQL via Prisma ORM`)

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CalculadoraPage from "@/app/calculadora/page";
 
@@ -43,38 +43,118 @@ describe("CalculadoraPage", () => {
     expect(screen.getByText("12.0")).toBeInTheDocument();
   });
 
-  it("alterna para modo Pace -> Velocidade e calcula (pace 6:40 -> 9.00 km/h)", async () => {
+  it("alterna para modo unificado Pace ↔ Vel e converte pace em velocidade (pace 6:40 -> 9.00 km/h)", async () => {
     const user = userEvent.setup();
     render(<CalculadoraPage />);
 
-    const tabPaceToSpeed = screen.getByRole("button", { name: /Pace → Vel/i });
-    await user.click(tabPaceToSpeed);
+    const tabPaceSpeed = screen.getByRole("button", { name: /Pace ↔ Vel/i });
+    await user.click(tabPaceSpeed);
 
     const paceInput = screen.getByLabelText("Pace de Corrida");
     await user.clear(paceInput);
     await user.type(paceInput, "6:40");
 
-    const calcButton = screen.getByRole("button", { name: "Calcular Velocidade" });
-    await user.click(calcButton);
-
+    // Sincronização reativa e verificação no bloco de resultado
     expect(screen.getByText("9.00")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("9.00")).toBeInTheDocument();
   });
 
-  it("alterna para modo Velocidade -> Pace e calcula (velocidade 9 km/h -> 6:40)", async () => {
+  it("converte no modo Pace ↔ Vel de velocidade para pace (velocidade 12 km/h -> pace 5:00)", async () => {
     const user = userEvent.setup();
     render(<CalculadoraPage />);
 
-    const tabSpeedToPace = screen.getByRole("button", { name: /Vel → Pace/i });
-    await user.click(tabSpeedToPace);
+    const tabPaceSpeed = screen.getByRole("button", { name: /Pace ↔ Vel/i });
+    await user.click(tabPaceSpeed);
 
     const speedInput = screen.getByLabelText("Velocidade");
     await user.clear(speedInput);
-    await user.type(speedInput, "9");
+    await user.type(speedInput, "12");
 
-    const calcButton = screen.getByRole("button", { name: "Calcular Pace" });
+    expect(screen.getByDisplayValue("5:00")).toBeInTheDocument();
+    expect(screen.getAllByText("2:00")[0]).toBeInTheDocument(); // Volta de 400m calculada
+    expect(screen.getByText("2400m")).toBeInTheDocument(); // 12 min TAF calculado
+  });
+
+  it("permite digitar minutos inteiros como '6' sem colocar '6:00' na conversão para velocidade (6 -> 10.00 km/h)", async () => {
+    const user = userEvent.setup();
+    render(<CalculadoraPage />);
+
+    const tabPaceSpeed = screen.getByRole("button", { name: /Pace ↔ Vel/i });
+    await user.click(tabPaceSpeed);
+
+    const paceInput = screen.getByLabelText("Pace de Corrida");
+    await user.clear(paceInput);
+    await user.type(paceInput, "6"); // Digita apenas o número inteiro 6
+
+    expect(screen.getByDisplayValue("10.00")).toBeInTheDocument();
+    expect(screen.getByText("10.00")).toBeInTheDocument();
+  });
+
+  it("preenche os campos e resultados ao clicar em uma linha da tabela de referência de 30s", async () => {
+    const user = userEvent.setup();
+    render(<CalculadoraPage />);
+
+    const tabPaceSpeed = screen.getByRole("button", { name: /Pace ↔ Vel/i });
+    await user.click(tabPaceSpeed);
+
+    // Deve exibir o container da tabela PaceSpeedTable
+    expect(screen.getByTestId("pace-speed-table-container")).toBeInTheDocument();
+
+    // Clica na linha de 5:00 (Meta TAF 2.400m)
+    const row500 = screen.getByTestId("pace-row-5-00");
+    await user.click(row500);
+
+    expect(screen.getByDisplayValue("5:00")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("12.00")).toBeInTheDocument();
+    expect(screen.getByText("2400m")).toBeInTheDocument();
+  });
+
+  it("aceita velocidade com vírgula como '11,5' no modo Pace ↔ Vel e sincroniza o pace equivalente (5:13)", async () => {
+    const user = userEvent.setup();
+    render(<CalculadoraPage />);
+
+    const tabPaceSpeed = screen.getByRole("button", { name: /Pace ↔ Vel/i });
+    await user.click(tabPaceSpeed);
+
+    const speedInput = screen.getByLabelText("Velocidade");
+    await user.clear(speedInput);
+    await user.type(speedInput, "11,5");
+
+    expect(screen.getByDisplayValue("5:13")).toBeInTheDocument();
+  });
+
+  it("exibe mensagem de erro ao submeter pace inválido no modo Pace ↔ Vel", async () => {
+    const user = userEvent.setup();
+    render(<CalculadoraPage />);
+
+    const tabPaceSpeed = screen.getByRole("button", { name: /Pace ↔ Vel/i });
+    await user.click(tabPaceSpeed);
+
+    const paceInput = screen.getByLabelText("Pace de Corrida");
+    await user.clear(paceInput);
+    await user.type(paceInput, "abc");
+
+    const calcButton = screen.getByRole("button", { name: "Calcular" });
     await user.click(calcButton);
 
-    expect(screen.getAllByText("6:40")[0]).toBeInTheDocument();
+    expect(screen.getByText(/Formato de pace inválido/i)).toBeInTheDocument();
+  });
+
+  it("exibe mensagem de erro ao submeter velocidade inválida (0) no modo Pace ↔ Vel", async () => {
+    const user = userEvent.setup();
+    render(<CalculadoraPage />);
+
+    const tabPaceSpeed = screen.getByRole("button", { name: /Pace ↔ Vel/i });
+    await user.click(tabPaceSpeed);
+
+    const speedInput = screen.getByLabelText("Velocidade");
+    await user.clear(speedInput);
+    await user.type(speedInput, "0");
+
+    const calcButton = screen.getByRole("button", { name: "Calcular" });
+    await user.click(calcButton);
+
+    expect(screen.getByText("A velocidade deve ser maior que zero.")).toBeInTheDocument();
   });
 
   it("exibe mensagem de erro quando distância for inválida (ex: 0)", async () => {
@@ -100,24 +180,6 @@ describe("CalculadoraPage", () => {
 
     const distInput = screen.getByLabelText("Distância");
     expect(distInput).toHaveValue("");
-  });
-
-  it("permite digitar minutos inteiros como '6' sem colocar '6:00' na conversão para velocidade (6 -> 10.00 km/h)", async () => {
-    const user = userEvent.setup();
-    render(<CalculadoraPage />);
-
-    const tabPaceToSpeed = screen.getByRole("button", { name: /Pace → Vel/i });
-    await user.click(tabPaceToSpeed);
-
-    const paceInput = screen.getByLabelText("Pace de Corrida");
-    await user.clear(paceInput);
-    await user.type(paceInput, "6"); // Digita apenas o número inteiro 6
-
-    const calcButton = screen.getByRole("button", { name: "Calcular Velocidade" });
-    await user.click(calcButton);
-
-    // 3600 / 360s = 10.00 km/h
-    expect(screen.getByText("10.00")).toBeInTheDocument();
   });
 
   it("calcula tempo estimado no modo time-needed (10 km a 5:00 -> 50:00)", async () => {
@@ -171,5 +233,73 @@ describe("CalculadoraPage", () => {
 
     expect(screen.getByText("Salvo no Histórico!")).toBeInTheDocument();
   });
-});
 
+  describe("Navegação do Hub Central de Calculadoras", () => {
+    it("renderiza a barra de abas superiores do Hub com todas as 5 ferramentas", () => {
+      render(<CalculadoraPage />);
+
+      const hubTabs = screen.getByTestId("hub-tabs-container");
+      expect(hubTabs).toBeInTheDocument();
+      expect(within(hubTabs).getByRole("button", { name: /Pace & Ritmo/i })).toBeInTheDocument();
+      expect(within(hubTabs).getByRole("button", { name: /Estratégia TAF/i })).toBeInTheDocument();
+      expect(within(hubTabs).getByRole("button", { name: /Metas & Splits/i })).toBeInTheDocument();
+      expect(within(hubTabs).getByRole("button", { name: /Intervalado/i })).toBeInTheDocument();
+      expect(within(hubTabs).getByRole("button", { name: /^Histórico$/i })).toBeInTheDocument();
+    });
+
+    it("alterna para a aba Estratégia TAF no Hub", async () => {
+      const user = userEvent.setup();
+      render(<CalculadoraPage />);
+
+      const hubTabs = screen.getByTestId("hub-tabs-container");
+      const tafTabButton = within(hubTabs).getByRole("button", { name: /Estratégia TAF/i });
+      await user.click(tafTabButton);
+
+      expect(screen.getByTestId("hub-tab-taf-content")).toBeInTheDocument();
+    });
+
+    it("alterna para a aba Metas & Splits no Hub", async () => {
+      const user = userEvent.setup();
+      render(<CalculadoraPage />);
+
+      const hubTabs = screen.getByTestId("hub-tabs-container");
+      const metasTabButton = within(hubTabs).getByRole("button", { name: /Metas & Splits/i });
+      await user.click(metasTabButton);
+
+      expect(screen.getByTestId("hub-tab-metas-content")).toBeInTheDocument();
+    });
+
+    it("alterna para a aba Intervalado no Hub", async () => {
+      const user = userEvent.setup();
+      render(<CalculadoraPage />);
+
+      const hubTabs = screen.getByTestId("hub-tabs-container");
+      const intervalsTabButton = within(hubTabs).getByRole("button", { name: /Intervalado/i });
+      await user.click(intervalsTabButton);
+
+      expect(screen.getByTestId("hub-tab-intervalado-content")).toBeInTheDocument();
+    });
+
+    it("alterna para a aba Histórico no Hub", async () => {
+      const user = userEvent.setup();
+      render(<CalculadoraPage />);
+
+      const hubTabs = screen.getByTestId("hub-tabs-container");
+      const historyTabButton = within(hubTabs).getByRole("button", { name: /^Histórico$/i });
+      await user.click(historyTabButton);
+
+      expect(screen.getByTestId("hub-tab-historico-content")).toBeInTheDocument();
+    });
+
+    it("abre diretamente a aba especificada no parâmetro ?tab da URL", () => {
+      const getSpy = vi.spyOn(URLSearchParams.prototype, "get").mockImplementation((key) => {
+        if (key === "tab") return "taf";
+        return null;
+      });
+
+      render(<CalculadoraPage />);
+      expect(screen.getByTestId("hub-tab-taf-content")).toBeInTheDocument();
+      getSpy.mockRestore();
+    });
+  });
+});

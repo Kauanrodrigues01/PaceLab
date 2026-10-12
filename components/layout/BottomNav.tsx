@@ -6,23 +6,15 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   Calculator,
-  BarChart2,
-  Medal,
-  Timer,
-  Flame,
-  History,
+  Calendar,
   Trophy,
 } from "lucide-react";
 
 const mobileNavItems = [
   { href: "/", label: "Início", icon: Home },
-  { href: "/calculadora", label: "Pace", icon: Calculator },
+  { href: "/calculadora", label: "Calculadoras", icon: Calculator },
+  { href: "/treinos", label: "Treinos", icon: Calendar },
   { href: "/meu-taf", label: "Meu TAF", icon: Trophy, highlight: true },
-  { href: "/medias", label: "Médias", icon: BarChart2 },
-  { href: "/taf", label: "TAF", icon: Medal },
-  { href: "/metas", label: "Metas", icon: Timer },
-  { href: "/intervalado", label: "Intervalos", icon: Flame },
-  { href: "/historico", label: "Histórico", icon: History },
 ];
 
 export function BottomNav() {
@@ -31,19 +23,22 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Navegação móvel"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-1 py-1 shadow-lg safe-area-bottom"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 py-1.5 shadow-lg safe-area-bottom"
     >
-      <div className="flex items-center justify-between overflow-x-auto scrollbar-none px-1">
+      <div className="grid grid-cols-4 max-w-md mx-auto gap-1">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive =
+            pathname === item.href ||
+            (item.href === "/calculadora" &&
+              ["/taf", "/metas", "/intervalado", "/historico"].includes(pathname));
           const isHighlight = item.highlight;
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl text-[10px] min-w-[52px] transition-all shrink-0 ${
+              className={`flex flex-col items-center justify-center py-1 px-1 rounded-2xl text-[11px] transition-all ${
                 isActive
                   ? isHighlight
                     ? "text-blue-600 dark:text-blue-400 font-black"
@@ -54,7 +49,7 @@ export function BottomNav() {
               }`}
             >
               <div
-                className={`p-1 rounded-xl transition-all ${
+                className={`p-1.5 rounded-xl transition-all ${
                   isActive
                     ? isHighlight
                       ? "bg-blue-600 text-white shadow-xs"

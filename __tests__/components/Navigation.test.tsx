@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/meu-taf",
 }));
 
-describe("Navegação Global (Fase G)", () => {
+describe("Navegação Global Redesenhada (Fase 3)", () => {
   describe("Navbar (Desktop)", () => {
     it("renderiza o link em destaque 'Meu TAF' apontando para /meu-taf", () => {
       render(<Navbar />);
@@ -18,7 +18,7 @@ describe("Navegação Global (Fase G)", () => {
       expect(meuTafLink).toHaveAttribute("href", "/meu-taf");
     });
 
-    it("renderiza todos os links de ferramentas e o logo principal", () => {
+    it("renderiza os 3 pilares estratégicos da aplicação e o logo principal", () => {
       render(<Navbar />);
 
       expect(
@@ -26,12 +26,10 @@ describe("Navegação Global (Fase G)", () => {
           name: (content) => content.includes("Pace") && content.includes("Lab"),
         })
       ).toHaveAttribute("href", "/");
-      expect(screen.getByRole("link", { name: /^Pace$/i })).toHaveAttribute("href", "/calculadora");
-      expect(screen.getByRole("link", { name: /^Médias$/i })).toHaveAttribute("href", "/medias");
-      expect(screen.getByRole("link", { name: /^TAF$/i })).toHaveAttribute("href", "/taf");
-      expect(screen.getByRole("link", { name: /^Metas$/i })).toHaveAttribute("href", "/metas");
-      expect(screen.getByRole("link", { name: /^Intervalado$/i })).toHaveAttribute("href", "/intervalado");
-      expect(screen.getByRole("link", { name: /^Histórico$/i })).toHaveAttribute("href", "/historico");
+
+      expect(screen.getByRole("link", { name: /^Calculadoras$/i })).toHaveAttribute("href", "/calculadora");
+      expect(screen.getByRole("link", { name: /^Diário de Treinos$/i })).toHaveAttribute("href", "/treinos");
+      expect(screen.getByRole("link", { name: /Meu TAF/i })).toHaveAttribute("href", "/meu-taf");
     });
   });
 
@@ -47,16 +45,13 @@ describe("Navegação Global (Fase G)", () => {
       expect(meuTafMobile).toHaveAttribute("href", "/meu-taf");
     });
 
-    it("renderiza todos os atalhos móveis necessários para experiência Android", () => {
+    it("renderiza as 4 abas sem barra de rolagem horizontal", () => {
       render(<BottomNav />);
 
-      expect(screen.getByRole("link", { name: /Início/i })).toHaveAttribute("href", "/");
-      expect(screen.getByRole("link", { name: /^Pace$/i })).toHaveAttribute("href", "/calculadora");
-      expect(screen.getByRole("link", { name: /^Médias$/i })).toHaveAttribute("href", "/medias");
-      expect(screen.getByRole("link", { name: /^TAF$/i })).toHaveAttribute("href", "/taf");
-      expect(screen.getByRole("link", { name: /^Metas$/i })).toHaveAttribute("href", "/metas");
-      expect(screen.getByRole("link", { name: /^Intervalos$/i })).toHaveAttribute("href", "/intervalado");
-      expect(screen.getByRole("link", { name: /^Histórico$/i })).toHaveAttribute("href", "/historico");
+      expect(screen.getByRole("link", { name: /^Início$/i })).toHaveAttribute("href", "/");
+      expect(screen.getByRole("link", { name: /^Calculadoras$/i })).toHaveAttribute("href", "/calculadora");
+      expect(screen.getByRole("link", { name: /^Treinos$/i })).toHaveAttribute("href", "/treinos");
+      expect(screen.getByRole("link", { name: /Meu TAF/i })).toHaveAttribute("href", "/meu-taf");
     });
   });
 });

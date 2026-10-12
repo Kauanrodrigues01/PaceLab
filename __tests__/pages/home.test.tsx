@@ -20,19 +20,21 @@ describe("Home Page (Fase 9)", () => {
   it("renderiza os botões de ação (CTAs) principais do Hero", () => {
     render(<Home />);
 
-    const calcLink = screen.getByRole("link", { name: /Abrir Calculadora/i });
+    const calcLink = screen.getByRole("link", { name: "Calculadoras" });
     expect(calcLink).toHaveAttribute("href", "/calculadora");
 
-    const tafLink = screen.getByRole("link", { name: /Simulador de TAF/i });
-    expect(tafLink).toHaveAttribute("href", "/taf");
+    const treinosLink = screen.getByRole("link", { name: /Diário de Treinos/i });
+    expect(treinosLink).toHaveAttribute("href", "/treinos");
+
+    const meuTafLink = screen.getByRole("link", { name: /Meu TAF \(12 Min\)/i });
+    expect(meuTafLink).toHaveAttribute("href", "/meu-taf");
   });
 
-  it("renderiza os cards para todas as 6 ferramentas com os links corretos", () => {
+  it("renderiza os cards para todas as 5 ferramentas com os links corretos", () => {
     render(<Home />);
 
     const expectedTools = [
       { name: "Calculadora de Pace", href: "/calculadora" },
-      { name: "Média de Paces & Splits", href: "/medias" },
       { name: "Preparação para o TAF", href: "/taf" },
       { name: "Metas & Planilha de Splits", href: "/metas" },
       { name: "Simulador Intervalado (HIIT)", href: "/intervalado" },

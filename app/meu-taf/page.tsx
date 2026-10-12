@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { TafAttempt, TafGoalConfig, TrainingSession } from "@/types";
 import { tafService, DEFAULT_GOAL } from "@/lib/services/tafService";
 import { getPersonalRecord, processTafAttempts } from "@/lib/math/evolution";
 import { TafAttemptForm } from "@/components/meu-taf/TafAttemptForm";
 import { TafAttemptList } from "@/components/meu-taf/TafAttemptList";
-import { TrainingForm } from "@/components/meu-taf/TrainingForm";
-import { TrainingList } from "@/components/meu-taf/TrainingList";
 import { EvolutionDashboard } from "@/components/meu-taf/EvolutionDashboard";
 import { PeriodComparator } from "@/components/meu-taf/PeriodComparator";
 import { GoalAndBackupSettings } from "@/components/meu-taf/GoalAndBackupSettings";
@@ -17,26 +16,26 @@ import {
   CheckCircle2,
   AlertTriangle,
   Database,
-  Flame,
   LineChart,
   GitCompare,
   Settings,
   Calendar,
   Zap,
+  Activity,
+  Dumbbell,
 } from "lucide-react";
 
 export default function MeuTafPage() {
   const [activeTab, setActiveTab] = useState<
-    "testes" | "resumo" | "treinos" | "graficos" | "comparador" | "config"
+    "testes" | "graficos" | "comparador" | "config"
   >("testes");
 
   const [goal, setGoal] = useState<TafGoalConfig>(DEFAULT_GOAL);
   const [attempts, setAttempts] = useState<TafAttempt[]>([]);
   const [editingAttempt, setEditingAttempt] = useState<TafAttempt | null>(null);
 
-  // Estados do Diário de Treinos (Fase D)
+  // Treinos mantidos para os gráficos agregados, comparador e backup
   const [trainings, setTrainings] = useState<TrainingSession[]>([]);
-  const [editingTraining, setEditingTraining] = useState<TrainingSession | null>(null);
 
   const [dbStatus, setDbStatus] = useState<{
     connected: boolean;
@@ -128,47 +127,6 @@ export default function MeuTafPage() {
     }
   };
 
-  // Salvar sessão de treino (Fase D)
-  const handleSaveTraining = async (training: TrainingSession) => {
-    try {
-      const isUpdate = Boolean(editingTraining) || trainings.some((t) => t.id === training.id);
-      const saved = await tafService.saveTraining(training, isUpdate);
-
-      setTrainings((prev) => {
-        const index = prev.findIndex((t) => t.id === saved.id);
-        if (index >= 0) {
-          return prev.map((t) => (t.id === saved.id ? saved : t));
-        }
-        return [saved, ...prev];
-      });
-
-      setEditingTraining(null);
-      showToast(
-        editingTraining
-          ? "Treino atualizado com sucesso!"
-          : "Novo treino registrado no diário com sucesso!"
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro ao salvar treino no diário";
-      showToast(msg, "error");
-      throw err;
-    }
-  };
-
-  // Excluir sessão de treino (Fase D)
-  const handleDeleteTraining = async (id: string) => {
-    try {
-      await tafService.deleteTraining(id);
-      setTrainings((prev) => prev.filter((t) => t.id !== id));
-      if (editingTraining?.id === id) {
-        setEditingTraining(null);
-      }
-      showToast("Treino excluído com sucesso.");
-    } catch {
-      showToast("Erro ao excluir treino", "error");
-    }
-  };
-
   // Cálculos de KPI para os Cards do Topo
   const processedAttempts = processTafAttempts(
     attempts,
@@ -219,13 +177,13 @@ export default function MeuTafPage() {
             Meu TAF
           </h1>
           <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed">
-            Acompanhe a sua evolução real para a prova física. Registre cada simulado de 12
-            minutos, visualize seus recordes pessoais e mantenha o ritmo ideal para a aprovação.
+            Painel oficial dos simulados de 12 minutos. Acompanhe a evolução da distância percorrida,
+            recordes pessoais e índice de aprovação da meta do edital.
           </p>
         </div>
 
-        {/* Status do Banco Supabase */}
-        <div className="relative z-10 flex flex-col items-start md:items-end justify-center">
+        {/* Status do Banco Supabase e Links */}
+        <div className="relative z-10 flex flex-col items-start md:items-end justify-center gap-2">
           <div
             data-testid="db-status-badge"
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold backdrop-blur-md border ${
@@ -241,13 +199,101 @@ export default function MeuTafPage() {
                 : "Offline • Conexão Indisponível"}
             </span>
           </div>
-          <span className="text-[11px] text-blue-200/70 mt-1">
-            Meta: {targetDistance.toLocaleString("pt-BR")} m em 12 min
-          </span>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              href="/treinos"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-white/15 hover:bg-white/25 text-white backdrop-blur-md transition-colors border border-white/20"
+            >
+              <Activity className="w-3 h-3 text-blue-300" />
+              <span>Diário de Treinos</span>
+            </Link>
+            <span className="text-[11px] text-blue-200/80 font-medium">
+              Meta: {targetDistance.toLocaleString("pt-BR")} m
+            </span>
+          </div>
         </div>
 
         {/* Grafismo decorativo de fundo */}
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+      </div>
+
+      {/* Seletor Multimodal do TAF (Prontidão para Barra, Flexão, Abdominal) */}
+      <div
+        data-testid="taf-multimodal-selector"
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs"
+      >
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div>
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <Dumbbell className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              Modalidades do TAF do Concurso
+            </span>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Simulações de prova física para avaliação da banca examinadora.
+            </p>
+          </div>
+          <Link
+            href="/treinos"
+            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Acessar Diário de Treinos Semanais →</span>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
+          {/* Modalidade 1: Corrida 12 Minutos (Ativa) */}
+          <button
+            type="button"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-transform"
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <Trophy className="w-4 h-4 text-amber-300" />
+              <span>Corrida 12 Min</span>
+            </div>
+            <span className="text-[10px] font-medium opacity-90">Módulo Ativo</span>
+          </button>
+
+          {/* Modalidade 2: Barra Fixa (Em breve) */}
+          <button
+            type="button"
+            disabled
+            title="Módulo de Barra Fixa em preparação"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 font-semibold text-xs border border-dashed border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-75"
+          >
+            <span className="mb-1">Barra Fixa</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+              Em breve
+            </span>
+          </button>
+
+          {/* Modalidade 3: Flexão de Braço (Em breve) */}
+          <button
+            type="button"
+            disabled
+            title="Módulo de Flexão de Braço em preparação"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 font-semibold text-xs border border-dashed border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-75"
+          >
+            <span className="mb-1">Flexão de Braço</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+              Em breve
+            </span>
+          </button>
+
+          {/* Modalidade 4: Abdominal Remador (Em breve) */}
+          <button
+            type="button"
+            disabled
+            title="Módulo de Abdominal em preparação"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 font-semibold text-xs border border-dashed border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-75"
+          >
+            <span className="mb-1">Abdominal Remador</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+              Em breve
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Banner de Erro de Conexão com o Supabase */}
@@ -379,7 +425,7 @@ export default function MeuTafPage() {
         </div>
       )}
 
-      {/* Navegação por Abas do Hub */}
+      {/* Navegação por Abas do Hub Meu TAF */}
       <div className="flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-1 scrollbar-none">
         <button
           onClick={() => setActiveTab("testes")}
@@ -391,18 +437,6 @@ export default function MeuTafPage() {
         >
           <Trophy className="w-4 h-4" />
           Testes de 12 Min
-        </button>
-
-        <button
-          onClick={() => setActiveTab("treinos")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-            activeTab === "treinos"
-              ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-        >
-          <Flame className="w-4 h-4" />
-          Diário de Treinos
         </button>
 
         <button
@@ -442,7 +476,7 @@ export default function MeuTafPage() {
         </button>
       </div>
 
-      {/* Conteúdo da Aba 1: Testes de 12 Minutos (Fase C) */}
+      {/* Conteúdo da Aba 1: Simulados de 12 Minutos */}
       {activeTab === "testes" && (
         <div className="space-y-6">
           {/* Formulário de Registro Rápido */}
@@ -468,27 +502,7 @@ export default function MeuTafPage() {
         </div>
       )}
 
-      {/* Conteúdo da Aba 2: Diário de Treinos (Fase D) */}
-      {activeTab === "treinos" && (
-        <div className="space-y-6">
-          <TrainingForm
-            editingTraining={editingTraining}
-            onSave={handleSaveTraining}
-            onCancelEdit={() => setEditingTraining(null)}
-          />
-
-          <TrainingList
-            trainings={trainings}
-            onEdit={(trn) => {
-              setEditingTraining(trn);
-              window.scrollTo({ top: 200, behavior: "smooth" });
-            }}
-            onDelete={handleDeleteTraining}
-          />
-        </div>
-      )}
-
-      {/* Conteúdo da Aba 3: Painel de Evolução & 5 Gráficos (Fase E) */}
+      {/* Conteúdo da Aba 2: Painel de Evolução & Gráficos do TAF */}
       {activeTab === "graficos" && (
         <EvolutionDashboard
           attempts={attempts}
@@ -497,7 +511,7 @@ export default function MeuTafPage() {
         />
       )}
 
-      {/* Conteúdo da Aba 4: Comparador de Períodos (Fase F) */}
+      {/* Conteúdo da Aba 3: Comparador de Simulados & Períodos */}
       {activeTab === "comparador" && (
         <PeriodComparator
           trainings={trainings}
@@ -506,7 +520,7 @@ export default function MeuTafPage() {
         />
       )}
 
-      {/* Conteúdo da Aba 5: Meta da Prova & Backup (Fase F) */}
+      {/* Conteúdo da Aba 4: Meta Oficial & Backup */}
       {activeTab === "config" && (
         <GoalAndBackupSettings
           goal={goal}

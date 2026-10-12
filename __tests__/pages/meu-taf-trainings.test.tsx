@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import MeuTafPage from "@/app/meu-taf/page";
+import TreinosPage from "@/app/treinos/page";
 import { tafService } from "@/lib/services/tafService";
 import { setupMockTafApi } from "@/test/helpers/mockTafApi";
 
-describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => {
+describe("Diário de Treinos - CRUD Completo (RPE, Peso, Splits e Filtros)", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.restoreAllMocks();
@@ -13,13 +13,13 @@ describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => 
     setupMockTafApi();
   });
 
-  it("permite navegar para a aba Diário de Treinos e exibe formulário e estado vazio inicial", async () => {
+  it("exibe formulário e estado vazio inicial na tela de treinos", async () => {
     const user = userEvent.setup();
-    render(<MeuTafPage />);
+    render(<TreinosPage />);
 
-    // Clica na aba Diário de Treinos
-    const tabTreinos = await screen.findByRole("button", { name: /Diário de Treinos/i });
-    await user.click(tabTreinos);
+    // Clica para abrir o formulário
+    const openBtn = screen.getByRole("button", { name: /Registrar Treino/i });
+    await user.click(openBtn);
 
     // Formulário do Diário presente
     expect(screen.getByTestId("training-form")).toBeInTheDocument();
@@ -40,10 +40,10 @@ describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => 
 
   it("registra uma sessão de treino com RPE e peso corporal e atualiza a listagem", async () => {
     const user = userEvent.setup();
-    render(<MeuTafPage />);
+    render(<TreinosPage />);
 
-    const tabTreinos = await screen.findByRole("button", { name: /Diário de Treinos/i });
-    await user.click(tabTreinos);
+    const openBtn = screen.getByRole("button", { name: /Registrar Treino/i });
+    await user.click(openBtn);
 
     // Seleciona modalidade "Intervalado / Tiros"
     const intervalBtn = screen.getByRole("button", { name: /Intervalado \/ Tiros/i });
@@ -81,10 +81,10 @@ describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => 
 
   it("registra treino sem peso corporal (salvando como null, não exibindo badge de peso e não gravando 0)", async () => {
     const user = userEvent.setup();
-    render(<MeuTafPage />);
+    render(<TreinosPage />);
 
-    const tabTreinos = await screen.findByRole("button", { name: /Diário de Treinos/i });
-    await user.click(tabTreinos);
+    const openBtn = screen.getByRole("button", { name: /Registrar Treino/i });
+    await user.click(openBtn);
 
     // Clica no atalho de 3 km
     const shortcut3km = screen.getByRole("button", { name: "3 km" });
@@ -113,10 +113,10 @@ describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => 
 
   it("permite registrar parciais de quilômetro (splits) e visualizá-las no card", async () => {
     const user = userEvent.setup();
-    render(<MeuTafPage />);
+    render(<TreinosPage />);
 
-    const tabTreinos = await screen.findByRole("button", { name: /Diário de Treinos/i });
-    await user.click(tabTreinos);
+    const openBtn = screen.getByRole("button", { name: /Registrar Treino/i });
+    await user.click(openBtn);
 
     // Seleciona 3 km
     const shortcut3km = screen.getByRole("button", { name: "3 km" });
@@ -168,10 +168,7 @@ describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => 
       updatedAt: "2026-10-10T07:00:00.000Z",
     });
 
-    render(<MeuTafPage />);
-
-    const tabTreinos = await screen.findByRole("button", { name: /Diário de Treinos/i });
-    await user.click(tabTreinos);
+    render(<TreinosPage />);
 
     await screen.findByText("4.00");
 
@@ -214,10 +211,7 @@ describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => 
       updatedAt: "2026-10-10T07:00:00.000Z",
     });
 
-    render(<MeuTafPage />);
-
-    const tabTreinos = await screen.findByRole("button", { name: /Diário de Treinos/i });
-    await user.click(tabTreinos);
+    render(<TreinosPage />);
 
     await screen.findByText("3.50");
 
@@ -266,10 +260,7 @@ describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => 
       updatedAt: "2026-10-10T07:00:00.000Z",
     });
 
-    render(<MeuTafPage />);
-
-    const tabTreinos = await screen.findByRole("button", { name: /Diário de Treinos/i });
-    await user.click(tabTreinos);
+    render(<TreinosPage />);
 
     // Aguarda a lista de treinos carregar os 2 treinos salvos
     const list = await screen.findByTestId("training-list");
@@ -289,10 +280,10 @@ describe("MeuTafPage - Fase D (Diário de Treinos, RPE, Peso e Filtros)", () => 
 
   it("exibe mensagem de erro e não reseta campos se a API do Supabase falhar ao salvar treino", async () => {
     const user = userEvent.setup();
-    render(<MeuTafPage />);
+    render(<TreinosPage />);
 
-    const tabTreinos = await screen.findByRole("button", { name: /Diário de Treinos/i });
-    await user.click(tabTreinos);
+    const openBtn = screen.getByRole("button", { name: /Registrar Treino/i });
+    await user.click(openBtn);
 
     // Força a API a retornar erro 500 no POST de treino
     global.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {

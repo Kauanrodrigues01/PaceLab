@@ -2,7 +2,6 @@ import React from "react";
 import Link from "next/link";
 import {
   Calculator,
-  Layers,
   Medal,
   Target,
   Flame,
@@ -13,6 +12,7 @@ import {
   ShieldCheck,
   Smartphone,
   Trophy,
+  Activity,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 
@@ -26,15 +26,6 @@ export default function Home() {
       badge: "Core",
       gradient: "from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20",
       accent: "text-blue-600 dark:text-blue-400",
-    },
-    {
-      title: "Média de Paces & Splits",
-      description: "Cole seus trechos de treino para descobrir a média real, melhor e pior parcial e gráfico de oscilação.",
-      href: "/medias",
-      icon: <Layers className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />,
-      badge: "Splits",
-      gradient: "from-emerald-500/10 to-teal-500/10 dark:from-emerald-500/20 dark:to-teal-500/20",
-      accent: "text-emerald-600 dark:text-emerald-400",
     },
     {
       title: "Preparação para o TAF",
@@ -88,7 +79,7 @@ export default function Home() {
         </h1>
 
         <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
-          Calcule pace, converta velocidades, analise médias de parciais com gráficos, simule metas para provas, treinos intervalados e prepare-se com precisão para o <strong>TAF</strong>.
+          Calcule pace, converta velocidades, acompanhe seu diário de treinos semanais, simule metas para provas, treinos intervalados e prepare-se com precisão para o <strong>TAF</strong>.
         </p>
 
         {/* CTAs do Hero */}
@@ -101,18 +92,18 @@ export default function Home() {
             Meu TAF (12 Min)
           </Link>
           <Link
+            href="/treinos"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+          >
+            <Activity className="w-4 h-4 text-blue-500" />
+            Diário de Treinos
+          </Link>
+          <Link
             href="/calculadora"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
           >
             <Calculator className="w-4 h-4" />
-            Abrir Calculadora
-          </Link>
-          <Link
-            href="/taf"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-          >
-            <Medal className="w-4 h-4 text-amber-500" />
-            Simulador de TAF
+            Calculadoras
           </Link>
         </div>
       </div>
@@ -139,8 +130,8 @@ export default function Home() {
             </h3>
 
             <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed">
-              Painel completo com simulados de 12 minutos, parciais de 400m, recordes pessoais,
-              diário de treinos (RPE 1-10), 5 gráficos interativos de evolução e comparador de períodos rumo aos 2.300 m.
+              Painel completo com simulados de 12 minutos, parciais de 400m na pista, recordes pessoais,
+              5 gráficos interativos de evolução e comparador de períodos rumo aos 2.300 m.
             </p>
           </div>
 
