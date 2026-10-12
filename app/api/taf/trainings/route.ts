@@ -1,79 +1,93 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import {
+  CreateTrainingSessionSchema,
+  PaginationQuerySchema,
+} from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  try {
-    const trainings = await prisma.trainingSession.findMany({
+export async function GET(request: Request) {
+  return withApiHandler(async () => {
+    const { searchParams } = new URL(request.url);
+    const queryParams: Record<string, string> = {};
+    const limitParam = searchParams.get("limit")?.trim();
+    const cursorParam = searchParams.get("cursor")?.trim();
+    const activityParam = searchParams.get("activityType")?.trim();
+    if (limitParam) queryParams.limit = limitParam;
+    if (cursorParam) queryParams.cursor = cursorParam;
+    if (activityParam) queryParams.activityType = activityParam;
+
+    const { limit, cursor, activityType } = PaginationQuerySchema.parse(queryParams);
+
+    const items = await prisma.trainingSession.findMany({
+      take: limit + 1,
+      skip: cursor ? 1 : 0,
+      cursor: cursor ? { id: cursor } : undefined,
+      where: activityType ? { activityType } : undefined,
       orderBy: { sessionDate: "desc" },
     });
-    return NextResponse.json(trainings);
-  } catch (error) {
-    console.error("Erro ao listar sessões de treino no Prisma:", error);
-    return NextResponse.json(
-      { error: "Falha ao consultar treinos no banco de dados" },
-      { status: 500 }
-    );
-  }
+
+    const hasMore = items.length > limit;
+    const paginatedItems = hasMore ? items.slice(0, limit) : items;
+    const nextCursor =
+      hasMore && paginatedItems.length > 0
+        ? paginatedItems[paginatedItems.length - 1].id
+        : null;
+
+    return apiSuccess(paginatedItems, 200, {
+      limit,
+      nextCursor,
+      hasMore,
+    });
+  });
 }
 
 export async function POST(request: Request) {
-  try {
+  return withApiHandler(async () => {
     const body = await request.json();
-    const {
-      id,
-      userId,
-      sessionDate,
-      activityType = "corrida_continua",
-      distanceKm,
-      durationSeconds,
+    const validated = CreateTrainingSessionSchema.parse(body);
+
+    const speedKmh =
+      validated.speedKmh ??
+      Number((validated.distanceKm / (validated.durationSeconds / 3600)).toFixed(2));
+    const paceSeconds =
+      validated.paceSeconds ??
+      Math.round(validated.durationSeconds / validated.distanceKm);
+    const paceFormatted =
+      validated.paceFormatted ??
+      `${Math.floor(paceSeconds / 60)}:${String(paceSeconds % 60).padStart(2, "0")}`;
+
+    const trainingData = {
+      userId: validated.userId || null,
+      sessionDate: new Date(validated.sessionDate),
+      activityType: validated.activityType,
+      distanceKm: validated.distanceKm,
+      durationSeconds: validated.durationSeconds,
       speedKmh,
       paceSeconds,
       paceFormatted,
-      perceivedEffort,
-      bodyWeightKg,
-      notes,
-      splits = [],
-    } = body;
+      perceivedEffort:
+        validated.perceivedEffort !== undefined ? validated.perceivedEffort : null,
+      bodyWeightKg:
+        validated.bodyWeightKg !== undefined ? validated.bodyWeightKg : null,
+      notes: validated.notes || null,
+      splits: validated.splits || [],
+    };
 
-    if (distanceKm === undefined || durationSeconds === undefined) {
-      return NextResponse.json(
-        { error: "Distância e duração do treino são obrigatórias" },
-        { status: 400 }
-      );
-    }
+    const created = validated.id
+      ? await prisma.trainingSession.upsert({
+          where: { id: validated.id },
+          create: {
+            id: validated.id,
+            ...trainingData,
+          },
+          update: trainingData,
+        })
+      : await prisma.trainingSession.create({
+          data: trainingData,
+        });
 
-    const created = await prisma.trainingSession.create({
-      data: {
-        ...(id ? { id } : {}),
-        userId: userId || null,
-        sessionDate: sessionDate ? new Date(sessionDate) : new Date(),
-        activityType: String(activityType),
-        distanceKm: Number(distanceKm),
-        durationSeconds: Number(durationSeconds),
-        speedKmh: Number(speedKmh),
-        paceSeconds: Number(paceSeconds),
-        paceFormatted: String(paceFormatted),
-        perceivedEffort:
-          perceivedEffort !== undefined && perceivedEffort !== null
-            ? Number(perceivedEffort)
-            : null,
-        bodyWeightKg:
-          bodyWeightKg !== undefined && bodyWeightKg !== null
-            ? Number(bodyWeightKg)
-            : null,
-        notes: notes || null,
-        splits: splits || [],
-      },
-    });
-
-    return NextResponse.json(created, { status: 201 });
-  } catch (error) {
-    console.error("Erro ao criar sessão de treino no Prisma:", error);
-    return NextResponse.json(
-      { error: "Falha ao registrar treino no banco de dados" },
-      { status: 500 }
-    );
-  }
+    return apiSuccess(created, 201);
+  });
 }

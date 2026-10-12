@@ -10,6 +10,56 @@ export const DEFAULT_GOAL: TafGoalConfig = {
   targetExamDate: null,
 };
 
+export interface TafPaginationOptions {
+  limit?: number;
+  cursor?: string;
+}
+
+export interface TrainingPaginationOptions extends TafPaginationOptions {
+  activityType?: string;
+}
+
+function unwrapApiResponse<T>(payload: unknown): T {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "data" in payload &&
+    (payload as { data: unknown }).data !== undefined
+  ) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+}
+
+async function extractErrorMessage(
+  res: Response,
+  fallbackMessage: string
+): Promise<string> {
+  try {
+    const errData = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      details?: Array<{ field?: string; message?: string }>;
+    };
+
+    if (Array.isArray(errData.details) && errData.details.length > 0) {
+      const messages = errData.details
+        .map((d) => d.message)
+        .filter((msg): msg is string => Boolean(msg));
+      if (messages.length > 0) {
+        return messages.join("; ");
+      }
+    }
+
+    if (errData.error) {
+      return errData.error;
+    }
+  } catch {
+    // Falha silenciosa no parsing, mantém fallback
+  }
+
+  return fallbackMessage;
+}
+
 // ─── Serviço de Persistência Direta no Supabase (PostgreSQL via Prisma API) ───
 export const tafService = {
   // ─── Metas da Prova ────────────────────────────────────────────────────────
@@ -17,7 +67,8 @@ export const tafService = {
     try {
       const res = await fetch("/api/taf/goals", { cache: "no-store" });
       if (res.ok) {
-        return await res.json();
+        const json = await res.json();
+        return unwrapApiResponse<TafGoalConfig>(json);
       }
     } catch {
       // Retorna meta padrão se offline ou falha de rede
@@ -33,21 +84,34 @@ export const tafService = {
     });
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || "Erro ao salvar meta no banco de dados");
+      const message = await extractErrorMessage(
+        res,
+        "Erro ao salvar meta no banco de dados"
+      );
+      throw new Error(message);
     }
 
-    return await res.json();
+    const json = await res.json();
+    return unwrapApiResponse<TafGoalConfig>(json);
   },
 
   // ─── Tentativas de TAF (12 min) ───────────────────────────────────────────
-  async getAttempts(): Promise<TafAttempt[]> {
-    const res = await fetch("/api/taf/attempts", { cache: "no-store" });
+  async getAttempts(options?: TafPaginationOptions): Promise<TafAttempt[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set("limit", String(options.limit));
+    if (options?.cursor) params.set("cursor", options.cursor);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+
+    const res = await fetch(`/api/taf/attempts${qs}`, { cache: "no-store" });
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || "Erro ao carregar simulados do banco de dados");
+      const message = await extractErrorMessage(
+        res,
+        "Erro ao carregar simulados do banco de dados"
+      );
+      throw new Error(message);
     }
-    return await res.json();
+    const json = await res.json();
+    return unwrapApiResponse<TafAttempt[]>(json);
   },
 
   async saveAttempt(attempt: TafAttempt, isUpdate = false): Promise<TafAttempt> {
@@ -63,11 +127,15 @@ export const tafService = {
     });
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || "Erro ao salvar simulado no banco de dados");
+      const message = await extractErrorMessage(
+        res,
+        "Erro ao salvar simulado no banco de dados"
+      );
+      throw new Error(message);
     }
 
-    return await res.json();
+    const json = await res.json();
+    return unwrapApiResponse<TafAttempt>(json);
   },
 
   async deleteAttempt(id: string): Promise<boolean> {
@@ -76,21 +144,34 @@ export const tafService = {
     });
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || "Erro ao excluir simulado no banco de dados");
+      const message = await extractErrorMessage(
+        res,
+        "Erro ao excluir simulado no banco de dados"
+      );
+      throw new Error(message);
     }
 
     return true;
   },
 
   // ─── Diário de Treinos ─────────────────────────────────────────────────────
-  async getTrainings(): Promise<TrainingSession[]> {
-    const res = await fetch("/api/taf/trainings", { cache: "no-store" });
+  async getTrainings(options?: TrainingPaginationOptions): Promise<TrainingSession[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set("limit", String(options.limit));
+    if (options?.cursor) params.set("cursor", options.cursor);
+    if (options?.activityType) params.set("activityType", options.activityType);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+
+    const res = await fetch(`/api/taf/trainings${qs}`, { cache: "no-store" });
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || "Erro ao carregar diário de treinos do banco de dados");
+      const message = await extractErrorMessage(
+        res,
+        "Erro ao carregar diário de treinos do banco de dados"
+      );
+      throw new Error(message);
     }
-    return await res.json();
+    const json = await res.json();
+    return unwrapApiResponse<TrainingSession[]>(json);
   },
 
   async saveTraining(training: TrainingSession, isUpdate = false): Promise<TrainingSession> {
@@ -106,11 +187,15 @@ export const tafService = {
     });
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || "Erro ao salvar treino no banco de dados");
+      const message = await extractErrorMessage(
+        res,
+        "Erro ao salvar treino no banco de dados"
+      );
+      throw new Error(message);
     }
 
-    return await res.json();
+    const json = await res.json();
+    return unwrapApiResponse<TrainingSession>(json);
   },
 
   async deleteTraining(id: string): Promise<boolean> {
@@ -119,8 +204,11 @@ export const tafService = {
     });
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || "Erro ao excluir treino no banco de dados");
+      const message = await extractErrorMessage(
+        res,
+        "Erro ao excluir treino no banco de dados"
+      );
+      throw new Error(message);
     }
 
     return true;
@@ -136,13 +224,16 @@ export const tafService = {
   }> {
     try {
       const res = await fetch("/api/taf/health", { cache: "no-store" });
-      const data = await res.json().catch(() => ({}));
+      const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      const data = (raw && typeof raw === "object" && "data" in raw && raw.data
+        ? raw.data
+        : raw) as Record<string, unknown>;
       return {
-        connected: res.ok && data.status === "connected",
+        connected: res.ok && data?.status === "connected",
         orm: "Prisma",
-        database: data.database,
-        latencyMs: data.latencyMs,
-        error: data.error,
+        database: data?.database as string | undefined,
+        latencyMs: data?.latencyMs as number | undefined,
+        error: (data?.error as string | undefined) || (raw?.error as string | undefined),
       };
     } catch (err) {
       return {

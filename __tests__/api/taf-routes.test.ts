@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@prisma/client";
 import { GET as getGoal, POST as postGoal } from "@/app/api/taf/goals/route";
 import { GET as getAttempts, POST as postAttempt } from "@/app/api/taf/attempts/route";
 import { PUT as putAttempt, DELETE as deleteAttempt } from "@/app/api/taf/attempts/[id]/route";
@@ -34,234 +35,685 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-describe("API Routes do TAF com Prisma ORM", () => {
+describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("GET /api/taf/health retorna status de conexão com PostgreSQL quando configurado", async () => {
-    process.env.DATABASE_URL = "postgresql://mock:mock@localhost:5432/mock";
-    vi.mocked(prisma.$queryRaw).mockResolvedValueOnce([{ "?column?": 1 }]);
-    const res = await getHealth();
-    const data = await res.json();
-    expect(res.status).toBe(200);
-    expect(data.status).toBe("connected");
-    expect(data.orm).toBe("Prisma");
+  // ─── Health Route ────────────────────────────────────────────────────────
+  describe("GET /api/taf/health", () => {
+    it("retorna status de conexão com PostgreSQL quando configurado", async () => {
+      process.env.DATABASE_URL = "postgresql://mock:mock@localhost:5432/mock";
+      vi.mocked(prisma.$queryRaw).mockResolvedValueOnce([{ "?column?": 1 }]);
+      const res = await getHealth();
+      const data = await res.json();
 
-    // Cenário sem DATABASE_URL
-    delete process.env.DATABASE_URL;
-    const resNoEnv = await getHealth();
-    expect(resNoEnv.status).toBe(503);
-    const dataNoEnv = await resNoEnv.json();
-    expect(dataNoEnv.status).toBe("disconnected");
-  });
-
-  it("GET /api/taf/goals retorna meta existente ou default", async () => {
-    vi.mocked(prisma.tafGoal.findFirst).mockResolvedValueOnce({
-      id: "goal-1",
-      userId: null,
-      targetDistanceMeters: 2300,
-      targetDurationMinutes: 12,
-      targetExamDate: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.status).toBe("connected");
+      expect(data.data.orm).toBe("Prisma");
+      expect(data.data.database).toBe("PostgreSQL");
+      expect(data.data.latencyMs).toBeGreaterThanOrEqual(0);
     });
 
-    const res = await getGoal();
-    const data = await res.json();
-    expect(res.status).toBe(200);
-    expect(data.targetDistanceMeters).toBe(2300);
+    it("retorna 503 se DATABASE_URL não estiver configurada", async () => {
+      const originalUrl = process.env.DATABASE_URL;
+      process.env.DATABASE_URL = "";
+      try {
+        const res = await getHealth();
+        const data = await res.json();
+
+        expect(res.status).toBe(503);
+        expect(data.success).toBe(false);
+        expect(data.error).toBe("DATABASE_URL não configurada");
+        expect(data.details?.status).toBe("disconnected");
+      } finally {
+        process.env.DATABASE_URL = originalUrl;
+      }
+    });
   });
 
-  it("POST /api/taf/goals cria ou atualiza meta", async () => {
-    vi.mocked(prisma.tafGoal.findFirst).mockResolvedValueOnce(null);
-    vi.mocked(prisma.tafGoal.create).mockResolvedValueOnce({
-      id: "goal-2",
-      userId: null,
-      targetDistanceMeters: 2400,
-      targetDurationMinutes: 12,
-      targetExamDate: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+  // ─── Goals Route ─────────────────────────────────────────────────────────
+  describe("Goals (/api/taf/goals)", () => {
+    it("GET retorna meta existente com envelope apiSuccess", async () => {
+      vi.mocked(prisma.tafGoal.findFirst).mockResolvedValueOnce({
+        id: "goal-1",
+        userId: null,
+        targetDistanceMeters: 2300,
+        targetDurationMinutes: 12,
+        targetExamDate: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const res = await getGoal();
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.targetDistanceMeters).toBe(2300);
+      expect(data.data.targetDurationMinutes).toBe(12);
     });
 
-    const req = new Request("http://localhost/api/taf/goals", {
-      method: "POST",
-      body: JSON.stringify({ targetDistanceMeters: 2400, targetDurationMinutes: 12 }),
+    it("GET retorna meta default quando nenhuma existir", async () => {
+      vi.mocked(prisma.tafGoal.findFirst).mockResolvedValueOnce(null);
+
+      const res = await getGoal();
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.targetDistanceMeters).toBe(2300);
+      expect(data.data.targetDurationMinutes).toBe(12);
     });
 
-    const res = await postGoal(req);
-    const data = await res.json();
-    expect(res.status).toBe(200);
-    expect(data.targetDistanceMeters).toBe(2400);
+    it("POST cria ou atualiza meta com payload válido", async () => {
+      vi.mocked(prisma.tafGoal.findFirst).mockResolvedValueOnce(null);
+      vi.mocked(prisma.tafGoal.create).mockResolvedValueOnce({
+        id: "goal-2",
+        userId: null,
+        targetDistanceMeters: 2400,
+        targetDurationMinutes: 12,
+        targetExamDate: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const req = new Request("http://localhost/api/taf/goals", {
+        method: "POST",
+        body: JSON.stringify({ targetDistanceMeters: 2400, targetDurationMinutes: 12 }),
+      });
+
+      const res = await postGoal(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.targetDistanceMeters).toBe(2400);
+    });
+
+    it("POST rejeita payload com targetDistanceMeters inválido com 400 e details", async () => {
+      const req = new Request("http://localhost/api/taf/goals", {
+        method: "POST",
+        body: JSON.stringify({ targetDistanceMeters: 50, targetDurationMinutes: 12 }),
+      });
+
+      const res = await postGoal(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("mínimo 500 metros");
+      expect(Array.isArray(data.details)).toBe(true);
+      expect(data.details[0].field).toBe("targetDistanceMeters");
+    });
   });
 
-  it("GET /api/taf/attempts lista tentativas ordenadas", async () => {
-    vi.mocked(prisma.tafAttempt.findMany).mockResolvedValueOnce([
-      {
-        id: "att-1",
+  // ─── Attempts Route ──────────────────────────────────────────────────────
+  describe("Attempts (/api/taf/attempts)", () => {
+    it("GET lista tentativas com metadados de paginação padrão", async () => {
+      vi.mocked(prisma.tafAttempt.findMany).mockResolvedValueOnce([
+        {
+          id: "att-1",
+          userId: null,
+          testDate: new Date(),
+          targetDurationSeconds: 720,
+          actualDurationSeconds: 720,
+          distanceMeters: 2350,
+          speedKmh: 11.75,
+          paceSeconds: 306,
+          paceFormatted: "5:06",
+          locationType: "Pista",
+          notes: null,
+          laps: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+
+      const req = new Request("http://localhost/api/taf/attempts");
+      const res = await getAttempts(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data).toHaveLength(1);
+      expect(data.data[0].distanceMeters).toBe(2350);
+      expect(data.meta).toEqual({
+        limit: 50,
+        nextCursor: null,
+        hasMore: false,
+      });
+      expect(prisma.tafAttempt.findMany).toHaveBeenCalledWith({
+        take: 51,
+        skip: 0,
+        cursor: undefined,
+        orderBy: { testDate: "desc" },
+      });
+    });
+
+    it("GET suporta paginação cursor-based e detecta próxima página (hasMore: true)", async () => {
+      // Mock de 3 itens retornados quando take = 2 + 1
+      vi.mocked(prisma.tafAttempt.findMany).mockResolvedValueOnce([
+        {
+          id: "att-1",
+          userId: null,
+          testDate: new Date(),
+          targetDurationSeconds: 720,
+          actualDurationSeconds: 720,
+          distanceMeters: 2300,
+          speedKmh: 11.5,
+          paceSeconds: 313,
+          paceFormatted: "5:13",
+          locationType: null,
+          notes: null,
+          laps: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: "att-2",
+          userId: null,
+          testDate: new Date(),
+          targetDurationSeconds: 720,
+          actualDurationSeconds: 720,
+          distanceMeters: 2320,
+          speedKmh: 11.6,
+          paceSeconds: 310,
+          paceFormatted: "5:10",
+          locationType: null,
+          notes: null,
+          laps: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: "att-3",
+          userId: null,
+          testDate: new Date(),
+          targetDurationSeconds: 720,
+          actualDurationSeconds: 720,
+          distanceMeters: 2400,
+          speedKmh: 12.0,
+          paceSeconds: 300,
+          paceFormatted: "5:00",
+          locationType: null,
+          notes: null,
+          laps: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+
+      const req = new Request("http://localhost/api/taf/attempts?limit=2");
+      const res = await getAttempts(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data).toHaveLength(2); // cortou o terceiro excedente
+      expect(data.data[0].id).toBe("att-1");
+      expect(data.data[1].id).toBe("att-2");
+      expect(data.meta).toEqual({
+        limit: 2,
+        nextCursor: "att-2",
+        hasMore: true,
+      });
+    });
+
+    it("GET aplica cursor e skip no Prisma para buscar próxima página", async () => {
+      vi.mocked(prisma.tafAttempt.findMany).mockResolvedValueOnce([]);
+
+      const req = new Request("http://localhost/api/taf/attempts?cursor=att-2&limit=5");
+      const res = await getAttempts(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(prisma.tafAttempt.findMany).toHaveBeenCalledWith({
+        take: 6,
+        skip: 1,
+        cursor: { id: "att-2" },
+        orderBy: { testDate: "desc" },
+      });
+      expect(data.meta.hasMore).toBe(false);
+      expect(data.meta.nextCursor).toBeNull();
+    });
+
+    it("GET ignora graciosamente query params vazios (ex: ?cursor=&limit=)", async () => {
+      vi.mocked(prisma.tafAttempt.findMany).mockResolvedValueOnce([]);
+
+      const req = new Request("http://localhost/api/taf/attempts?cursor=&limit=");
+      const res = await getAttempts(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(prisma.tafAttempt.findMany).toHaveBeenCalledWith({
+        take: 51,
+        skip: 0,
+        cursor: undefined,
+        orderBy: { testDate: "desc" },
+      });
+    });
+
+    it("GET rejeita limit maior que 100 com 400 Bad Request", async () => {
+      const req = new Request("http://localhost/api/taf/attempts?limit=150");
+      const res = await getAttempts(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("máximo de registros por página é 100");
+    });
+
+    it("POST registra nova tentativa com status 201 Created", async () => {
+      vi.mocked(prisma.tafAttempt.create).mockResolvedValueOnce({
+        id: "att-new",
         userId: null,
         testDate: new Date(),
         targetDurationSeconds: 720,
-        actualDurationSeconds: 720,
-        distanceMeters: 2350,
-        speedKmh: 11.75,
-        paceSeconds: 306,
-        paceFormatted: "5:06",
-        locationType: "Pista",
-        notes: null,
-        laps: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]);
-
-    const res = await getAttempts();
-    const data = await res.json();
-    expect(res.status).toBe(200);
-    expect(data).toHaveLength(1);
-    expect(data[0].distanceMeters).toBe(2350);
-  });
-
-  it("POST /api/taf/attempts registra nova tentativa no banco", async () => {
-    vi.mocked(prisma.tafAttempt.create).mockResolvedValueOnce({
-      id: "att-new",
-      userId: null,
-      testDate: new Date(),
-      targetDurationSeconds: 720,
-      actualDurationSeconds: 720,
-      distanceMeters: 2300,
-      speedKmh: 11.5,
-      paceSeconds: 313,
-      paceFormatted: "5:13",
-      locationType: null,
-      notes: null,
-      laps: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-
-    const req = new Request("http://localhost/api/taf/attempts", {
-      method: "POST",
-      body: JSON.stringify({
         actualDurationSeconds: 720,
         distanceMeters: 2300,
         speedKmh: 11.5,
         paceSeconds: 313,
         paceFormatted: "5:13",
-      }),
+        locationType: null,
+        notes: null,
+        laps: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const req = new Request("http://localhost/api/taf/attempts", {
+        method: "POST",
+        body: JSON.stringify({
+          actualDurationSeconds: 720,
+          distanceMeters: 2300,
+          speedKmh: 11.5,
+          paceSeconds: 313,
+          paceFormatted: "5:13",
+        }),
+      });
+
+      const res = await postAttempt(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(201);
+      expect(data.success).toBe(true);
+      expect(data.data.id).toBe("att-new");
     });
 
-    const res = await postAttempt(req);
-    const data = await res.json();
-    expect(res.status).toBe(201);
-    expect(data.id).toBe("att-new");
+    it("POST realiza upsert quando id é fornecido no payload", async () => {
+      vi.mocked(prisma.tafAttempt.upsert).mockResolvedValueOnce({
+        id: "att-custom-id",
+        userId: null,
+        testDate: new Date(),
+        targetDurationSeconds: 720,
+        actualDurationSeconds: 720,
+        distanceMeters: 2400,
+        speedKmh: 12.0,
+        paceSeconds: 300,
+        paceFormatted: "5:00",
+        locationType: null,
+        notes: null,
+        laps: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const req = new Request("http://localhost/api/taf/attempts", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "att-custom-id",
+          actualDurationSeconds: 720,
+          distanceMeters: 2400,
+        }),
+      });
+
+      const res = await postAttempt(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(201);
+      expect(data.success).toBe(true);
+      expect(data.data.id).toBe("att-custom-id");
+      expect(prisma.tafAttempt.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "att-custom-id" },
+        })
+      );
+    });
+
+    it("POST rejeita tentativa com actualDurationSeconds menor que 30s", async () => {
+      const req = new Request("http://localhost/api/taf/attempts", {
+        method: "POST",
+        body: JSON.stringify({
+          actualDurationSeconds: -10,
+          distanceMeters: 2300,
+        }),
+      });
+
+      const res = await postAttempt(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("30 segundos");
+      expect(Array.isArray(data.details)).toBe(true);
+    });
+
+    it("PUT atualiza tentativa existente com status 200", async () => {
+      vi.mocked(prisma.tafAttempt.update).mockResolvedValueOnce({
+        id: "att-1",
+        userId: null,
+        testDate: new Date(),
+        targetDurationSeconds: 720,
+        actualDurationSeconds: 720,
+        distanceMeters: 2400,
+        speedKmh: 12.0,
+        paceSeconds: 300,
+        paceFormatted: "5:00",
+        locationType: null,
+        notes: null,
+        laps: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const putReq = new Request("http://localhost/api/taf/attempts/att-1", {
+        method: "PUT",
+        body: JSON.stringify({ distanceMeters: 2400 }),
+      });
+
+      const putRes = await putAttempt(putReq, { params: { id: "att-1" } });
+      const data = await putRes.json();
+
+      expect(putRes.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.distanceMeters).toBe(2400);
+    });
+
+    it("DELETE remove tentativa existente com status 200", async () => {
+      vi.mocked(prisma.tafAttempt.delete).mockResolvedValueOnce({} as never);
+      const delRes = await deleteAttempt(new Request("http://localhost"), {
+        params: { id: "att-1" },
+      });
+      const data = await delRes.json();
+
+      expect(delRes.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.deletedId).toBe("att-1");
+    });
+
+    it("DELETE retorna 404 quando ID não é encontrado no banco (P2025)", async () => {
+      const p2025Error = new Prisma.PrismaClientKnownRequestError(
+        "Record to delete does not exist.",
+        { code: "P2025", clientVersion: "5.x" }
+      );
+      vi.mocked(prisma.tafAttempt.delete).mockRejectedValueOnce(p2025Error);
+
+      const delRes = await deleteAttempt(new Request("http://localhost"), {
+        params: { id: "inexistente" },
+      });
+      const data = await delRes.json();
+
+      expect(delRes.status).toBe(404);
+      expect(data.success).toBe(false);
+      expect(data.error).toBe("Registro não encontrado no banco de dados");
+    });
   });
 
-  it("PUT e DELETE /api/taf/attempts/[id]", async () => {
-    vi.mocked(prisma.tafAttempt.update).mockResolvedValueOnce({
-      id: "att-1",
-      userId: null,
-      testDate: new Date(),
-      targetDurationSeconds: 720,
-      actualDurationSeconds: 720,
-      distanceMeters: 2400,
-      speedKmh: 12.0,
-      paceSeconds: 300,
-      paceFormatted: "5:00",
-      locationType: null,
-      notes: null,
-      laps: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
+  // ─── Trainings Route ─────────────────────────────────────────────────────
+  describe("Trainings (/api/taf/trainings)", () => {
+    it("GET lista treinos com paginação padrão e suporta filtro por activityType", async () => {
+      vi.mocked(prisma.trainingSession.findMany).mockResolvedValueOnce([]);
+
+      const getReq = new Request(
+        "http://localhost/api/taf/trainings?activityType=corrida_intervalada"
+      );
+      const getRes = await getTrainings(getReq);
+      const data = await getRes.json();
+
+      expect(getRes.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(Array.isArray(data.data)).toBe(true);
+      expect(data.meta).toEqual({
+        limit: 50,
+        nextCursor: null,
+        hasMore: false,
+      });
+      expect(prisma.trainingSession.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 51,
+          skip: 0,
+          where: { activityType: "corrida_intervalada" },
+        })
+      );
     });
 
-    const putReq = new Request("http://localhost/api/taf/attempts/att-1", {
-      method: "PUT",
-      body: JSON.stringify({ distanceMeters: 2400 }),
+    it("GET detecta hasMore e nextCursor quando há registros excedentes", async () => {
+      vi.mocked(prisma.trainingSession.findMany).mockResolvedValueOnce([
+        {
+          id: "tr-1",
+          userId: null,
+          sessionDate: new Date(),
+          activityType: "corrida_continua",
+          distanceKm: 5.0,
+          durationSeconds: 1800,
+          speedKmh: 10.0,
+          paceSeconds: 360,
+          paceFormatted: "6:00",
+          perceivedEffort: 5,
+          bodyWeightKg: null,
+          notes: null,
+          splits: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: "tr-2",
+          userId: null,
+          sessionDate: new Date(),
+          activityType: "corrida_continua",
+          distanceKm: 6.0,
+          durationSeconds: 2160,
+          speedKmh: 10.0,
+          paceSeconds: 360,
+          paceFormatted: "6:00",
+          perceivedEffort: 6,
+          bodyWeightKg: null,
+          notes: null,
+          splits: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+
+      const getReq = new Request("http://localhost/api/taf/trainings?limit=1");
+      const getRes = await getTrainings(getReq);
+      const data = await getRes.json();
+
+      expect(getRes.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data).toHaveLength(1);
+      expect(data.data[0].id).toBe("tr-1");
+      expect(data.meta).toEqual({
+        limit: 1,
+        nextCursor: "tr-1",
+        hasMore: true,
+      });
     });
 
-    const putRes = await putAttempt(putReq, { params: { id: "att-1" } });
-    expect(putRes.status).toBe(200);
+    it("GET rejeita activityType inválido com 400 Bad Request", async () => {
+      const getReq = new Request("http://localhost/api/taf/trainings?activityType=invalido");
+      const getRes = await getTrainings(getReq);
+      const data = await getRes.json();
 
-    vi.mocked(prisma.tafAttempt.delete).mockResolvedValueOnce({} as never);
-    const delRes = await deleteAttempt(new Request("http://localhost"), {
-      params: { id: "att-1" },
-    });
-    expect(delRes.status).toBe(200);
-  });
-
-  it("GET e POST /api/taf/trainings", async () => {
-    vi.mocked(prisma.trainingSession.findMany).mockResolvedValueOnce([]);
-    const getRes = await getTrainings();
-    expect(getRes.status).toBe(200);
-
-    vi.mocked(prisma.trainingSession.create).mockResolvedValueOnce({
-      id: "tr-1",
-      userId: null,
-      sessionDate: new Date(),
-      activityType: "corrida_continua",
-      distanceKm: 6.0,
-      durationSeconds: 2160,
-      speedKmh: 10.0,
-      paceSeconds: 360,
-      paceFormatted: "6:00",
-      perceivedEffort: 6,
-      bodyWeightKg: null,
-      notes: null,
-      splits: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      expect(getRes.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("Modalidade de treino inválida.");
     });
 
-    const postReq = new Request("http://localhost/api/taf/trainings", {
-      method: "POST",
-      body: JSON.stringify({
+    it("POST registra novo treino com status 201 Created", async () => {
+      vi.mocked(prisma.trainingSession.create).mockResolvedValueOnce({
+        id: "tr-1",
+        userId: null,
+        sessionDate: new Date(),
         activityType: "corrida_continua",
         distanceKm: 6.0,
         durationSeconds: 2160,
         speedKmh: 10.0,
         paceSeconds: 360,
         paceFormatted: "6:00",
-      }),
+        perceivedEffort: 6,
+        bodyWeightKg: null,
+        notes: null,
+        splits: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const postReq = new Request("http://localhost/api/taf/trainings", {
+        method: "POST",
+        body: JSON.stringify({
+          activityType: "corrida_continua",
+          distanceKm: 6.0,
+          durationSeconds: 2160,
+          speedKmh: 10.0,
+          paceSeconds: 360,
+          paceFormatted: "6:00",
+        }),
+      });
+
+      const postRes = await postTraining(postReq);
+      const data = await postRes.json();
+
+      expect(postRes.status).toBe(201);
+      expect(data.success).toBe(true);
+      expect(data.data.activityType).toBe("corrida_continua");
     });
 
-    const postRes = await postTraining(postReq);
-    expect(postRes.status).toBe(201);
-  });
+    it("POST realiza upsert quando id é fornecido no payload", async () => {
+      vi.mocked(prisma.trainingSession.upsert).mockResolvedValueOnce({
+        id: "trn-custom-id",
+        userId: null,
+        sessionDate: new Date(),
+        activityType: "corrida_intervalada",
+        distanceKm: 6.0,
+        durationSeconds: 1800,
+        speedKmh: 12.0,
+        paceSeconds: 300,
+        paceFormatted: "5:00",
+        perceivedEffort: 7,
+        bodyWeightKg: null,
+        notes: null,
+        splits: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
-  it("PUT e DELETE /api/taf/trainings/[id]", async () => {
-    vi.mocked(prisma.trainingSession.update).mockResolvedValueOnce({
-      id: "tr-1",
-      userId: null,
-      sessionDate: new Date(),
-      activityType: "corrida_continua",
-      distanceKm: 7.0,
-      durationSeconds: 2500,
-      speedKmh: 10.0,
-      paceSeconds: 360,
-      paceFormatted: "6:00",
-      perceivedEffort: null,
-      bodyWeightKg: null,
-      notes: null,
-      splits: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      const postReq = new Request("http://localhost/api/taf/trainings", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "trn-custom-id",
+          activityType: "corrida_intervalada",
+          distanceKm: 6.0,
+          durationSeconds: 1800,
+        }),
+      });
+
+      const postRes = await postTraining(postReq);
+      const data = await postRes.json();
+
+      expect(postRes.status).toBe(201);
+      expect(data.success).toBe(true);
+      expect(data.data.id).toBe("trn-custom-id");
+      expect(prisma.trainingSession.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "trn-custom-id" },
+        })
+      );
     });
 
-    const putReq = new Request("http://localhost/api/taf/trainings/tr-1", {
-      method: "PUT",
-      body: JSON.stringify({ distanceKm: 7.0 }),
+    it("POST rejeita treino com distância negativa com 400 Bad Request", async () => {
+      const postReq = new Request("http://localhost/api/taf/trainings", {
+        method: "POST",
+        body: JSON.stringify({
+          activityType: "corrida_continua",
+          distanceKm: -5.0,
+          durationSeconds: 2160,
+        }),
+      });
+
+      const postRes = await postTraining(postReq);
+      const data = await postRes.json();
+
+      expect(postRes.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("0,05 km");
+      expect(Array.isArray(data.details)).toBe(true);
     });
 
-    const putRes = await putTraining(putReq, { params: { id: "tr-1" } });
-    expect(putRes.status).toBe(200);
+    it("PUT atualiza treino e DELETE remove treino existente", async () => {
+      vi.mocked(prisma.trainingSession.update).mockResolvedValueOnce({
+        id: "tr-1",
+        userId: null,
+        sessionDate: new Date(),
+        activityType: "corrida_continua",
+        distanceKm: 7.0,
+        durationSeconds: 2500,
+        speedKmh: 10.0,
+        paceSeconds: 360,
+        paceFormatted: "6:00",
+        perceivedEffort: null,
+        bodyWeightKg: null,
+        notes: null,
+        splits: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
-    vi.mocked(prisma.trainingSession.delete).mockResolvedValueOnce({} as never);
-    const delRes = await deleteTraining(new Request("http://localhost"), {
-      params: { id: "tr-1" },
+      const putReq = new Request("http://localhost/api/taf/trainings/tr-1", {
+        method: "PUT",
+        body: JSON.stringify({ distanceKm: 7.0 }),
+      });
+
+      const putRes = await putTraining(putReq, { params: { id: "tr-1" } });
+      const putData = await putRes.json();
+
+      expect(putRes.status).toBe(200);
+      expect(putData.success).toBe(true);
+      expect(putData.data.distanceKm).toBe(7.0);
+
+      vi.mocked(prisma.trainingSession.delete).mockResolvedValueOnce({} as never);
+      const delRes = await deleteTraining(new Request("http://localhost"), {
+        params: { id: "tr-1" },
+      });
+      const delData = await delRes.json();
+
+      expect(delRes.status).toBe(200);
+      expect(delData.success).toBe(true);
+      expect(delData.data.deletedId).toBe("tr-1");
     });
-    expect(delRes.status).toBe(200);
+
+    it("PUT retorna 404 quando ID não é encontrado no banco (P2025)", async () => {
+      const p2025Error = new Prisma.PrismaClientKnownRequestError(
+        "Record to update not found.",
+        { code: "P2025", clientVersion: "5.x" }
+      );
+      vi.mocked(prisma.trainingSession.update).mockRejectedValueOnce(p2025Error);
+
+      const putReq = new Request("http://localhost/api/taf/trainings/inexistente", {
+        method: "PUT",
+        body: JSON.stringify({ distanceKm: 7.0 }),
+      });
+
+      const putRes = await putTraining(putReq, { params: { id: "inexistente" } });
+      const putData = await putRes.json();
+
+      expect(putRes.status).toBe(404);
+      expect(putData.success).toBe(false);
+      expect(putData.error).toBe("Registro não encontrado no banco de dados");
+    });
   });
 });
-

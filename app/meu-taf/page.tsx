@@ -90,7 +90,8 @@ export default function MeuTafPage() {
   // Salvar tentativa
   const handleSaveAttempt = async (attempt: TafAttempt) => {
     try {
-      const saved = await tafService.saveAttempt(attempt);
+      const isUpdate = Boolean(editingAttempt) || attempts.some((a) => a.id === attempt.id);
+      const saved = await tafService.saveAttempt(attempt, isUpdate);
 
       setAttempts((prev) => {
         const index = prev.findIndex((a) => a.id === saved.id);
@@ -130,7 +131,8 @@ export default function MeuTafPage() {
   // Salvar sessão de treino (Fase D)
   const handleSaveTraining = async (training: TrainingSession) => {
     try {
-      const saved = await tafService.saveTraining(training);
+      const isUpdate = Boolean(editingTraining) || trainings.some((t) => t.id === training.id);
+      const saved = await tafService.saveTraining(training, isUpdate);
 
       setTrainings((prev) => {
         const index = prev.findIndex((t) => t.id === saved.id);

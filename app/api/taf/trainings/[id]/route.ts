@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { UpdateTrainingSessionSchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
 
@@ -7,72 +8,49 @@ export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  try {
+  return withApiHandler(async () => {
     const { id } = params;
     const body = await request.json();
-
-    const {
-      sessionDate,
-      activityType,
-      distanceKm,
-      durationSeconds,
-      speedKmh,
-      paceSeconds,
-      paceFormatted,
-      perceivedEffort,
-      bodyWeightKg,
-      notes,
-      splits,
-    } = body;
+    const validated = UpdateTrainingSessionSchema.parse(body);
 
     const updated = await prisma.trainingSession.update({
       where: { id },
       data: {
-        ...(sessionDate ? { sessionDate: new Date(sessionDate) } : {}),
-        ...(activityType ? { activityType: String(activityType) } : {}),
-        ...(distanceKm !== undefined ? { distanceKm: Number(distanceKm) } : {}),
-        ...(durationSeconds !== undefined
-          ? { durationSeconds: Number(durationSeconds) }
+        ...(validated.sessionDate ? { sessionDate: new Date(validated.sessionDate) } : {}),
+        ...(validated.activityType ? { activityType: validated.activityType } : {}),
+        ...(validated.distanceKm !== undefined ? { distanceKm: validated.distanceKm } : {}),
+        ...(validated.durationSeconds !== undefined
+          ? { durationSeconds: validated.durationSeconds }
           : {}),
-        ...(speedKmh !== undefined ? { speedKmh: Number(speedKmh) } : {}),
-        ...(paceSeconds !== undefined ? { paceSeconds: Number(paceSeconds) } : {}),
-        ...(paceFormatted !== undefined ? { paceFormatted: String(paceFormatted) } : {}),
-        ...(perceivedEffort !== undefined
-          ? { perceivedEffort: perceivedEffort !== null ? Number(perceivedEffort) : null }
+        ...(validated.speedKmh !== undefined ? { speedKmh: validated.speedKmh } : {}),
+        ...(validated.paceSeconds !== undefined ? { paceSeconds: validated.paceSeconds } : {}),
+        ...(validated.paceFormatted !== undefined
+          ? { paceFormatted: validated.paceFormatted }
           : {}),
-        ...(bodyWeightKg !== undefined
-          ? { bodyWeightKg: bodyWeightKg !== null ? Number(bodyWeightKg) : null }
+        ...(validated.perceivedEffort !== undefined
+          ? { perceivedEffort: validated.perceivedEffort }
           : {}),
-        ...(notes !== undefined ? { notes: notes || null } : {}),
-        ...(splits !== undefined ? { splits: splits || [] } : {}),
+        ...(validated.bodyWeightKg !== undefined
+          ? { bodyWeightKg: validated.bodyWeightKg }
+          : {}),
+        ...(validated.notes !== undefined ? { notes: validated.notes || null } : {}),
+        ...(validated.splits !== undefined ? { splits: validated.splits || [] } : {}),
       },
     });
 
-    return NextResponse.json(updated);
-  } catch (error) {
-    console.error("Erro ao atualizar sessão de treino no Prisma:", error);
-    return NextResponse.json(
-      { error: "Falha ao atualizar treino no banco de dados" },
-      { status: 500 }
-    );
-  }
+    return apiSuccess(updated);
+  });
 }
 
 export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
-  try {
+  return withApiHandler(async () => {
     const { id } = params;
     await prisma.trainingSession.delete({
       where: { id },
     });
-    return NextResponse.json({ success: true, deletedId: id });
-  } catch (error) {
-    console.error("Erro ao excluir sessão de treino no Prisma:", error);
-    return NextResponse.json(
-      { error: "Falha ao excluir treino no banco de dados" },
-      { status: 500 }
-    );
-  }
+    return apiSuccess({ success: true, deletedId: id });
+  });
 }

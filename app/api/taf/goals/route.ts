@@ -1,36 +1,41 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { TafGoalInputSchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
 
+interface GoalDto {
+  id?: string;
+  userId?: string | null;
+  targetDistanceMeters: number;
+  targetDurationMinutes: number;
+  targetExamDate?: Date | string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export async function GET() {
-  try {
+  return withApiHandler(async () => {
     const goal = await prisma.tafGoal.findFirst({
       orderBy: { updatedAt: "desc" },
     });
 
     if (!goal) {
-      return NextResponse.json({
+      return apiSuccess<GoalDto>({
         targetDistanceMeters: 2300,
         targetDurationMinutes: 12,
         targetExamDate: null,
       });
     }
 
-    return NextResponse.json(goal);
-  } catch (error) {
-    console.error("Erro ao buscar meta no Prisma:", error);
-    return NextResponse.json(
-      { error: "Falha ao conectar com o banco de dados" },
-      { status: 500 }
-    );
-  }
+    return apiSuccess<GoalDto>(goal);
+  });
 }
 
 export async function POST(request: Request) {
-  try {
+  return withApiHandler(async () => {
     const body = await request.json();
-    const { targetDistanceMeters = 2300, targetDurationMinutes = 12, targetExamDate = null } = body;
+    const validated = TafGoalInputSchema.parse(body);
 
     const existingGoal = await prisma.tafGoal.findFirst({
       orderBy: { updatedAt: "desc" },
@@ -41,27 +46,21 @@ export async function POST(request: Request) {
       savedGoal = await prisma.tafGoal.update({
         where: { id: existingGoal.id },
         data: {
-          targetDistanceMeters: Number(targetDistanceMeters),
-          targetDurationMinutes: Number(targetDurationMinutes),
-          targetExamDate: targetExamDate ? new Date(targetExamDate) : null,
+          targetDistanceMeters: validated.targetDistanceMeters,
+          targetDurationMinutes: validated.targetDurationMinutes,
+          targetExamDate: validated.targetExamDate ? new Date(validated.targetExamDate) : null,
         },
       });
     } else {
       savedGoal = await prisma.tafGoal.create({
         data: {
-          targetDistanceMeters: Number(targetDistanceMeters),
-          targetDurationMinutes: Number(targetDurationMinutes),
-          targetExamDate: targetExamDate ? new Date(targetExamDate) : null,
+          targetDistanceMeters: validated.targetDistanceMeters,
+          targetDurationMinutes: validated.targetDurationMinutes,
+          targetExamDate: validated.targetExamDate ? new Date(validated.targetExamDate) : null,
         },
       });
     }
 
-    return NextResponse.json(savedGoal);
-  } catch (error) {
-    console.error("Erro ao salvar meta no Prisma:", error);
-    return NextResponse.json(
-      { error: "Falha ao salvar meta no banco de dados" },
-      { status: 500 }
-    );
-  }
+    return apiSuccess(savedGoal);
+  });
 }

@@ -42,7 +42,11 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
 
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => newGoal,
+        json: async () => ({
+          success: true,
+          data: newGoal,
+          timestamp: new Date().toISOString(),
+        }),
       });
 
       const saved = await tafService.saveGoal(newGoal);
@@ -53,7 +57,25 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
       }));
     });
 
-    it("lança erro ao salvar meta se a API retornar erro HTTP", async () => {
+    it("lança erro concatenando detalhes de validação da API quando presentes", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({
+          success: false,
+          error: "Dados inválidos",
+          details: [
+            { field: "targetDistanceMeters", message: "A distância alvo deve ser de no mínimo 500 metros" },
+            { field: "targetDurationMinutes", message: "A duração alvo máxima é de 60 minutos" },
+          ],
+        }),
+      });
+
+      await expect(
+        tafService.saveGoal({ targetDistanceMeters: -10, targetDurationMinutes: 99, targetExamDate: null })
+      ).rejects.toThrow("A distância alvo deve ser de no mínimo 500 metros; A duração alvo máxima é de 60 minutos");
+    });
+
+    it("lança erro com mensagem de erro direta quando details não estiver presente", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         json: async () => ({ error: "Distância inválida" }),
@@ -128,6 +150,42 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
           method: "PUT",
         })
       );
+    });
+
+    it("recupera lista de tentativas via GET na API com suporte a paginação", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: [attemptSample],
+          meta: { limit: 10, nextCursor: "att-1", hasMore: true },
+        }),
+      });
+
+      const attempts = await tafService.getAttempts({ limit: 10, cursor: "att-0" });
+      expect(attempts).toHaveLength(1);
+      expect(attempts[0].id).toBe("att-1");
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/taf/attempts?limit=10&cursor=att-0",
+        expect.objectContaining({ cache: "no-store" })
+      );
+    });
+
+    it("lança erro concatenando details de validação em tentativa inválida", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({
+          success: false,
+          error: "Dados inválidos",
+          details: [
+            { field: "actualDurationSeconds", message: "A duração do simulado deve ser de pelo menos 30 segundos" },
+          ],
+        }),
+      });
+
+      await expect(
+        tafService.saveAttempt({ ...attemptSample, actualDurationSeconds: -5 }, false)
+      ).rejects.toThrow("A duração do simulado deve ser de pelo menos 30 segundos");
     });
 
     it("lança erro ao salvar tentativa se a API retornar erro HTTP", async () => {
@@ -206,6 +264,44 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
         `/api/taf/trainings/${encodeURIComponent(updated.id)}`,
         expect.objectContaining({ method: "PUT" })
       );
+    });
+
+    it("recupera treinos com suporte a opções de paginação e filtro por modalidade", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: [trainingSample],
+          meta: { limit: 5, nextCursor: null, hasMore: false },
+        }),
+      });
+
+      const trainings = await tafService.getTrainings({
+        limit: 5,
+        activityType: "corrida_intervalada",
+      });
+      expect(trainings).toHaveLength(1);
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/taf/trainings?limit=5&activityType=corrida_intervalada",
+        expect.objectContaining({ cache: "no-store" })
+      );
+    });
+
+    it("lança erro concatenando details de validação em treino inválido", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({
+          success: false,
+          error: "Dados inválidos",
+          details: [
+            { field: "distanceKm", message: "A distância do treino deve ser de pelo menos 0,05 km (50m)" },
+          ],
+        }),
+      });
+
+      await expect(
+        tafService.saveTraining({ ...trainingSample, distanceKm: -1 }, false)
+      ).rejects.toThrow("A distância do treino deve ser de pelo menos 0,05 km (50m)");
     });
 
     it("lança erro se a consulta de treinos falhar", async () => {

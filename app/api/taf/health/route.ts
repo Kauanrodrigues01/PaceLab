@@ -1,44 +1,38 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withApiHandler, apiSuccess, apiError } from "@/lib/api/response";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  try {
+  return withApiHandler(async () => {
     if (!process.env.DATABASE_URL) {
-      return NextResponse.json(
-        {
-          status: "disconnected",
-          orm: "Prisma",
-          error: "DATABASE_URL não configurada",
-          timestamp: new Date().toISOString(),
-        },
-        { status: 503 }
-      );
-    }
-
-    const start = Date.now();
-    await prisma.$queryRaw`SELECT 1`;
-    const latencyMs = Date.now() - start;
-
-    return NextResponse.json({
-      status: "connected",
-      orm: "Prisma",
-      database: "PostgreSQL",
-      latencyMs,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro desconhecido";
-    return NextResponse.json(
-      {
+      return apiError("DATABASE_URL não configurada", 503, {
         status: "disconnected",
         orm: "Prisma",
-        error: message,
-        timestamp: new Date().toISOString(),
-      },
-      { status: 503 }
-    );
-  }
+      });
+    }
+
+    try {
+      const start = Date.now();
+      await prisma.$queryRaw`SELECT 1`;
+      const latencyMs = Date.now() - start;
+
+      return apiSuccess({
+        status: "connected",
+        orm: "Prisma",
+        database: "PostgreSQL",
+        latencyMs,
+      });
+    } catch (dbError) {
+      const message =
+        dbError instanceof Error
+          ? dbError.message
+          : "Erro desconhecido ao conectar com o banco";
+      return apiError(message, 503, {
+        status: "disconnected",
+        orm: "Prisma",
+      });
+    }
+  });
 }
 

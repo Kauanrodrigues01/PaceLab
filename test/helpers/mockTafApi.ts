@@ -25,10 +25,14 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         ok: true,
         status: 200,
         json: async () => ({
-          status: "connected",
-          database: "PostgreSQL",
-          orm: "Prisma",
-          latencyMs: 10,
+          success: true,
+          data: {
+            status: "connected",
+            database: "PostgreSQL",
+            orm: "Prisma",
+            latencyMs: 10,
+          },
+          timestamp: new Date().toISOString(),
         }),
       } as Response;
     }
@@ -39,7 +43,11 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         return {
           ok: true,
           status: 200,
-          json: async () => store.goal,
+          json: async () => ({
+            success: true,
+            data: store.goal,
+            timestamp: new Date().toISOString(),
+          }),
         } as Response;
       }
       if (method === "POST" || method === "PUT") {
@@ -48,7 +56,11 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         return {
           ok: true,
           status: 200,
-          json: async () => store.goal,
+          json: async () => ({
+            success: true,
+            data: store.goal,
+            timestamp: new Date().toISOString(),
+          }),
         } as Response;
       }
     }
@@ -62,7 +74,12 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         return {
           ok: true,
           status: 200,
-          json: async () => store.attempts,
+          json: async () => ({
+            success: true,
+            data: store.attempts,
+            meta: { limit: 50, nextCursor: null, hasMore: false },
+            timestamp: new Date().toISOString(),
+          }),
         } as Response;
       }
 
@@ -78,7 +95,11 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         return {
           ok: true,
           status: 201,
-          json: async () => newAtt,
+          json: async () => ({
+            success: true,
+            data: newAtt,
+            timestamp: new Date().toISOString(),
+          }),
         } as Response;
       }
 
@@ -93,7 +114,11 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         return {
           ok: true,
           status: 200,
-          json: async () => updated,
+          json: async () => ({
+            success: true,
+            data: updated,
+            timestamp: new Date().toISOString(),
+          }),
         } as Response;
       }
 
@@ -102,7 +127,11 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ success: true }),
+          json: async () => ({
+            success: true,
+            data: { success: true, deletedId: attemptId },
+            timestamp: new Date().toISOString(),
+          }),
         } as Response;
       }
     }
@@ -116,7 +145,12 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         return {
           ok: true,
           status: 200,
-          json: async () => store.trainings,
+          json: async () => ({
+            success: true,
+            data: store.trainings,
+            meta: { limit: 50, nextCursor: null, hasMore: false },
+            timestamp: new Date().toISOString(),
+          }),
         } as Response;
       }
 
@@ -132,7 +166,11 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         return {
           ok: true,
           status: 201,
-          json: async () => newTr,
+          json: async () => ({
+            success: true,
+            data: newTr,
+            timestamp: new Date().toISOString(),
+          }),
         } as Response;
       }
 
@@ -147,7 +185,11 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         return {
           ok: true,
           status: 200,
-          json: async () => updated,
+          json: async () => ({
+            success: true,
+            data: updated,
+            timestamp: new Date().toISOString(),
+          }),
         } as Response;
       }
 
@@ -156,7 +198,11 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ success: true }),
+          json: async () => ({
+            success: true,
+            data: { success: true, deletedId: trainingId },
+            timestamp: new Date().toISOString(),
+          }),
         } as Response;
       }
     }
