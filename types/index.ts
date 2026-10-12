@@ -155,7 +155,7 @@ export interface TafAttempt {
   speedKmh: KmPerHour;
   paceSeconds: SecondsPerKm;
   paceFormatted: string; // e.g. "5:13"
-  locationType?: string | null; // e.g. "Pista de Atletismo (400m)", "Rua plana"
+  locationType?: LocationType | null;
   notes?: string | null;
   laps?: LapDetail[];
   createdAt: string;
@@ -169,9 +169,28 @@ export interface TafAttempt {
 export type ActivityType =
   | "corrida_continua"
   | "corrida_intervalada"
-  | "caminhada"
-  | "teste_taf"
+  | "caminhada";
+
+export type LocationType =
+  | "pista_400m"
+  | "rua_plana"
+  | "parque_praca"
+  | "esteira"
   | "outro";
+
+export const ACTIVITY_LABELS: Record<ActivityType, string> = {
+  corrida_continua: "Corrida Contínua",
+  corrida_intervalada: "Intervalado / Tiros",
+  caminhada: "Caminhada",
+};
+
+export const LOCATION_LABELS: Record<LocationType, string> = {
+  pista_400m: "Pista de Atletismo (400m)",
+  rua_plana: "Rua Plana",
+  parque_praca: "Parque / Praça",
+  esteira: "Esteira",
+  outro: "Outro Percurso",
+};
 
 export interface SplitDetail {
   kilometer: number;
@@ -245,5 +264,20 @@ export interface MonthlyVolume {
   monthKey: string; // "2026-10"
   distanceKm: Kilometers;
   sessionsCount: number;
+}
+
+export type TimeRangePreset = "30d" | "90d" | "year" | "all";
+
+export type RpeIntensityZone = "leve" | "moderado" | "intenso" | "maximo";
+
+export interface TrainingDashboardMetrics {
+  totalKm: number;
+  totalDurationSeconds: number;
+  totalSessions: number;
+  avgPaceSeconds: number;
+  avgPaceFormatted: string;
+  totalTrainingLoad: number;
+  longestRunKm: number;
+  avgRpe: number | null;
 }
 

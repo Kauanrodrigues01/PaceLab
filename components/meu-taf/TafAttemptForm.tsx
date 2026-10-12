@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { TafAttempt, LapDetail } from "@/types";
+import { TafAttempt, LapDetail, LocationType, LOCATION_LABELS } from "@/types";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import { formatPace, formatTime } from "@/lib/formatting/time";
 import {
@@ -25,12 +25,12 @@ const DISTANCE_SHORTCUTS = [
   2000, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000,
 ];
 
-const LOCATION_OPTIONS = [
-  "Pista de Atletismo (400m)",
-  "Rua Plana",
-  "Parque / Praça",
-  "Esteira",
-  "Outro Percurso",
+const LOCATION_OPTIONS: { value: LocationType; label: string }[] = [
+  { value: "pista_400m", label: LOCATION_LABELS.pista_400m },
+  { value: "rua_plana", label: LOCATION_LABELS.rua_plana },
+  { value: "parque_praca", label: LOCATION_LABELS.parque_praca },
+  { value: "esteira", label: LOCATION_LABELS.esteira },
+  { value: "outro", label: LOCATION_LABELS.outro },
 ];
 
 export function TafAttemptForm({
@@ -50,7 +50,7 @@ export function TafAttemptForm({
   const [minutes, setMinutes] = useState(12);
   const [seconds, setSeconds] = useState(0);
   const [distanceMeters, setDistanceMeters] = useState(2300);
-  const [locationType, setLocationType] = useState(LOCATION_OPTIONS[0]);
+  const [locationType, setLocationType] = useState<LocationType>("pista_400m");
   const [notes, setNotes] = useState("");
 
   // Subform de Voltas / Parciais de 400m
@@ -71,7 +71,7 @@ export function TafAttemptForm({
       setMinutes(Math.floor(totalSec / 60));
       setSeconds(totalSec % 60);
       setDistanceMeters(editingAttempt.distanceMeters);
-      setLocationType(editingAttempt.locationType || LOCATION_OPTIONS[0]);
+      setLocationType(editingAttempt.locationType || "pista_400m");
       setNotes(editingAttempt.notes || "");
 
       if (editingAttempt.laps && editingAttempt.laps.length > 0) {
@@ -86,7 +86,7 @@ export function TafAttemptForm({
       setMinutes(12);
       setSeconds(0);
       setDistanceMeters(2300);
-      setLocationType(LOCATION_OPTIONS[0]);
+      setLocationType("pista_400m");
       setNotes("");
       setEnableLaps(false);
       setLaps([]);
@@ -336,12 +336,12 @@ export function TafAttemptForm({
           <div className="relative">
             <select
               value={locationType}
-              onChange={(e) => setLocationType(e.target.value)}
+              onChange={(e) => setLocationType(e.target.value as LocationType)}
               className="w-full h-11 px-3 pr-8 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {LOCATION_OPTIONS.map((loc) => (
-                <option key={loc} value={loc}>
-                  {loc}
+                <option key={loc.value} value={loc.value}>
+                  {loc.label}
                 </option>
               ))}
             </select>

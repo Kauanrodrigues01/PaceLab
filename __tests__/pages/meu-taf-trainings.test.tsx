@@ -31,7 +31,7 @@ describe("Diário de Treinos - CRUD Completo (RPE, Peso, Splits e Filtros)", () 
     expect(screen.getByRole("button", { name: /Corrida Contínua/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Intervalado \/ Tiros/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Caminhada/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Simulado TAF/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Simulado TAF/i })).not.toBeInTheDocument();
 
     // Empty state inicial da lista
     expect(screen.getByTestId("training-empty-state")).toBeInTheDocument();

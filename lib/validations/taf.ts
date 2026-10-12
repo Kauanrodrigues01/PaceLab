@@ -3,9 +3,16 @@ import { z } from "zod";
 // ─── Enums & Sub-schemas ───────────────────────────────────────────────────────
 
 export const ActivityTypeEnum = z.enum(
-  ["corrida_continua", "corrida_intervalada", "caminhada", "teste_taf", "outro"] as const,
+  ["corrida_continua", "corrida_intervalada", "caminhada"] as const,
   {
-    message: "Modalidade de treino inválida.",
+    message: "Modalidade de treino inválida. Escolha entre Corrida Contínua, Intervalado ou Caminhada.",
+  }
+);
+
+export const LocationTypeEnum = z.enum(
+  ["pista_400m", "rua_plana", "parque_praca", "esteira", "outro"] as const,
+  {
+    message: "Local do teste inválido.",
   }
 );
 
@@ -88,12 +95,7 @@ export const CreateTafAttemptSchema = z.object({
   speedKmh: z.coerce.number().positive().optional(),
   paceSeconds: z.coerce.number().int().positive().optional(),
   paceFormatted: z.string().optional(),
-  locationType: z
-    .string()
-    .trim()
-    .max(100, "O local do teste não pode ter mais de 100 caracteres")
-    .nullable()
-    .optional(),
+  locationType: LocationTypeEnum.nullable().optional(),
   notes: z
     .string()
     .trim()

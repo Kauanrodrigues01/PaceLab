@@ -47,16 +47,12 @@ const ACTIVITY_COLORS: Record<string, string> = {
   corrida_continua: "#3b82f6", // azul
   corrida_intervalada: "#f59e0b", // âmbar
   caminhada: "#10b981", // verde
-  teste_taf: "#a855f7", // roxo
-  outro: "#64748b", // slate
 };
 
 const ACTIVITY_LABELS: Record<string, string> = {
   corrida_continua: "Corrida Contínua",
   corrida_intervalada: "Intervalado / Tiros",
   caminhada: "Caminhada",
-  teste_taf: "Simulado TAF",
-  outro: "Outro",
 };
 
 export function EvolutionDashboard({
@@ -156,8 +152,8 @@ export function EvolutionDashboard({
         dateLabel: label,
         distanceKm: Number(t.distanceKm.toFixed(2)),
         activityType: t.activityType,
-        color: ACTIVITY_COLORS[t.activityType] || ACTIVITY_COLORS.outro,
-        activityLabel: ACTIVITY_LABELS[t.activityType] || "Outro",
+        color: ACTIVITY_COLORS[t.activityType] || ACTIVITY_COLORS.corrida_continua,
+        activityLabel: ACTIVITY_LABELS[t.activityType] || "Corrida Contínua",
         paceFormatted: t.paceFormatted,
         durationFormatted: formatTime(t.durationSeconds),
       };

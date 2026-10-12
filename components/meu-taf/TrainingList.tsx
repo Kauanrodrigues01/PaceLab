@@ -136,8 +136,6 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
               <option value="corrida_continua">Corrida Contínua</option>
               <option value="corrida_intervalada">Intervalado / Tiros</option>
               <option value="caminhada">Caminhada</option>
-              <option value="teste_taf">Simulado TAF</option>
-              <option value="outro">Outra Atividade</option>
             </select>
           </div>
         </div>

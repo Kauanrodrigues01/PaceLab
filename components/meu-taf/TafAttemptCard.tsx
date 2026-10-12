@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { TafAttempt } from "@/types";
+import { TafAttempt, LOCATION_LABELS } from "@/types";
 import { formatTime } from "@/lib/formatting/time";
 import {
   Trophy,
@@ -66,7 +66,7 @@ export function TafAttemptCard({
           {attempt.locationType && (
             <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
               <MapPin className="w-3 h-3 text-slate-400" />
-              {attempt.locationType}
+              {LOCATION_LABELS[attempt.locationType] || attempt.locationType}
             </span>
           )}
         </div>

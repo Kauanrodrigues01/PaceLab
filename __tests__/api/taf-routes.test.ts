@@ -163,7 +163,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
           speedKmh: 11.75,
           paceSeconds: 306,
           paceFormatted: "5:06",
-          locationType: "Pista",
+          locationType: "pista_400m",
           notes: null,
           laps: [],
           createdAt: new Date(),

@@ -132,7 +132,7 @@ describe("MeuTafPage - Fase C (Histórico de 12 Minutos e Interface do TAF)", ()
       speedKmh: 11.0,
       paceSeconds: 327,
       paceFormatted: "5:27",
-      locationType: "Pista de Atletismo (400m)",
+      locationType: "pista_400m",
       notes: "Treino inicial moderado",
       createdAt: "2026-10-10T08:00:00.000Z",
       updatedAt: "2026-10-10T08:00:00.000Z",

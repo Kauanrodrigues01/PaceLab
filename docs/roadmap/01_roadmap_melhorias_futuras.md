@@ -66,6 +66,27 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 
 ---
 
+### Eixo B.1: Tipagem Estrita com Enums no Banco & Dashboard Analítico de Treinos — ✅ Concluído e Validado
+
+> **Status:** Concluído em 11/10/2026. Documentação completa e plano executado em [docs/plans/executed/06_plan_enums_database_e_dashboard_treinos.md](../plans/executed/06_plan_enums_database_e_dashboard_treinos.md).
+
+#### 6. Tipagem com Enums Nativos (Prisma, PostgreSQL e Zod) (✅ Implementado)
+- **Status:** Criação dos Enums nativos `ActivityType` (`corrida_continua`, `corrida_intervalada`, `caminhada`) e `LocationType` (`pista_400m`, `rua_plana`, `parque_praca`, `esteira`, `outro`) no `prisma/schema.prisma` e migração SQL segura com conversão de registros legados.
+- **Camada Zod & Domínio:** Validação estrita em `lib/validations/taf.ts` e labels humanizados em `types/index.ts`.
+
+#### 7. Dashboard de Evolução do Treinamento em `/treinos` (✅ Implementado)
+- **Status:** Componente analítico `components/treinos/TrainingEvolutionDashboard.tsx` integrado à página com navegação por abas e deep linking (`/treinos?tab=graficos`).
+- **Recursos Analíticos:**
+  - 5 KPIs do período (Volume, Tempo, Pace Médio Ponderado, Carga TRIMP e Maior Sessão);
+  - Gráfico de Volume Semanal Acumulado (km);
+  - Gráfico de Evolução do Pace por Sessão (`mm:ss /km`);
+  - Gráfico de Carga de Treinamento TRIMP (Fadiga Acumulada);
+  - Pirâmide Polarizada de Intensidade (RPE com Regra 80/20 de Stephen Seiler);
+  - Gráfico Donut de Volume por Modalidade.
+- **Testes:** Suíte dedicada em `__tests__/components/TrainingEvolutionDashboard.test.tsx` e integração em `__tests__/pages/treinos.test.tsx`.
+
+---
+
 ### Eixo C: Recursos de Produto para o Atleta na Pista
 
 #### 6. Transformação em PWA Completo (Progressive Web App)

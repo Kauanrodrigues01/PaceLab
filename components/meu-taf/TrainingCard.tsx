@@ -11,7 +11,6 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
-  Activity,
   Flame,
   Zap,
   Footprints,
@@ -54,20 +53,6 @@ export const ACTIVITY_CONFIG: Record<
       "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700",
     borderClass: "border-l-emerald-500",
   },
-  teste_taf: {
-    label: "Simulado TAF",
-    icon: Activity,
-    badgeClass:
-      "bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-    borderClass: "border-l-purple-500",
-  },
-  outro: {
-    label: "Outra Atividade",
-    icon: Activity,
-    badgeClass:
-      "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700",
-    borderClass: "border-l-slate-400",
-  },
 };
 
 export function getRpeBadgeInfo(rpe?: number | null) {
@@ -102,7 +87,7 @@ export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) 
   const [showSplits, setShowSplits] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const config = ACTIVITY_CONFIG[training.activityType] || ACTIVITY_CONFIG.outro;
+  const config = ACTIVITY_CONFIG[training.activityType] || ACTIVITY_CONFIG.corrida_continua;
   const ActivityIcon = config.icon;
   const rpeInfo = getRpeBadgeInfo(training.perceivedEffort);
 

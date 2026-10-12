@@ -8,6 +8,26 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum ActivityType {
+  corrida_continua
+  corrida_intervalada
+  caminhada
+
+  @@map("activity_type")
+}
+
+enum LocationType {
+  pista_400m
+  rua_plana
+  parque_praca
+  esteira
+  outro
+
+  @@map("location_type")
+}
+
 // 1. Metas do TAF
 model TafGoal {
   id                    String    @id @default(uuid())
@@ -23,20 +43,20 @@ model TafGoal {
 
 // 2. Tentativas de Teste do TAF (12 minutos ou duração personalizada)
 model TafAttempt {
-  id                    String   @id @default(uuid())
-  userId                String?  @map("user_id")
-  testDate              DateTime @default(now()) @map("test_date")
-  targetDurationSeconds Int      @default(720) @map("target_duration_seconds")
-  actualDurationSeconds Int      @map("actual_duration_seconds")
-  distanceMeters        Int      @map("distance_meters")
-  speedKmh              Float    @map("speed_kmh")
-  paceSeconds           Int      @map("pace_seconds")
-  paceFormatted         String   @map("pace_formatted")
-  locationType          String?  @map("location_type")
-  notes                 String?  @map("notes")
-  laps                  Json?    @default("[]")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+  id                    String        @id @default(uuid())
+  userId                String?       @map("user_id")
+  testDate              DateTime      @default(now()) @map("test_date")
+  targetDurationSeconds Int           @default(720) @map("target_duration_seconds")
+  actualDurationSeconds Int           @map("actual_duration_seconds")
+  distanceMeters        Int           @map("distance_meters")
+  speedKmh              Float         @map("speed_kmh")
+  paceSeconds           Int           @map("pace_seconds")
+  paceFormatted         String        @map("pace_formatted")
+  locationType          LocationType? @map("location_type")
+  notes                 String?       @map("notes")
+  laps                  Json?         @default("[]")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
 
   @@index([userId, testDate(sort: Desc)])
   @@index([userId, targetDurationSeconds])
@@ -45,23 +65,24 @@ model TafAttempt {
 
 // 3. Diário de Treinos
 model TrainingSession {
-  id              String   @id @default(uuid())
-  userId          String?  @map("user_id")
-  sessionDate     DateTime @default(now()) @map("session_date")
-  activityType    String   @map("activity_type") // 'corrida_continua', 'corrida_intervalada', 'caminhada', 'teste_taf', 'outro'
-  distanceKm      Float    @map("distance_km")
-  durationSeconds Int      @map("duration_seconds")
-  speedKmh        Float    @map("speed_kmh")
-  paceSeconds     Int      @map("pace_seconds")
-  paceFormatted   String   @map("pace_formatted")
-  perceivedEffort Int?     @map("perceived_effort") // RPE 1 a 10
-  bodyWeightKg    Float?   @map("body_weight_kg")
-  notes           String?  @map("notes")
-  splits          Json?    @default("[]")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id              String       @id @default(uuid())
+  userId          String?      @map("user_id")
+  sessionDate     DateTime     @default(now()) @map("session_date")
+  activityType    ActivityType @default(corrida_continua) @map("activity_type")
+  distanceKm      Float        @map("distance_km")
+  durationSeconds Int          @map("duration_seconds")
+  speedKmh        Float        @map("speed_kmh")
+  paceSeconds     Int          @map("pace_seconds")
+  paceFormatted   String       @map("pace_formatted")
+  perceivedEffort Int?         @map("perceived_effort") // RPE 1 a 10
+  bodyWeightKg    Float?       @map("body_weight_kg")
+  notes           String?      @map("notes")
+  splits          Json?        @default("[]")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
 
   @@index([userId, sessionDate(sort: Desc)])
   @@index([userId, activityType])
   @@map("training_sessions")
 }
+

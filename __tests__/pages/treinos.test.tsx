@@ -156,4 +156,50 @@ describe("TreinosPage (Fase 4 - Diário de Treinos Completo)", () => {
     const rpeCard = screen.getByTestId("kpi-avg-rpe");
     expect(rpeCard).toHaveTextContent("6");
   });
+
+  it("permite alternar entre as abas 'Diário & Registro' e 'Evolução & Gráficos'", async () => {
+    setupMockTafApi({ trainings: [mockTrainingSession] });
+    const user = userEvent.setup();
+    render(<TreinosPage />);
+
+    // Por padrão, a aba Diário está ativa
+    expect(screen.getByTestId("tab-diario")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("kpi-weekly-volume")).toBeInTheDocument();
+
+    // Clica na aba Evolução & Gráficos
+    const tabGraficos = screen.getByTestId("tab-graficos");
+    await user.click(tabGraficos);
+
+    // Agora a aba Gráficos está ativa e o dashboard de evolução é exibido
+    expect(tabGraficos).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("training-evolution-dashboard")).toBeInTheDocument();
+
+    // Os cards de KPI rápidos do diário não devem mais estar visíveis na aba de gráficos
+    expect(screen.queryByTestId("kpi-weekly-volume")).not.toBeInTheDocument();
+
+    // Retorna para a aba Diário
+    const tabDiario = screen.getByTestId("tab-diario");
+    await user.click(tabDiario);
+
+    expect(tabDiario).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("kpi-weekly-volume")).toBeInTheDocument();
+  });
+
+  it("abre diretamente na aba de gráficos quando a URL contém ?tab=graficos", async () => {
+    setupMockTafApi({ trainings: [mockTrainingSession] });
+    
+    // Simula URL com ?tab=graficos
+    window.history.replaceState({}, "", "/treinos?tab=graficos");
+
+    try {
+      render(<TreinosPage />);
+
+      expect(screen.getByTestId("tab-graficos")).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByTestId("training-evolution-dashboard")).toBeInTheDocument();
+      expect(screen.queryByTestId("kpi-weekly-volume")).not.toBeInTheDocument();
+    } finally {
+      window.history.replaceState({}, "", "/treinos");
+    }
+  });
 });
+

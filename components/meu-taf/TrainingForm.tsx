@@ -25,8 +25,6 @@ const ACTIVITIES: { type: ActivityType; label: string; icon: React.ComponentType
   { type: "corrida_continua", label: "Corrida Contínua", icon: Flame },
   { type: "corrida_intervalada", label: "Intervalado / Tiros", icon: Zap },
   { type: "caminhada", label: "Caminhada", icon: Footprints },
-  { type: "teste_taf", label: "Simulado TAF", icon: Activity },
-  { type: "outro", label: "Outro", icon: Activity },
 ];
 
 const DISTANCE_SHORTCUTS_KM = [2.3, 3.0, 5.0, 8.0, 10.0, 15.0, 21.1];
@@ -278,7 +276,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
           Tipo de Atividade
         </label>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {ACTIVITIES.map((act) => {
             const Icon = act.icon;
             const isSelected = activityType === act.type;

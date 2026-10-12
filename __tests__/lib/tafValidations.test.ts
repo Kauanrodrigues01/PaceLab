@@ -62,7 +62,7 @@ describe("Validações Zod do TAF (Fase 1 - Eixo B)", () => {
         speedKmh: 11.75,
         paceSeconds: 306,
         paceFormatted: "5:06",
-        locationType: "Pista de Atletismo (400m)",
+        locationType: "pista_400m",
         notes: "Treino em ritmo forte",
         laps: [
           { lapNumber: 1, durationSeconds: 118, distanceMeters: 400 },
@@ -221,16 +221,62 @@ describe("Validações Zod do TAF (Fase 1 - Eixo B)", () => {
         }).success
       ).toBe(false);
     });
+
+    it("rejeita modalidades de treino fora do enum estrito (como 'teste_taf' e 'outro')", () => {
+      expect(
+        CreateTrainingSessionSchema.safeParse({
+          activityType: "teste_taf",
+          distanceKm: 5,
+          durationSeconds: 1500,
+        }).success
+      ).toBe(false);
+
+      expect(
+        CreateTrainingSessionSchema.safeParse({
+          activityType: "outro",
+          distanceKm: 5,
+          durationSeconds: 1500,
+        }).success
+      ).toBe(false);
+
+      expect(
+        CreateTrainingSessionSchema.safeParse({
+          activityType: "ciclismo",
+          distanceKm: 5,
+          durationSeconds: 1500,
+        }).success
+      ).toBe(false);
+    });
+  });
+
+  describe("LocationTypeEnum e CreateTafAttemptSchema", () => {
+    it("rejeita locationType fora do enum estrito", () => {
+      expect(
+        CreateTafAttemptSchema.safeParse({
+          distanceMeters: 2400,
+          actualDurationSeconds: 720,
+          locationType: "local_inexistente",
+        }).success
+      ).toBe(false);
+
+      expect(
+        CreateTafAttemptSchema.safeParse({
+          distanceMeters: 2400,
+          actualDurationSeconds: 720,
+          locationType: "pista_400m",
+        }).success
+      ).toBe(true);
+    });
   });
 
   describe("UpdateTafAttemptSchema e UpdateTrainingSessionSchema (Schemas Parciais)", () => {
     it("permite atualizar campos isolados de uma tentativa de TAF", () => {
       const partialAttempt = UpdateTafAttemptSchema.parse({
         notes: "Nova anotação de teste",
-        locationType: "Rua plana",
+        locationType: "rua_plana",
       });
       expect(partialAttempt.notes).toBe("Nova anotação de teste");
-      expect(partialAttempt.locationType).toBe("Rua plana");
+      expect(partialAttempt.locationType).toBe("rua_plana");
       expect(partialAttempt.distanceMeters).toBeUndefined();
     });
 
