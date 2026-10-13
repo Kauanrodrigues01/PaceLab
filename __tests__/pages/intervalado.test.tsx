@@ -110,4 +110,53 @@ describe("IntervaladoPage (Fase 7)", () => {
 
     expect(screen.getByText("Sessão Salva no Histórico!")).toBeInTheDocument();
   });
+
+  it("permite limitar a sessão por distância e exibe badge de etapa cortada", async () => {
+    const user = userEvent.setup();
+    render(<IntervaladoPage />);
+
+    // Clica no botão de seleção 'Por Distância'
+    const distLimitBtn = screen.getByRole("button", { name: "Por Distância" });
+    await user.click(distLimitBtn);
+
+    // O input de distância máxima deve aparecer com default 2.4 ou atalho do TAF
+    const distLimitInput = screen.getByLabelText("Distância Máxima");
+    expect(distLimitInput).toBeInTheDocument();
+
+    // Clica no atalho 2,4 km (TAF)
+    const tafShortcut = screen.getByRole("button", { name: "2,4 km (TAF)" });
+    await user.click(tafShortcut);
+
+    // Submete a simulação
+    const calcBtn = screen.getByRole("button", { name: "Simular Sessão Intervalada" });
+    await user.click(calcBtn);
+
+    // Deve renderizar o banner de limite aplicado
+    expect(screen.getByText(/Limite de Distância: 2.4 km/i)).toBeInTheDocument();
+
+    // Deve exibir badge de Cortada no Limite na tabela de etapas
+    expect(screen.getByText("Cortada no Limite")).toBeInTheDocument();
+  });
+
+  it("permite limitar a sessão por tempo (ex: 12 min do TAF)", async () => {
+    const user = userEvent.setup();
+    render(<IntervaladoPage />);
+
+    // Clica no botão de seleção 'Por Tempo'
+    const timeLimitBtn = screen.getByRole("button", { name: "Por Tempo" });
+    await user.click(timeLimitBtn);
+
+    const timeLimitInput = screen.getByLabelText("Duração Máxima");
+    expect(timeLimitInput).toBeInTheDocument();
+
+    // Clica no atalho 12 min (TAF)
+    const taf12mShortcut = screen.getByRole("button", { name: "12 min (TAF)" });
+    await user.click(taf12mShortcut);
+
+    const calcBtn = screen.getByRole("button", { name: "Simular Sessão Intervalada" });
+    await user.click(calcBtn);
+
+    // Deve renderizar o banner de limite de tempo aplicado
+    expect(screen.getByText(/Limite de Tempo: 12:00/i)).toBeInTheDocument();
+  });
 });

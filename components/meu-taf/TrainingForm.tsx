@@ -50,10 +50,10 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
     return new Date(now.getTime() - offset).toISOString().slice(0, 16);
   });
   const [activityType, setActivityType] = useState<ActivityType>("corrida_continua");
-  const [distanceKm, setDistanceKm] = useState<number>(5.0);
-  const [hours, setHours] = useState(0);
-  const [minutes, setMinutes] = useState(27);
-  const [seconds, setSeconds] = useState(30);
+  const [distanceInput, setDistanceInput] = useState<string>("5.0");
+  const [hoursInput, setHoursInput] = useState<string>("0");
+  const [minutesInput, setMinutesInput] = useState<string>("27");
+  const [secondsInput, setSecondsInput] = useState<string>("30");
 
   // RPE (1 a 10) e Peso (kg)
   const [perceivedEffort, setPerceivedEffort] = useState<number | null>(6);
@@ -75,12 +75,12 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       setSessionDate(new Date(d.getTime() - offset).toISOString().slice(0, 16));
 
       setActivityType(editingTraining.activityType);
-      setDistanceKm(editingTraining.distanceKm);
+      setDistanceInput(String(editingTraining.distanceKm));
 
       const totalSec = editingTraining.durationSeconds;
-      setHours(Math.floor(totalSec / 3600));
-      setMinutes(Math.floor((totalSec % 3600) / 60));
-      setSeconds(totalSec % 60);
+      setHoursInput(String(Math.floor(totalSec / 3600)));
+      setMinutesInput(String(Math.floor((totalSec % 3600) / 60)));
+      setSecondsInput(String(totalSec % 60));
 
       setPerceivedEffort(
         editingTraining.perceivedEffort !== undefined && editingTraining.perceivedEffort !== null
@@ -106,10 +106,10 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
     } else {
       // Padrão novo treino
       setActivityType("corrida_continua");
-      setDistanceKm(5.0);
-      setHours(0);
-      setMinutes(27);
-      setSeconds(30);
+      setDistanceInput("5.0");
+      setHoursInput("0");
+      setMinutesInput("27");
+      setSecondsInput("30");
       setPerceivedEffort(6);
       setBodyWeightKg("");
       setNotes("");
@@ -118,15 +118,43 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
     }
   }, [editingTraining]);
 
-  // Cálculos em tempo real
-  const totalDurationSeconds = hours * 3600 + minutes * 60 + seconds;
+  // Conversão segura de inputs para cálculo em tempo real
+  const parsedDistanceKm = (() => {
+    const s = distanceInput.trim().replace(",", ".");
+    if (!s) return 0;
+    const n = parseFloat(s);
+    return isNaN(n) || n < 0 ? 0 : n;
+  })();
+
+  const parsedHours = (() => {
+    const s = hoursInput.trim();
+    if (!s) return 0;
+    const n = parseInt(s, 10);
+    return isNaN(n) || n < 0 ? 0 : n;
+  })();
+
+  const parsedMinutes = (() => {
+    const s = minutesInput.trim();
+    if (!s) return 0;
+    const n = parseInt(s, 10);
+    return isNaN(n) || n < 0 ? 0 : Math.min(59, n);
+  })();
+
+  const parsedSeconds = (() => {
+    const s = secondsInput.trim();
+    if (!s) return 0;
+    const n = parseInt(s, 10);
+    return isNaN(n) || n < 0 ? 0 : Math.min(59, n);
+  })();
+
+  const totalDurationSeconds = parsedHours * 3600 + parsedMinutes * 60 + parsedSeconds;
   let livePaceFormatted = "--:--";
   let liveSpeedKmh = 0;
   let livePaceSeconds = 0;
 
-  if (distanceKm > 0 && totalDurationSeconds > 0) {
+  if (parsedDistanceKm > 0 && totalDurationSeconds > 0) {
     try {
-      const res = calcPaceFromDistanceAndTime(distanceKm, totalDurationSeconds);
+      const res = calcPaceFromDistanceAndTime(parsedDistanceKm, totalDurationSeconds);
       livePaceFormatted = res.paceFormatted;
       liveSpeedKmh = res.speedKmh;
       livePaceSeconds = res.paceSeconds;
@@ -137,10 +165,10 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
 
   // Gera parciais por quilômetro igualmente
   const autoGenerateSplits = () => {
-    const fullKmCount = Math.floor(distanceKm);
+    const fullKmCount = Math.floor(parsedDistanceKm);
     if (fullKmCount <= 0) return;
 
-    const avgSecondsPerKm = Math.round(totalDurationSeconds / distanceKm);
+    const avgSecondsPerKm = Math.round(totalDurationSeconds / parsedDistanceKm);
     const newSplits: SplitDetail[] = [];
 
     for (let i = 1; i <= fullKmCount; i++) {
@@ -172,7 +200,10 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
     e.preventDefault();
     setErrorMessage(null);
 
-    if (distanceKm <= 0) {
+    const sanitizedDist = distanceInput.trim().replace(",", ".");
+    const finalDistanceKm = parseFloat(sanitizedDist);
+
+    if (isNaN(finalDistanceKm) || finalDistanceKm <= 0) {
       setErrorMessage("Informe uma distância válida maior que 0 km.");
       return;
     }
@@ -199,7 +230,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
         id: editingTraining ? editingTraining.id : `trn_${Date.now()}`,
         sessionDate: new Date(sessionDate).toISOString(),
         activityType,
-        distanceKm: Number(distanceKm.toFixed(3)),
+        distanceKm: Number(finalDistanceKm.toFixed(3)),
         durationSeconds: totalDurationSeconds,
         speedKmh: Number(liveSpeedKmh.toFixed(2)),
         paceSeconds: Math.round(livePaceSeconds),
@@ -324,12 +355,13 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
             {/* Horas */}
             <div className="flex-1 relative">
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
-                min="0"
-                max="24"
-                value={hours}
-                onChange={(e) => setHours(Math.max(0, Number(e.target.value)))}
+                value={hoursInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  setHoursInput(val);
+                }}
                 className="w-full h-11 px-3 pr-7 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <span className="absolute right-2 top-3 text-xs text-slate-400 font-medium pointer-events-none">
@@ -340,14 +372,15 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
             {/* Minutos */}
             <div className="flex-1 relative">
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
-                min="0"
-                max="59"
-                value={minutes}
-                onChange={(e) =>
-                  setMinutes(Math.min(59, Math.max(0, Number(e.target.value))))
-                }
+                value={minutesInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  if (val === "" || parseInt(val, 10) <= 59) {
+                    setMinutesInput(val);
+                  }
+                }}
                 className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <span className="absolute right-2 top-3 text-xs text-slate-400 font-medium pointer-events-none">
@@ -358,14 +391,15 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
             {/* Segundos */}
             <div className="flex-1 relative">
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
-                min="0"
-                max="59"
-                value={seconds}
-                onChange={(e) =>
-                  setSeconds(Math.min(59, Math.max(0, Number(e.target.value))))
-                }
+                value={secondsInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  if (val === "" || parseInt(val, 10) <= 59) {
+                    setSecondsInput(val);
+                  }
+                }}
                 className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <span className="absolute right-2 top-3 text-xs text-slate-400 font-medium pointer-events-none">
@@ -383,20 +417,22 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
             Distância Percorrida (Quilômetros)
           </label>
           <span className="text-xs text-slate-500 font-medium">
-            = {Math.round(distanceKm * 1000)} metros
+            = {Math.round(parsedDistanceKm * 1000)} metros
           </span>
         </div>
 
         <div className="relative mb-3">
           <input
             id="training-distance-km"
-            type="number"
+            type="text"
             inputMode="decimal"
-            min="0.1"
-            max="200"
-            step="0.01"
-            value={distanceKm}
-            onChange={(e) => setDistanceKm(Number(e.target.value))}
+            value={distanceInput}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (/^(\d*[.,]?\d*)$/.test(val)) {
+                setDistanceInput(val);
+              }
+            }}
             required
             className="w-full h-12 px-4 text-lg font-black tracking-tight rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -411,12 +447,12 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
             Distâncias comuns:
           </span>
           {DISTANCE_SHORTCUTS_KM.map((shortcut) => {
-            const isSelected = Math.abs(distanceKm - shortcut) < 0.01;
+            const isSelected = Math.abs(parsedDistanceKm - shortcut) < 0.01;
             return (
               <button
                 type="button"
                 key={shortcut}
-                onClick={() => setDistanceKm(shortcut)}
+                onClick={() => setDistanceInput(String(shortcut))}
                 className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all ${
                   isSelected
                     ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30 scale-105"

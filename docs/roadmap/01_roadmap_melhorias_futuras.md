@@ -87,6 +87,25 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 
 ---
 
+### Eixo B.2: Resiliência de Navegação, Limites de Treino no Intervalado e Correção de Inputs Numéricos — ✅ Concluído e Validado
+
+> **Status:** Concluído em 12/10/2026. Documentação completa e plano executado em [docs/plans/executed/07_plan_resiliencia_ux_limites_intervalado_e_correcao_inputs.md](../plans/executed/07_plan_resiliencia_ux_limites_intervalado_e_correcao_inputs.md).
+
+#### 8. Correção de Inputs Numéricos Controlados nos Formulários (✅ Implementado)
+- **Status:** Tratamento dos campos de distância, tempo e duração em `TrainingForm.tsx` e `TafAttemptForm.tsx` como strings controladas. Eliminação definitiva de artefatos de digitação como `"017,5km"` e permissão de esvaziamento limpo com Backspace.
+- **Testes:** Suítes dedicadas em `__tests__/components/TrainingFormInputs.test.tsx` e `__tests__/components/TafAttemptFormInputs.test.tsx`.
+
+#### 9. Motor de Limite de Treino no Simulador Intervalado (✅ Implementado)
+- **Status:** Parâmetros de teto por distância (`maxDistanceKm`, ex: 2,4 km) ou por tempo (`maxDurationSeconds`, ex: 12 min) com corte proporcional da última etapa (`isTruncated: true`), descarte automático de recuperação quando o tiro forte anterior já bate o limite e recálculo milimétrico do pace médio em `lib/math/intervals.ts`.
+- **UI:** Seletores tipo pill com atalhos para o TAF (2,4 km e 12 min) e badges de corte na tabela em `app/intervalado/page.tsx`.
+- **Testes:** 7 testes unitários em `__tests__/lib/intervalsLimit.test.ts` e 8 testes de integração em `__tests__/pages/intervalado.test.tsx`.
+
+#### 10. Resiliência de Navegação e Cache Otimista (✅ Implementado)
+- **Status:** Padrão Stale-While-Revalidate com hidratação via `sessionStorage` em `app/treinos/page.tsx` e `app/meu-taf/page.tsx`, eliminando telas em branco e spinners agressivos ao revisitar as páginas. Persistência de rascunhos em `app/intervalado/page.tsx` e `app/calculadora/page.tsx`.
+- **Testes:** Suíte dedicada em `__tests__/pages/resilienceCache.test.tsx`.
+
+---
+
 ### Eixo C: Recursos de Produto para o Atleta na Pista
 
 #### 6. Transformação em PWA Completo (Progressive Web App)
@@ -123,7 +142,7 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 - **Solução proposta:** Workflow automatizado disparado em todo push/pull request:
   - Validação de tipos (`npx tsc --noEmit`).
   - Linter (`npx eslint`).
-  - Execução dos 309 testes automatizados (`npm test`).
+  - Execução dos 349 testes automatizados (`npm test`).
   - Verificação de build de produção (`npm run build`).
 
 #### 12. Seed Script do Prisma para Desenvolvimento Local

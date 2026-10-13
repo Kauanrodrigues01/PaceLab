@@ -47,9 +47,9 @@ export function TafAttemptForm({
     const offset = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - offset).toISOString().slice(0, 16);
   });
-  const [minutes, setMinutes] = useState(12);
-  const [seconds, setSeconds] = useState(0);
-  const [distanceMeters, setDistanceMeters] = useState(2300);
+  const [minutesInput, setMinutesInput] = useState<string>("12");
+  const [secondsInput, setSecondsInput] = useState<string>("0");
+  const [distanceMetersInput, setDistanceMetersInput] = useState<string>("2300");
   const [locationType, setLocationType] = useState<LocationType>("pista_400m");
   const [notes, setNotes] = useState("");
 
@@ -68,9 +68,9 @@ export function TafAttemptForm({
       setTestDate(new Date(d.getTime() - offset).toISOString().slice(0, 16));
 
       const totalSec = editingAttempt.actualDurationSeconds;
-      setMinutes(Math.floor(totalSec / 60));
-      setSeconds(totalSec % 60);
-      setDistanceMeters(editingAttempt.distanceMeters);
+      setMinutesInput(String(Math.floor(totalSec / 60)));
+      setSecondsInput(String(totalSec % 60));
+      setDistanceMetersInput(String(editingAttempt.distanceMeters));
       setLocationType(editingAttempt.locationType || "pista_400m");
       setNotes(editingAttempt.notes || "");
 
@@ -83,9 +83,9 @@ export function TafAttemptForm({
       }
     } else {
       // Reset para padrão
-      setMinutes(12);
-      setSeconds(0);
-      setDistanceMeters(2300);
+      setMinutesInput("12");
+      setSecondsInput("0");
+      setDistanceMetersInput("2300");
       setLocationType("pista_400m");
       setNotes("");
       setEnableLaps(false);
@@ -93,15 +93,37 @@ export function TafAttemptForm({
     }
   }, [editingAttempt]);
 
+  // Conversão segura de inputs para cálculo em tempo real
+  const parsedMinutes = (() => {
+    const s = minutesInput.trim();
+    if (!s) return 0;
+    const n = parseInt(s, 10);
+    return isNaN(n) || n < 0 ? 0 : Math.min(60, n);
+  })();
+
+  const parsedSeconds = (() => {
+    const s = secondsInput.trim();
+    if (!s) return 0;
+    const n = parseInt(s, 10);
+    return isNaN(n) || n < 0 ? 0 : Math.min(59, n);
+  })();
+
+  const parsedDistanceMeters = (() => {
+    const s = distanceMetersInput.trim();
+    if (!s) return 0;
+    const n = parseInt(s, 10);
+    return isNaN(n) || n < 0 ? 0 : n;
+  })();
+
   // Cálculos em tempo real
-  const totalDurationSeconds = minutes * 60 + seconds;
-  const distanceKm = distanceMeters / 1000;
+  const totalDurationSeconds = parsedMinutes * 60 + parsedSeconds;
+  const distanceKm = parsedDistanceMeters / 1000;
 
   let livePaceFormatted = "--:--";
   let liveSpeedKmh = 0;
   let livePaceSeconds = 0;
 
-  if (distanceMeters > 0 && totalDurationSeconds > 0) {
+  if (parsedDistanceMeters > 0 && totalDurationSeconds > 0) {
     try {
       const res = calcPaceFromDistanceAndTime(distanceKm, totalDurationSeconds);
       livePaceFormatted = res.paceFormatted;
@@ -112,25 +134,25 @@ export function TafAttemptForm({
     }
   }
 
-  const deficitMeters = targetDistanceMeters - distanceMeters;
-  const isApproved = distanceMeters >= targetDistanceMeters;
+  const deficitMeters = targetDistanceMeters - parsedDistanceMeters;
+  const isApproved = parsedDistanceMeters >= targetDistanceMeters;
 
   // Delta em relação ao teste imediatamente anterior de mesma duração
   const liveDeltaPrevious =
     lastAttemptSameDuration && !editingAttempt
-      ? distanceMeters - lastAttemptSameDuration.distanceMeters
+      ? parsedDistanceMeters - lastAttemptSameDuration.distanceMeters
       : null;
 
   // Será novo recorde pessoal?
   const willBeNewRecord =
-    distanceMeters > 0 &&
+    parsedDistanceMeters > 0 &&
     totalDurationSeconds === 720 &&
-    (!previousBestAttempt || distanceMeters > previousBestAttempt.distanceMeters);
+    (!previousBestAttempt || parsedDistanceMeters > previousBestAttempt.distanceMeters);
 
   // Gerenciamento de Parciais de 400m
   const autoGenerateLaps = () => {
-    const fullLapsCount = Math.floor(distanceMeters / 400);
-    const remainderMeters = distanceMeters % 400;
+    const fullLapsCount = Math.floor(parsedDistanceMeters / 400);
+    const remainderMeters = parsedDistanceMeters % 400;
     const totalLapsCount = remainderMeters > 0 ? fullLapsCount + 1 : fullLapsCount;
 
     const estimatedTimePerLap =
@@ -181,7 +203,8 @@ export function TafAttemptForm({
     e.preventDefault();
     setErrorMessage(null);
 
-    if (distanceMeters <= 0) {
+    const finalDistanceMeters = parseInt(distanceMetersInput.trim(), 10);
+    if (isNaN(finalDistanceMeters) || finalDistanceMeters <= 0) {
       setErrorMessage("Informe uma distância válida maior que 0 metros.");
       return;
     }
@@ -198,7 +221,7 @@ export function TafAttemptForm({
         testDate: new Date(testDate).toISOString(),
         targetDurationSeconds: totalDurationSeconds === 720 ? 720 : totalDurationSeconds,
         actualDurationSeconds: totalDurationSeconds,
-        distanceMeters,
+        distanceMeters: finalDistanceMeters,
         speedKmh: Number(liveSpeedKmh.toFixed(2)),
         paceSeconds: Math.round(livePaceSeconds),
         paceFormatted: livePaceFormatted,
@@ -296,12 +319,13 @@ export function TafAttemptForm({
           <div className="flex items-center gap-2">
             <div className="flex-1 relative">
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
-                min="1"
-                max="60"
-                value={minutes}
-                onChange={(e) => setMinutes(Math.max(1, Number(e.target.value)))}
+                value={minutesInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  setMinutesInput(val);
+                }}
                 className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <span className="absolute right-2.5 top-3 text-xs text-slate-400 font-medium pointer-events-none">
@@ -311,14 +335,15 @@ export function TafAttemptForm({
             <span className="text-slate-400 font-bold">:</span>
             <div className="flex-1 relative">
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
-                min="0"
-                max="59"
-                value={seconds}
-                onChange={(e) =>
-                  setSeconds(Math.min(59, Math.max(0, Number(e.target.value))))
-                }
+                value={secondsInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  if (val === "" || parseInt(val, 10) <= 59) {
+                    setSecondsInput(val);
+                  }
+                }}
                 className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <span className="absolute right-2.5 top-3 text-xs text-slate-400 font-medium pointer-events-none">
@@ -352,23 +377,24 @@ export function TafAttemptForm({
       {/* Campo de Distância em Metros com Atalhos de 100 em 100m */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+          <label htmlFor="taf-distance-meters" className="text-xs font-bold text-slate-700 dark:text-slate-300">
             Distância Total Percorrida (Metros)
           </label>
           <span className="text-xs text-slate-500">
-            = {(distanceMeters / 1000).toFixed(2)} km
+            = {(parsedDistanceMeters / 1000).toFixed(2)} km
           </span>
         </div>
 
         <div className="relative mb-3">
           <input
-            type="number"
+            id="taf-distance-meters"
+            type="text"
             inputMode="numeric"
-            min="100"
-            max="10000"
-            step="10"
-            value={distanceMeters}
-            onChange={(e) => setDistanceMeters(Number(e.target.value))}
+            value={distanceMetersInput}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              setDistanceMetersInput(val);
+            }}
             required
             className="w-full h-12 px-4 text-lg font-black tracking-tight rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -383,13 +409,13 @@ export function TafAttemptForm({
             Atalhos rápidos:
           </span>
           {DISTANCE_SHORTCUTS.map((shortcut) => {
-            const isSelected = distanceMeters === shortcut;
+            const isSelected = parsedDistanceMeters === shortcut;
             const isTarget = shortcut === targetDistanceMeters;
             return (
               <button
                 type="button"
                 key={shortcut}
-                onClick={() => setDistanceMeters(shortcut)}
+                onClick={() => setDistanceMetersInput(String(shortcut))}
                 className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all ${
                   isSelected
                     ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30 scale-105"

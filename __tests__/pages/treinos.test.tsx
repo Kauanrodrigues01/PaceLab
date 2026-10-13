@@ -25,6 +25,7 @@ const mockTrainingSession: TrainingSession = {
 describe("TreinosPage (Fase 4 - Diário de Treinos Completo)", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
     setupMockTafApi();

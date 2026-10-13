@@ -58,18 +58,20 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
     let totalDurationSeconds = 0;
 
     filteredTrainings.forEach((t) => {
-      totalDistanceKm += t.distanceKm;
-      totalDurationSeconds += t.durationSeconds;
+      totalDistanceKm += Number(t.distanceKm) || 0;
+      totalDurationSeconds += Number(t.durationSeconds) || 0;
     });
 
     const avgPaceSeconds =
-      totalDistanceKm > 0 ? Math.round(totalDurationSeconds / totalDistanceKm) : 0;
+      totalDistanceKm > 0 && totalDurationSeconds > 0
+        ? Math.round(totalDurationSeconds / totalDistanceKm)
+        : 0;
 
     return {
       count: filteredTrainings.length,
       totalDistanceKm: Number(totalDistanceKm.toFixed(2)),
       totalDurationSeconds,
-      avgPaceFormatted: formatPace(avgPaceSeconds),
+      avgPaceFormatted: avgPaceSeconds > 0 ? formatPace(avgPaceSeconds) : "0:00",
     };
   }, [filteredTrainings]);
 

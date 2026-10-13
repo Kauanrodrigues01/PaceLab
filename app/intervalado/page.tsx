@@ -16,6 +16,8 @@ import {
   Repeat,
   HeartPulse,
   Compass,
+  Target,
+  Scissors,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -26,7 +28,34 @@ import { Badge } from "@/components/ui/Badge";
 import { calcIntervalSession } from "@/lib/math/intervals";
 import { formatDecimal, formatTime, parseTime } from "@/lib/formatting/time";
 import { historyStorage } from "@/lib/storage/localStorage";
-import { IntervalSession } from "@/types";
+import { IntervalLimitType, IntervalSession } from "@/types";
+
+const INTERVAL_DRAFT_KEY = "pacelab_draft_interval";
+
+interface IntervalDraft {
+  warmupDuration: string;
+  warmupSpeed: string;
+  runDuration: string;
+  runSpeed: string;
+  walkDuration: string;
+  walkSpeed: string;
+  repetitions: string;
+  cooldownDuration: string;
+  cooldownSpeed: string;
+  limitType: IntervalLimitType;
+  limitDistance: string;
+  limitTime: string;
+}
+
+const getInitialIntervalDraft = (): IntervalDraft | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(INTERVAL_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
 
 export default function IntervaladoPage() {
   // Aquecimento
@@ -47,6 +76,30 @@ export default function IntervaladoPage() {
   // Desaquecimento
   const [cooldownDuration, setCooldownDuration] = useState("5");
   const [cooldownSpeed, setCooldownSpeed] = useState("7");
+
+  // Limite da Sessão (Opcional)
+  const [limitType, setLimitType] = useState<IntervalLimitType>("none");
+  const [limitDistance, setLimitDistance] = useState("2.4");
+  const [limitTime, setLimitTime] = useState("12");
+
+  // Restaura rascunho de inputs se disponível no sessionStorage
+  React.useEffect(() => {
+    const draft = getInitialIntervalDraft();
+    if (draft) {
+      if (draft.warmupDuration !== undefined) setWarmupDuration(draft.warmupDuration);
+      if (draft.warmupSpeed !== undefined) setWarmupSpeed(draft.warmupSpeed);
+      if (draft.runDuration !== undefined) setRunDuration(draft.runDuration);
+      if (draft.runSpeed !== undefined) setRunSpeed(draft.runSpeed);
+      if (draft.walkDuration !== undefined) setWalkDuration(draft.walkDuration);
+      if (draft.walkSpeed !== undefined) setWalkSpeed(draft.walkSpeed);
+      if (draft.repetitions !== undefined) setRepetitions(draft.repetitions);
+      if (draft.cooldownDuration !== undefined) setCooldownDuration(draft.cooldownDuration);
+      if (draft.cooldownSpeed !== undefined) setCooldownSpeed(draft.cooldownSpeed);
+      if (draft.limitType !== undefined) setLimitType(draft.limitType);
+      if (draft.limitDistance !== undefined) setLimitDistance(draft.limitDistance);
+      if (draft.limitTime !== undefined) setLimitTime(draft.limitTime);
+    }
+  }, []);
 
   // Erros
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -145,6 +198,29 @@ export default function IntervaladoPage() {
       newErrors.cooldownSpeed = "Velocidade deve ser maior que zero.";
     }
 
+    let parsedMaxDistKm: number | undefined = undefined;
+    let parsedMaxDurSec: number | undefined = undefined;
+
+    if (limitType === "distance") {
+      const dNum = Number(limitDistance.replace(",", "."));
+      if (!Number.isFinite(dNum) || dNum <= 0) {
+        newErrors.limitDistance = "A distância máxima deve ser maior que zero.";
+      } else {
+        parsedMaxDistKm = dNum;
+      }
+    } else if (limitType === "time") {
+      try {
+        const tSec = parseFlexibleDuration(limitTime);
+        if (tSec <= 0) {
+          newErrors.limitTime = "O tempo máximo deve ser maior que zero.";
+        } else {
+          parsedMaxDurSec = tSec;
+        }
+      } catch {
+        newErrors.limitTime = "Duração de limite inválida.";
+      }
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setSessionResult(null);
@@ -162,10 +238,33 @@ export default function IntervaladoPage() {
         repetitions: repNum,
         cooldownDurationSeconds: cooldownSec,
         cooldownSpeedKmh: cdSpdNum,
+        limitType,
+        maxDistanceKm: parsedMaxDistKm,
+        maxDurationSeconds: parsedMaxDurSec,
       });
       setSessionResult(res);
       setErrors({});
       setSavedToHistory(false);
+
+      if (typeof window !== "undefined") {
+        try {
+          const draft: IntervalDraft = {
+            warmupDuration,
+            warmupSpeed,
+            runDuration,
+            runSpeed,
+            walkDuration,
+            walkSpeed,
+            repetitions,
+            cooldownDuration,
+            cooldownSpeed,
+            limitType,
+            limitDistance,
+            limitTime,
+          };
+          sessionStorage.setItem(INTERVAL_DRAFT_KEY, JSON.stringify(draft));
+        } catch {}
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro no cálculo do intervalado";
       setErrors({ form: msg });
@@ -183,6 +282,9 @@ export default function IntervaladoPage() {
     setRepetitions("6");
     setCooldownDuration("5");
     setCooldownSpeed("7");
+    setLimitType("none");
+    setLimitDistance("2.4");
+    setLimitTime("12");
     setErrors({});
     const res = calcIntervalSession({
       warmupDurationSeconds: 300,
@@ -208,13 +310,29 @@ export default function IntervaladoPage() {
     setRepetitions("");
     setCooldownDuration("");
     setCooldownSpeed("");
+    setLimitType("none");
+    setLimitDistance("2.4");
+    setLimitTime("12");
     setErrors({});
     setSessionResult(null);
     setSavedToHistory(false);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(INTERVAL_DRAFT_KEY);
+      } catch {}
+    }
   };
 
   const handleSaveToHistory = () => {
     if (!sessionResult) return;
+
+    let limitText = "";
+    if (sessionResult.limitInfo && sessionResult.limitInfo.type !== "none") {
+      limitText =
+        sessionResult.limitInfo.type === "distance"
+          ? ` [Trava: ${sessionResult.limitInfo.targetValue} km]`
+          : ` [Trava: ${formatTime(sessionResult.limitInfo.targetValue)}]`;
+    }
 
     historyStorage.save({
       id: "intervalado-" + Date.now(),
@@ -224,7 +342,7 @@ export default function IntervaladoPage() {
       paceSeconds: sessionResult.averagePaceSeconds,
       paceFormatted: sessionResult.averagePaceFormatted,
       speedKmh: sessionResult.averageSpeedKmh,
-      notes: `Treino Intervalado: ${repetitions}x [${runDuration}min a ${runSpeed} km/h + ${walkDuration}min a ${walkSpeed} km/h]. Total: ${formatDecimal(sessionResult.totalDistanceKm, 2)} km em ${formatTime(sessionResult.totalTimeSeconds)}.`,
+      notes: `Treino Intervalado${limitText}: ${repetitions}x [${runDuration}min a ${runSpeed} km/h + ${walkDuration}min a ${walkSpeed} km/h]. Total: ${formatDecimal(sessionResult.totalDistanceKm, 2)} km em ${formatTime(sessionResult.totalTimeSeconds)}.`,
       createdAt: new Date().toISOString(),
     });
 
@@ -419,6 +537,133 @@ export default function IntervaladoPage() {
                 </div>
               </div>
 
+              {/* 6. Limite da Sessão (Opcional) */}
+              <div className="p-3.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Target className="w-3.5 h-3.5 text-purple-600" />
+                    6. Limite da Sessão (Opcional)
+                  </span>
+                  <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">
+                    {limitType === "none"
+                      ? "Sem trava"
+                      : limitType === "distance"
+                      ? "Corte por km"
+                      : "Corte por tempo"}
+                  </span>
+                </div>
+
+                {/* Seletor do tipo de limite */}
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-purple-100/60 dark:bg-purple-900/30 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setLimitType("none")}
+                    className={`py-1.5 text-xs font-semibold rounded-md transition-all ${
+                      limitType === "none"
+                        ? "bg-white dark:bg-slate-800 text-purple-950 dark:text-purple-100 shadow-sm"
+                        : "text-purple-700 dark:text-purple-300 hover:text-purple-900"
+                    }`}
+                  >
+                    Sem Limite
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLimitType("distance")}
+                    className={`py-1.5 text-xs font-semibold rounded-md transition-all ${
+                      limitType === "distance"
+                        ? "bg-white dark:bg-slate-800 text-purple-950 dark:text-purple-100 shadow-sm"
+                        : "text-purple-700 dark:text-purple-300 hover:text-purple-900"
+                    }`}
+                  >
+                    Por Distância
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLimitType("time")}
+                    className={`py-1.5 text-xs font-semibold rounded-md transition-all ${
+                      limitType === "time"
+                        ? "bg-white dark:bg-slate-800 text-purple-950 dark:text-purple-100 shadow-sm"
+                        : "text-purple-700 dark:text-purple-300 hover:text-purple-900"
+                    }`}
+                  >
+                    Por Tempo
+                  </button>
+                </div>
+
+                {/* Inputs de Limite */}
+                {limitType === "distance" && (
+                  <div className="space-y-2 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                      <Input
+                        label="Distância Máxima"
+                        id="input-limit-dist"
+                        value={limitDistance}
+                        onChange={(e) => setLimitDistance(e.target.value)}
+                        rightAddon="km"
+                        placeholder="2.4"
+                        error={errors.limitDistance}
+                        inputMode="decimal"
+                      />
+                      <div className="flex gap-2 pb-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setLimitDistance("2.4")}
+                          className="px-2.5 py-1.5 text-xs rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 hover:bg-purple-100/50 text-purple-800 dark:text-purple-200 font-medium transition-colors"
+                        >
+                          2,4 km (TAF)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLimitDistance("5.0")}
+                          className="px-2.5 py-1.5 text-xs rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 hover:bg-purple-100/50 text-purple-800 dark:text-purple-200 font-medium transition-colors"
+                        >
+                          5,0 km
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                      Caso a última etapa exceda o limite, ela será cortada no tempo exato para cravar a distância. Se o tiro forte anterior já atingir a meta, a recuperação seguinte é removida.
+                    </p>
+                  </div>
+                )}
+
+                {limitType === "time" && (
+                  <div className="space-y-2 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                      <Input
+                        label="Duração Máxima"
+                        id="input-limit-dur"
+                        value={limitTime}
+                        onChange={(e) => setLimitTime(e.target.value)}
+                        rightAddon="minutos"
+                        placeholder="12"
+                        hint="Ex: 12 ou 12:00"
+                        error={errors.limitTime}
+                      />
+                      <div className="flex gap-2 pb-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setLimitTime("12")}
+                          className="px-2.5 py-1.5 text-xs rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 hover:bg-purple-100/50 text-purple-800 dark:text-purple-200 font-medium transition-colors"
+                        >
+                          12 min (TAF)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLimitTime("20")}
+                          className="px-2.5 py-1.5 text-xs rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 hover:bg-purple-100/50 text-purple-800 dark:text-purple-200 font-medium transition-colors"
+                        >
+                          20 min
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                      O treino será encerrado no minuto/segundo exato configurado, cortando a etapa ativa proporcionalmente.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {errors.form && (
                 <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
@@ -474,7 +719,15 @@ export default function IntervaladoPage() {
                           {s.index}
                         </td>
                         <td className="py-2.5 font-sans">
-                          {getStageBadge(s.type)}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {getStageBadge(s.type)}
+                            {s.isTruncated && (
+                              <Badge variant="warning" className="text-[10px] py-0 px-1.5 gap-0.5">
+                                <Scissors className="w-2.5 h-2.5" />
+                                Cortada no Limite
+                              </Badge>
+                            )}
+                          </div>
                         </td>
                         <td className="py-2.5 text-slate-800 dark:text-slate-200 font-semibold">
                           {formatTime(s.durationSeconds)}
@@ -513,12 +766,36 @@ export default function IntervaladoPage() {
           >
             {sessionResult ? (
               <div className="space-y-4">
+                {/* Banner de Limite Aplicado */}
+                {sessionResult.limitInfo && sessionResult.limitInfo.type !== "none" && (
+                  <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900 text-purple-900 dark:text-purple-200 text-xs space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <Scissors className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      {sessionResult.limitInfo.type === "distance"
+                        ? `Limite de Distância: ${sessionResult.limitInfo.targetValue} km`
+                        : `Limite de Tempo: ${formatTime(sessionResult.limitInfo.targetValue)}`}
+                    </div>
+                    <p className="text-purple-700 dark:text-purple-300 text-[11px] leading-relaxed">
+                      {sessionResult.limitInfo.truncatedStageIndex
+                        ? `A etapa #${sessionResult.limitInfo.truncatedStageIndex} foi cortada proporcionalmente para cravar a meta.`
+                        : "Meta alcançada na última etapa executada."}
+                      {sessionResult.limitInfo.stagesRemovedCount
+                        ? ` (${sessionResult.limitInfo.stagesRemovedCount} etapa(s) subsequente(s) foram descartadas).`
+                        : ""}
+                    </p>
+                  </div>
+                )}
+
                 {/* Tempo Total */}
                 <ResultBlock
                   label="Duração Total do Treino"
                   value={formatTime(sessionResult.totalTimeSeconds)}
                   highlight
-                  secondaryText={`Somatório de aquecimento, ${repetitions} séries e desaquecimento`}
+                  secondaryText={
+                    sessionResult.limitInfo && sessionResult.limitInfo.type !== "none"
+                      ? `Sessão finalizada por limite (${sessionResult.stages.length} etapas executadas)`
+                      : `Somatório de aquecimento, ${repetitions} séries e desaquecimento`
+                  }
                   icon={<Timer className="w-4 h-4" />}
                 />
 
@@ -527,7 +804,11 @@ export default function IntervaladoPage() {
                   label="Distância Total Percorrida"
                   value={formatDecimal(sessionResult.totalDistanceKm, 2)}
                   unit="km"
-                  secondaryText="Volume total rodado na sessão"
+                  secondaryText={
+                    sessionResult.limitInfo && sessionResult.limitInfo.type !== "none"
+                      ? "Volume cravado conforme limite estipulado"
+                      : "Volume total rodado na sessão"
+                  }
                   icon={<Milestone className="w-4 h-4" />}
                 />
 

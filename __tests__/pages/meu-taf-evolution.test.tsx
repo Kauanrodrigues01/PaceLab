@@ -8,6 +8,7 @@ import { setupMockTafApi } from "@/test/helpers/mockTafApi";
 describe("MeuTafPage - Fase E (Painel de Evolução & 5 Gráficos Recharts)", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
     setupMockTafApi();

@@ -25,6 +25,45 @@ import {
   Dumbbell,
 } from "lucide-react";
 
+const TAF_ATTEMPTS_CACHE_KEY = "pacelab_cache_taf_attempts";
+const TAF_GOAL_CACHE_KEY = "pacelab_cache_taf_goal";
+const TAF_TRAININGS_CACHE_KEY = "pacelab_cache_taf_trainings";
+
+const getCachedAttempts = (): TafAttempt[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(TAF_ATTEMPTS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const getCachedGoal = (): TafGoalConfig => {
+  if (typeof window === "undefined") return DEFAULT_GOAL;
+  try {
+    const raw = sessionStorage.getItem(TAF_GOAL_CACHE_KEY);
+    if (!raw) return DEFAULT_GOAL;
+    return JSON.parse(raw) || DEFAULT_GOAL;
+  } catch {
+    return DEFAULT_GOAL;
+  }
+};
+
+const getCachedTrainings = (): TrainingSession[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(TAF_TRAININGS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 export default function MeuTafPage() {
   const [activeTab, setActiveTab] = useState<
     "testes" | "graficos" | "comparador" | "config"
@@ -51,9 +90,8 @@ export default function MeuTafPage() {
     message: string;
   } | null>(null);
 
-  // Carrega dados iniciais do Supabase
+  // Carrega dados do Supabase em segundo plano (Stale-While-Revalidate)
   const loadData = useCallback(async () => {
-    setIsLoading(true);
     setLoadError(null);
     try {
       const [fetchedGoal, fetchedAttempts, fetchedTrainings, health] = await Promise.all([
@@ -67,6 +105,16 @@ export default function MeuTafPage() {
       setAttempts(fetchedAttempts);
       setTrainings(fetchedTrainings);
       setDbStatus(health);
+
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(TAF_GOAL_CACHE_KEY, JSON.stringify(fetchedGoal));
+          sessionStorage.setItem(TAF_ATTEMPTS_CACHE_KEY, JSON.stringify(fetchedAttempts));
+          sessionStorage.setItem(TAF_TRAININGS_CACHE_KEY, JSON.stringify(fetchedTrainings));
+        } catch {
+          // Ignorado defensivamente
+        }
+      }
     } catch (err) {
       console.error("Erro ao carregar dados do Meu TAF:", err);
       setLoadError("Não foi possível carregar os dados do Supabase. Verifique sua conexão com a internet.");
@@ -77,6 +125,20 @@ export default function MeuTafPage() {
   }, []);
 
   useEffect(() => {
+    // Hidratação rápida com cache de sessão se disponível
+    const cachedAttempts = getCachedAttempts();
+    if (cachedAttempts.length > 0) {
+      setAttempts(cachedAttempts);
+      setIsLoading(false);
+    }
+    const cachedGoal = getCachedGoal();
+    if (cachedGoal && cachedGoal.targetDistanceMeters) {
+      setGoal(cachedGoal);
+    }
+    const cachedTrainings = getCachedTrainings();
+    if (cachedTrainings.length > 0) {
+      setTrainings(cachedTrainings);
+    }
     loadData();
   }, [loadData]);
 
@@ -94,10 +156,15 @@ export default function MeuTafPage() {
 
       setAttempts((prev) => {
         const index = prev.findIndex((a) => a.id === saved.id);
-        if (index >= 0) {
-          return prev.map((a) => (a.id === saved.id ? saved : a));
+        const updated = index >= 0
+          ? prev.map((a) => (a.id === saved.id ? saved : a))
+          : [saved, ...prev];
+        if (typeof window !== "undefined") {
+          try {
+            sessionStorage.setItem(TAF_ATTEMPTS_CACHE_KEY, JSON.stringify(updated));
+          } catch {}
         }
-        return [saved, ...prev];
+        return updated;
       });
 
       setEditingAttempt(null);
@@ -117,7 +184,15 @@ export default function MeuTafPage() {
   const handleDeleteAttempt = async (id: string) => {
     try {
       await tafService.deleteAttempt(id);
-      setAttempts((prev) => prev.filter((a) => a.id !== id));
+      setAttempts((prev) => {
+        const updated = prev.filter((a) => a.id !== id);
+        if (typeof window !== "undefined") {
+          try {
+            sessionStorage.setItem(TAF_ATTEMPTS_CACHE_KEY, JSON.stringify(updated));
+          } catch {}
+        }
+        return updated;
+      });
       if (editingAttempt?.id === id) {
         setEditingAttempt(null);
       }
@@ -335,7 +410,13 @@ export default function MeuTafPage() {
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
             {personalRecord12m
-              ? `Pace ${personalRecord12m.paceFormatted}/km (${personalRecord12m.speedKmh.toFixed(1)} km/h)`
+              ? `Pace ${personalRecord12m.paceFormatted || "--"}/km (${
+                  typeof personalRecord12m.speedKmh === "number"
+                    ? personalRecord12m.speedKmh.toFixed(1)
+                    : personalRecord12m.distanceMeters > 0
+                    ? ((personalRecord12m.distanceMeters / 1000) / (720 / 3600)).toFixed(1)
+                    : "--"
+                } km/h)`
               : "Nenhum teste ainda"}
           </p>
         </div>

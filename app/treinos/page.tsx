@@ -26,6 +26,29 @@ import {
 
 export type TreinosTab = "diario" | "graficos";
 
+const TRAININGS_CACHE_KEY = "pacelab_cache_trainings";
+
+const getCachedTrainings = (): TrainingSession[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(TRAININGS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const setCachedTrainings = (data: TrainingSession[]) => {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(TRAININGS_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    // QuotaExceededError ignorado defensivamente
+  }
+};
+
 export default function TreinosPage() {
   const [activeTab, setActiveTab] = useState<TreinosTab>("diario");
   const [trainings, setTrainings] = useState<TrainingSession[]>([]);
@@ -68,13 +91,13 @@ export default function TreinosPage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Carrega a lista de treinos via tafService
+  // Carrega a lista de treinos via tafService (Stale-While-Revalidate)
   const loadTrainings = useCallback(async () => {
-    setIsLoading(true);
     setErrorMessage(null);
     try {
       const data = await tafService.getTrainings();
       setTrainings(data);
+      setCachedTrainings(data);
     } catch (err) {
       console.error("Erro ao carregar treinos:", err);
       setErrorMessage("Não foi possível carregar os treinos. Verifique sua conexão.");
@@ -84,6 +107,12 @@ export default function TreinosPage() {
   }, []);
 
   useEffect(() => {
+    // Hidratação imediata via cache de sessão para evitar tela branca/spinner
+    const cached = getCachedTrainings();
+    if (cached.length > 0) {
+      setTrainings(cached);
+      setIsLoading(false);
+    }
     loadTrainings();
   }, [loadTrainings]);
 
@@ -95,10 +124,11 @@ export default function TreinosPage() {
 
       setTrainings((prev) => {
         const index = prev.findIndex((t) => t.id === saved.id);
-        if (index >= 0) {
-          return prev.map((t) => (t.id === saved.id ? saved : t));
-        }
-        return [saved, ...prev];
+        const updated = index >= 0
+          ? prev.map((t) => (t.id === saved.id ? saved : t))
+          : [saved, ...prev];
+        setCachedTrainings(updated);
+        return updated;
       });
 
       setEditingTraining(null);
@@ -134,7 +164,11 @@ export default function TreinosPage() {
   const handleDeleteTraining = async (id: string) => {
     try {
       await tafService.deleteTraining(id);
-      setTrainings((prev) => prev.filter((t) => t.id !== id));
+      setTrainings((prev) => {
+        const updated = prev.filter((t) => t.id !== id);
+        setCachedTrainings(updated);
+        return updated;
+      });
       if (editingTraining?.id === id) {
         setEditingTraining(null);
         setIsFormOpen(false);

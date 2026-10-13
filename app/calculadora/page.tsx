@@ -83,6 +83,26 @@ interface PaceSpeedResult {
   taf12mDistanceMeters: number;
 }
 
+const CALC_DRAFT_KEY = "pacelab_draft_calc";
+
+interface CalcDraft {
+  mode: CalcMode;
+  distanceInput: string;
+  timeInput: string;
+  paceInput: string;
+  speedInput: string;
+}
+
+const getInitialCalcDraft = (): CalcDraft | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(CALC_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 export default function CalculadoraPage() {
   // Aba ativa do Hub de Calculadoras
   const [activeHubTab, setActiveHubTab] = useState<HubTab>("pace");
@@ -120,6 +140,18 @@ export default function CalculadoraPage() {
   const [paceInput, setPaceInput] = useState("6:40");
   const [speedInput, setSpeedInput] = useState("9.0");
 
+  // Restaura rascunho do sessionStorage ao montar no cliente
+  useEffect(() => {
+    const draft = getInitialCalcDraft();
+    if (draft) {
+      if (draft.mode) setMode(draft.mode);
+      if (draft.distanceInput !== undefined) setDistanceInput(draft.distanceInput);
+      if (draft.timeInput !== undefined) setTimeInput(draft.timeInput);
+      if (draft.paceInput !== undefined) setPaceInput(draft.paceInput);
+      if (draft.speedInput !== undefined) setSpeedInput(draft.speedInput);
+    }
+  }, []);
+
   // Tipo de entrada secundária para tempo/distância
   const [timeCalcMethod, setTimeCalcMethod] = useState<"pace" | "speed">("pace");
   const [distCalcMethod, setDistCalcMethod] = useState<"speed" | "pace">("speed");
@@ -150,6 +182,22 @@ export default function CalculadoraPage() {
 
   // Estado de salvar no histórico
   const [savedToHistory, setSavedToHistory] = useState(false);
+
+  // Sincroniza rascunho de cálculo no sessionStorage
+  const saveCalcDraft = (override?: Partial<CalcDraft>) => {
+    if (typeof window === "undefined") return;
+    try {
+      const draft: CalcDraft = {
+        mode,
+        distanceInput,
+        timeInput,
+        paceInput,
+        speedInput,
+        ...override,
+      };
+      sessionStorage.setItem(CALC_DRAFT_KEY, JSON.stringify(draft));
+    } catch {}
+  };
 
   // Limpar erros
   const clearError = (field: string) => {
@@ -189,6 +237,7 @@ export default function CalculadoraPage() {
       });
       setErrors({});
       setSavedToHistory(false);
+      saveCalcDraft();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro ao calcular";
       setErrors({ form: message });
@@ -416,6 +465,11 @@ export default function CalculadoraPage() {
     setTimeResult(null);
     setDistResult(null);
     setSavedToHistory(false);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(CALC_DRAFT_KEY);
+      } catch {}
+    }
   };
 
   // Salvar no histórico

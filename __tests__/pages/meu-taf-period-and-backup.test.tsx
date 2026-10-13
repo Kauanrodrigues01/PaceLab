@@ -8,6 +8,7 @@ import { setupMockTafApi } from "@/test/helpers/mockTafApi";
 describe("MeuTafPage - Fase F (Comparador de Períodos & Configuração de Meta / Backup)", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
     setupMockTafApi();

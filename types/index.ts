@@ -47,6 +47,7 @@ export interface FixedTargetResult {
 
 // ─── Treino Intervalado ───────────────────────────────────────────────────────
 export type StageType = "warmup" | "run" | "walk" | "cooldown";
+export type IntervalLimitType = "none" | "distance" | "time";
 
 export interface IntervalStage {
   index: number;
@@ -55,6 +56,7 @@ export interface IntervalStage {
   speedKmh: KmPerHour;
   distanceKm: Kilometers;
   paceFormatted: string;
+  isTruncated?: boolean; // Indica se a etapa foi cortada para respeitar o limite
 }
 
 export interface IntervalConfig {
@@ -67,6 +69,17 @@ export interface IntervalConfig {
   repetitions: number;
   cooldownDurationSeconds: Seconds;
   cooldownSpeedKmh: KmPerHour;
+  // Parâmetros opcionais de limite
+  limitType?: IntervalLimitType;
+  maxDistanceKm?: Kilometers;
+  maxDurationSeconds?: Seconds;
+}
+
+export interface IntervalLimitInfo {
+  type: IntervalLimitType;
+  targetValue: number;
+  truncatedStageIndex?: number;
+  stagesRemovedCount?: number;
 }
 
 export interface IntervalSession {
@@ -76,6 +89,7 @@ export interface IntervalSession {
   averagePaceSeconds: SecondsPerKm;
   averagePaceFormatted: string;
   stages: IntervalStage[];
+  limitInfo?: IntervalLimitInfo;
 }
 
 // ─── Médias de Pace ───────────────────────────────────────────────────────────

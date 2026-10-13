@@ -8,6 +8,7 @@ import { setupMockTafApi } from "@/test/helpers/mockTafApi";
 describe("Diário de Treinos - CRUD Completo (RPE, Peso, Splits e Filtros)", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
     setupMockTafApi();
