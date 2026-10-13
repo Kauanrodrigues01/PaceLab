@@ -26,6 +26,8 @@ import { ResultBlock } from "@/components/ui/ResultBlock";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { Badge } from "@/components/ui/Badge";
 import { calcIntervalSession } from "@/lib/math/intervals";
+import { calcIntervalCalories } from "@/lib/math/calories";
+import { profileService } from "@/lib/services/profileService";
 import { formatDecimal, formatTime, parseTime } from "@/lib/formatting/time";
 import { historyStorage } from "@/lib/storage/localStorage";
 import { IntervalLimitType, IntervalSession } from "@/types";
@@ -124,6 +126,31 @@ export default function IntervaladoPage() {
   });
 
   const [savedToHistory, setSavedToHistory] = useState(false);
+
+  // Peso corporal do atleta para estimativa de gasto calórico
+  const [athleteWeightKg, setAthleteWeightKg] = useState<number | null>(null);
+
+  React.useEffect(() => {
+    profileService
+      .getProfile()
+      .then((prof) => {
+        if (prof?.currentWeightKg) {
+          setAthleteWeightKg(prof.currentWeightKg);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Estimativa de gasto calórico da sessão intervalada (Compêndio 2024 Herrmann et al.)
+  const calorieResult = React.useMemo(() => {
+    if (!sessionResult) return null;
+    const weightToUse = athleteWeightKg && athleteWeightKg > 0 ? athleteWeightKg : 70;
+    try {
+      return calcIntervalCalories(sessionResult, weightToUse);
+    } catch {
+      return null;
+    }
+  }, [sessionResult, athleteWeightKg]);
 
   // Parse de duração flexível (aceita minutos inteiros, decimais como 1.5 ou MM:SS como 1:30)
   const parseFlexibleDuration = (value: string): number => {
@@ -342,7 +369,9 @@ export default function IntervaladoPage() {
       paceSeconds: sessionResult.averagePaceSeconds,
       paceFormatted: sessionResult.averagePaceFormatted,
       speedKmh: sessionResult.averageSpeedKmh,
-      notes: `Treino Intervalado${limitText}: ${repetitions}x [${runDuration}min a ${runSpeed} km/h + ${walkDuration}min a ${walkSpeed} km/h]. Total: ${formatDecimal(sessionResult.totalDistanceKm, 2)} km em ${formatTime(sessionResult.totalTimeSeconds)}.`,
+      notes: `Treino Intervalado${limitText}: ${repetitions}x [${runDuration}min a ${runSpeed} km/h + ${walkDuration}min a ${walkSpeed} km/h]. Total: ${formatDecimal(sessionResult.totalDistanceKm, 2)} km em ${formatTime(sessionResult.totalTimeSeconds)}${
+        calorieResult ? ` (${calorieResult.activeCalories} kcal ativas)` : ""
+      }.`,
       createdAt: new Date().toISOString(),
     });
 
@@ -710,39 +739,46 @@ export default function IntervaladoPage() {
                       <th className="py-2.5 font-semibold">Velocidade</th>
                       <th className="py-2.5 font-semibold">Pace</th>
                       <th className="py-2.5 text-right font-semibold">Distância</th>
+                      <th className="py-2.5 text-right font-semibold">Calorias</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
-                    {sessionResult.stages.map((s) => (
-                      <tr key={s.index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                        <td className="py-2.5 text-slate-400 font-sans font-bold">
-                          {s.index}
-                        </td>
-                        <td className="py-2.5 font-sans">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {getStageBadge(s.type)}
-                            {s.isTruncated && (
-                              <Badge variant="warning" className="text-[10px] py-0 px-1.5 gap-0.5">
-                                <Scissors className="w-2.5 h-2.5" />
-                                Cortada no Limite
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-2.5 text-slate-800 dark:text-slate-200 font-semibold">
-                          {formatTime(s.durationSeconds)}
-                        </td>
-                        <td className="py-2.5 text-slate-600 dark:text-slate-400">
-                          {formatDecimal(s.speedKmh, 1)} km/h
-                        </td>
-                        <td className="py-2.5 text-blue-600 dark:text-blue-400 font-bold">
-                          {s.paceFormatted}
-                        </td>
-                        <td className="py-2.5 text-right text-slate-900 dark:text-slate-100 font-black">
-                          {formatDecimal(s.distanceKm, 2)} km
-                        </td>
-                      </tr>
-                    ))}
+                    {sessionResult.stages.map((s) => {
+                      const seg = calorieResult?.segments.find((g) => g.stageIndex === s.index);
+                      return (
+                        <tr key={s.index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <td className="py-2.5 text-slate-400 font-sans font-bold">
+                            {s.index}
+                          </td>
+                          <td className="py-2.5 font-sans">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {getStageBadge(s.type)}
+                              {s.isTruncated && (
+                                <Badge variant="warning" className="text-[10px] py-0 px-1.5 gap-0.5">
+                                  <Scissors className="w-2.5 h-2.5" />
+                                  Cortada no Limite
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2.5 text-slate-800 dark:text-slate-200 font-semibold">
+                            {formatTime(s.durationSeconds)}
+                          </td>
+                          <td className="py-2.5 text-slate-600 dark:text-slate-400">
+                            {formatDecimal(s.speedKmh, 1)} km/h
+                          </td>
+                          <td className="py-2.5 text-blue-600 dark:text-blue-400 font-bold">
+                            {s.paceFormatted}
+                          </td>
+                          <td className="py-2.5 text-right text-slate-900 dark:text-slate-100 font-black">
+                            {formatDecimal(s.distanceKm, 2)} km
+                          </td>
+                          <td className="py-2.5 text-right text-amber-600 dark:text-amber-400 font-bold">
+                            {seg ? `${seg.activeCalories} kcal` : "--"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -840,6 +876,58 @@ export default function IntervaladoPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Estimativa de Gasto Calórico (Compêndio 2024 Herrmann et al.) */}
+                {calorieResult && (
+                  <div
+                    data-testid="interval-calories-card"
+                    className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 dark:from-amber-500/15 dark:via-orange-500/15 dark:to-red-500/15 space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-200">
+                        <Flame className="w-4 h-4 text-amber-600 dark:text-amber-400 fill-amber-500" />
+                        <span>Gasto Calórico Estimado</span>
+                      </div>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">
+                        MET Médio {calorieResult.metValue.toFixed(1)}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/80 border border-amber-200/50 dark:border-amber-900/40">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                          Ativas (Exercício)
+                        </span>
+                        <span
+                          data-testid="interval-active-calories"
+                          className="text-lg font-black text-amber-600 dark:text-amber-400"
+                        >
+                          {calorieResult.activeCalories}{" "}
+                          <span className="text-xs font-normal">kcal</span>
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/80 border border-amber-200/50 dark:border-amber-900/40">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                          Totais
+                        </span>
+                        <span
+                          data-testid="interval-total-calories"
+                          className="text-lg font-black text-slate-800 dark:text-slate-200"
+                        >
+                          {calorieResult.totalCalories}{" "}
+                          <span className="text-xs font-normal">kcal</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center">
+                      {athleteWeightKg
+                        ? `Cálculo com seu peso corporal cadastrado (${athleteWeightKg} kg)`
+                        : "Baseado no peso padrão (70 kg) • Atualize em seu Perfil"}
+                    </p>
+                  </div>
+                )}
 
                 {/* Ação de Salvar no Histórico */}
                 <Button

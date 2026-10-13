@@ -35,6 +35,22 @@ export async function PUT(
           : {}),
         ...(validated.notes !== undefined ? { notes: validated.notes || null } : {}),
         ...(validated.splits !== undefined ? { splits: validated.splits || [] } : {}),
+        ...(validated.activeCalories !== undefined
+          ? { activeCalories: validated.activeCalories }
+          : {}),
+        ...(validated.totalCalories !== undefined
+          ? { totalCalories: validated.totalCalories }
+          : {}),
+        ...(validated.metValue !== undefined ? { metValue: validated.metValue } : {}),
+        ...(validated.calorieMethod !== undefined
+          ? { calorieMethod: validated.calorieMethod }
+          : {}),
+        ...(validated.calorieSource !== undefined
+          ? { calorieSource: validated.calorieSource }
+          : {}),
+        ...(validated.calorieMetadata !== undefined
+          ? { calorieMetadata: validated.calorieMetadata }
+          : {}),
       },
     });
 

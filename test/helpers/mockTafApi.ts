@@ -1,11 +1,13 @@
 import { vi } from "vitest";
-import { TafGoalConfig, TafAttempt, TrainingSession } from "@/types";
+import { TafGoalConfig, TafAttempt, TrainingSession, UserProfile, WeightRecord } from "@/types";
 import { DEFAULT_GOAL } from "@/lib/services/tafService";
 
 export interface MockTafStore {
   goal: TafGoalConfig;
   attempts: TafAttempt[];
   trainings: TrainingSession[];
+  profile: UserProfile | null;
+  weights: WeightRecord[];
 }
 
 export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
@@ -13,6 +15,20 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
     goal: initialState?.goal ? { ...initialState.goal } : { ...DEFAULT_GOAL },
     attempts: initialState?.attempts ? [...initialState.attempts] : [],
     trainings: initialState?.trainings ? [...initialState.trainings] : [],
+    profile:
+      initialState?.profile !== undefined
+        ? initialState.profile
+        : {
+            id: "profile_default",
+            name: "Atleta Teste",
+            heightCm: 175,
+            currentWeightKg: 70,
+            birthDate: null,
+            gender: "masculino",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+    weights: initialState?.weights ? [...initialState.weights] : [],
   };
 
   const mockFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -201,6 +217,112 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
           json: async () => ({
             success: true,
             data: { success: true, deletedId: trainingId },
+            timestamp: new Date().toISOString(),
+          }),
+        } as Response;
+      }
+    }
+
+    // 5. Weight Records
+    if (url.includes("/api/profile/weight")) {
+      const matchId = url.match(/\/api\/profile\/weight\/([^/?]+)/);
+      const weightId = matchId ? decodeURIComponent(matchId[1]) : null;
+
+      if (method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            success: true,
+            data: store.weights,
+            timestamp: new Date().toISOString(),
+          }),
+        } as Response;
+      }
+
+      if (method === "POST") {
+        const body = JSON.parse((init?.body as string) || "{}");
+        const newRecord: WeightRecord = {
+          ...body,
+          id: body.id || `w_${Date.now()}`,
+          recordedAt: body.recordedAt || new Date().toISOString(),
+          source: body.source || "manual",
+          createdAt: new Date().toISOString(),
+        };
+        store.weights = [newRecord, ...store.weights];
+        if (store.profile) {
+          store.profile = {
+            ...store.profile,
+            currentWeightKg: newRecord.weightKg,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            success: true,
+            data: newRecord,
+            timestamp: new Date().toISOString(),
+          }),
+        } as Response;
+      }
+
+      if (method === "DELETE" && weightId) {
+        store.weights = store.weights.filter((w) => w.id !== weightId);
+        if (store.profile) {
+          store.profile = {
+            ...store.profile,
+            currentWeightKg: store.weights.length > 0 ? store.weights[0].weightKg : null,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            success: true,
+            data: { success: true, deletedId: weightId },
+            timestamp: new Date().toISOString(),
+          }),
+        } as Response;
+      }
+    }
+
+    // 6. User Profile
+    if (url.includes("/api/profile")) {
+      if (method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            success: true,
+            data: store.profile,
+            timestamp: new Date().toISOString(),
+          }),
+        } as Response;
+      }
+
+      if (method === "PUT" || method === "POST") {
+        const body = JSON.parse((init?.body as string) || "{}");
+        const updatedProfile: UserProfile = {
+          ...(store.profile || {
+            id: "profile_default",
+            heightCm: 175,
+            currentWeightKg: 70,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }),
+          ...body,
+          updatedAt: new Date().toISOString(),
+        };
+        store.profile = updatedProfile;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            success: true,
+            data: updatedProfile,
             timestamp: new Date().toISOString(),
           }),
         } as Response;

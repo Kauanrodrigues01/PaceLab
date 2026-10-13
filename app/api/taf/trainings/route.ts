@@ -73,6 +73,15 @@ export async function POST(request: Request) {
         validated.bodyWeightKg !== undefined ? validated.bodyWeightKg : null,
       notes: validated.notes || null,
       splits: validated.splits || [],
+      activeCalories:
+        validated.activeCalories !== undefined ? validated.activeCalories : null,
+      totalCalories:
+        validated.totalCalories !== undefined ? validated.totalCalories : null,
+      metValue:
+        validated.metValue !== undefined ? validated.metValue : null,
+      calorieMethod: validated.calorieMethod || null,
+      calorieSource: validated.calorieSource || null,
+      calorieMetadata: validated.calorieMetadata || null,
     };
 
     const created = validated.id

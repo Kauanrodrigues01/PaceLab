@@ -193,14 +193,29 @@ export default function TreinosPage() {
     let weekRpeSum = 0;
     let weekRpeCount = 0;
 
+    let weekActiveCalories = 0;
+    let weekPrevActiveCalories = 0;
+    let todayActiveCalories = 0;
+    let monthActiveCalories = 0;
+
+    const nowDateString = new Date().toDateString();
+
     trainings.forEach((t) => {
-      const time = parseSafeDate(t.sessionDate)?.getTime() ?? 0;
+      const parsedDate = parseSafeDate(t.sessionDate);
+      const time = parsedDate?.getTime() ?? 0;
       const diff = now - time;
+      const actCalories = t.activeCalories || 0;
+
+      // Hoje
+      if (parsedDate && parsedDate.toDateString() === nowDateString) {
+        todayActiveCalories += actCalories;
+      }
 
       // Semana atual (últimos 7 dias, aceitando tolerância para fuso horário local)
       if (diff <= oneWeekMs && diff >= -86400000) {
         weekCurrentKm += t.distanceKm || 0;
         weekDurationSeconds += t.durationSeconds || 0;
+        weekActiveCalories += actCalories;
         if (typeof t.perceivedEffort === "number" && t.perceivedEffort > 0) {
           weekRpeSum += t.perceivedEffort;
           weekRpeCount++;
@@ -208,15 +223,18 @@ export default function TreinosPage() {
       } else if (diff > oneWeekMs && diff <= twoWeeksMs) {
         // Semana anterior (de 7 a 14 dias atrás)
         weekPrevKm += t.distanceKm || 0;
+        weekPrevActiveCalories += actCalories;
       }
 
       // Mês atual (últimos 30 dias)
       if (diff <= thirtyDaysMs && diff >= -86400000) {
         monthKm += t.distanceKm || 0;
+        monthActiveCalories += actCalories;
       }
     });
 
     const weekDiffKm = Number((weekCurrentKm - weekPrevKm).toFixed(1));
+    const weekDiffCalories = Math.round(weekActiveCalories - weekPrevActiveCalories);
     const avgPaceSec =
       weekCurrentKm > 0 ? Math.round(weekDurationSeconds / weekCurrentKm) : 0;
     const avgRpe =
@@ -227,6 +245,11 @@ export default function TreinosPage() {
       weekPrevKm: Number(weekPrevKm.toFixed(1)),
       weekDiffKm,
       monthKm: Number(monthKm.toFixed(1)),
+      weekActiveCalories: Math.round(weekActiveCalories),
+      weekPrevActiveCalories: Math.round(weekPrevActiveCalories),
+      weekDiffCalories,
+      todayActiveCalories: Math.round(todayActiveCalories),
+      monthActiveCalories: Math.round(monthActiveCalories),
       avgPaceFormatted: avgPaceSec > 0 ? formatPace(avgPaceSec) : "--:--",
       avgRpe,
       totalTrainings: trainings.length,
@@ -390,7 +413,7 @@ export default function TreinosPage() {
           )}
 
           {/* Painel de Indicadores de Consistência e Volume */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
             {/* 1. Volume Semanal */}
             <div
               data-testid="kpi-weekly-volume"
@@ -432,13 +455,43 @@ export default function TreinosPage() {
               <p className="text-[11px] text-slate-400 mt-1">Últimos 30 dias</p>
             </div>
 
-            {/* 3. Pace Médio da Semana */}
+            {/* 3. Gasto Calórico Semanal (Fase 5) */}
+            <div
+              data-testid="kpi-weekly-calories"
+              className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+            >
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                <Flame className="w-3.5 h-3.5 text-amber-500" />
+                <span>Calorias Semanais</span>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400">
+                {stats.weekActiveCalories}{" "}
+                <span className="text-xs font-normal text-slate-400">kcal</span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+                {stats.weekDiffCalories >= 0 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                    +{stats.weekDiffCalories} kcal
+                  </span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                    {stats.weekDiffCalories} kcal
+                  </span>
+                )}{" "}
+                vs anterior
+              </p>
+              <div className="text-[10px] text-slate-400 mt-1 border-t border-slate-100 dark:border-slate-800/80 pt-1">
+                Hoje: <span className="font-semibold text-slate-600 dark:text-slate-300">{stats.todayActiveCalories}</span> • Mês: <span className="font-semibold text-slate-600 dark:text-slate-300">{stats.monthActiveCalories}</span>
+              </div>
+            </div>
+
+            {/* 4. Pace Médio da Semana */}
             <div
               data-testid="kpi-avg-pace"
               className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
             >
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                <Clock className="w-3.5 h-3.5 text-blue-500" />
                 <span>Pace Médio</span>
               </div>
               <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
@@ -447,10 +500,10 @@ export default function TreinosPage() {
               <p className="text-[11px] text-slate-400 mt-1">Nesta semana</p>
             </div>
 
-            {/* 4. Média de Esforço (RPE) */}
+            {/* 5. Média de Esforço (RPE) */}
             <div
               data-testid="kpi-avg-rpe"
-              className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+              className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs col-span-2 lg:col-span-1"
             >
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
                 <HeartPulse className="w-3.5 h-3.5 text-rose-500" />

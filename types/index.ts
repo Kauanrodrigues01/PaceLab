@@ -226,8 +226,67 @@ export interface TrainingSession {
   bodyWeightKg?: number | null;
   notes?: string | null;
   splits?: SplitDetail[];
+  // Novos campos de calorias (Fase 1/2 - Opcionais e retrocompatíveis)
+  activeCalories?: number | null;
+  totalCalories?: number | null;
+  metValue?: number | null;
+  calorieMethod?: string | null;
+  calorieSource?: string | null;
+  calorieMetadata?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── Estimativa Calórica (Compêndio 2024) ──────────────────────────────────────
+export interface CalorieResult {
+  totalCalories: number; // Gasto bruto total (kcal)
+  activeCalories: number; // Gasto ativo adicional ao repouso (kcal)
+  metValue: number; // Valor MET utilizado
+  compendiumCode: string; // Código de referência do Compêndio 2024
+  compendiumDescription: string;
+  method: "compendium_2024_met";
+  version: "2024.1";
+  weightUsedKg: number;
+  durationMinutes: number;
+}
+
+export interface IntervalCalorieSegment {
+  stageIndex: number;
+  stageType: StageType;
+  durationSeconds: Seconds;
+  speedKmh: KmPerHour;
+  metValue: number;
+  compendiumCode: string;
+  activeCalories: number;
+  totalCalories: number;
+}
+
+export interface IntervalCalorieResult extends CalorieResult {
+  segments: IntervalCalorieSegment[];
+  isSegmented: boolean;
+}
+
+// ─── Perfil do Atleta & Histórico de Peso ────────────────────────────────────
+export interface UserProfile {
+  id: string;
+  userId?: string | null;
+  name?: string | null;
+  heightCm?: number | null;
+  currentWeightKg?: number | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeightRecord {
+  id: string;
+  profileId?: string | null;
+  weightKg: number;
+  recordedAt: string;
+  notes?: string | null;
+  source?: "weekly_prompt" | "manual" | "training_sync" | string;
+  createdAt: string;
 }
 
 export interface TafGoalConfig {

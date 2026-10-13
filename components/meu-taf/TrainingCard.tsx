@@ -118,7 +118,7 @@ export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) 
           </span>
         </div>
 
-        {/* Badges de RPE e Peso */}
+        {/* Badges de RPE, Peso e Calorias */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {rpeInfo && (
             <span
@@ -136,6 +136,17 @@ export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) 
             >
               <Scale className="w-3 h-3 text-slate-400" />
               {training.bodyWeightKg.toFixed(1)} kg
+            </span>
+          )}
+
+          {training.activeCalories !== undefined && training.activeCalories !== null && (
+            <span
+              data-testid="badge-calories"
+              title={`Calorias Totais: ${training.totalCalories ?? training.activeCalories} kcal • MET: ${training.metValue !== undefined && training.metValue !== null ? training.metValue.toFixed(1) : "--"} • Compêndio 2024`}
+              className="inline-flex items-center gap-1 text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800"
+            >
+              <Flame className="w-3 h-3 text-amber-500 fill-amber-500" />
+              {training.activeCalories} kcal ativas
             </span>
           )}
         </div>

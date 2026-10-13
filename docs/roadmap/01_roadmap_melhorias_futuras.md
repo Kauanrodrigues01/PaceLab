@@ -23,7 +23,9 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 | :--- | :--- | :--- | :--- |
 | **`taf_goals`** | `TafGoal` | `/meu-taf` (Configurações e KPIs) | Meta oficial do concurso (distância alvo: ex. 2.300 m, tempo limite: 12 min e data prevista do edital). |
 | **`taf_attempts`** | `TafAttempt` | `/meu-taf` (Simulados 12 Min, Gráficos e Comparador) | Histórico completo de simulados de 12 min (metros percorridos, tempo real, pace, velocidade, parciais em voltas de 400m e notas de pista). |
-| **`training_sessions`** | `TrainingSession` | `/meu-taf` (Diário de Treinos, Gráficos e Comparador) | Diário de treinos (quilômetros, tempo, pace, modalidade, esforço percebido na escala RPE de 1 a 10, peso corporal em kg e parciais por km). |
+| **`training_sessions`** | `TrainingSession` | `/meu-taf` (Diário de Treinos, Gráficos e Comparador) | Diário de treinos (quilômetros, tempo, pace, modalidade, esforço percebido na escala RPE de 1 a 10, peso corporal em kg, calorias ativas/totais, valor MET e parciais por km). |
+| **`user_profiles`** | `UserProfile` | `/perfil`, `/meu-taf`, `/treinos`, Modais | Perfil biométrico do atleta (altura em cm, peso atual em kg, data de nascimento, sexo biológico e data da última pesagem). |
+| **`weight_records`** | `WeightRecord` | `/perfil` (Gráficos e Histórico) | Histórico temporal de pesagens corporais com data, peso em kg e origem do registro (`manual`, `prompt_semanal`, `treino`). |
 
 ---
 
@@ -106,30 +108,54 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 
 ---
 
+### Eixo B.3: Sistema de Gasto Calórico (Compêndio 2024 Herrmann et al.), Perfil do Atleta e Pesagem Semanal — ✅ Concluído e Validado
+
+> **Status:** Concluído em 12/10/2026. Documentação completa e plano executado em [docs/plans/executed/08_plan_gasto_calorico_met_perfil_pesagem_semanal.md](../plans/executed/08_plan_gasto_calorico_met_perfil_pesagem_semanal.md).
+
+#### 11. Motor Metabólico Baseado no Compêndio de Atividades Físicas 2024 (✅ Implementado)
+- **Status:** Criação de `lib/math/calories.ts` implementando rigorosamente a tabela oficial de METs do Compêndio 2024 (Herrmann et al.) para corrida contínua (códigos 12020 a 12090), caminhada (17151 a 17220) e corrida intervalada com nós de velocidade milimétricos.
+- **Cálculo Científico:** Distinção exata entre Calorias Totais (gasto bruto) e Calorias Ativas (gasto líquido adicional ao repouso metabólico basal: MET - 1). Cálculo segmentado para séries intervaladas somando tiros, recuperações e pausas com seus respectivos METs.
+- **Testes:** 11 testes unitários em `__tests__/lib/calories.test.ts`.
+
+#### 12. Modelagem Relacional de Perfil e Pesagem Semanal no Prisma & APIs REST (✅ Implementado)
+- **Status:** Novos modelos `UserProfile` e `WeightRecord` e campos calóricos em `TrainingSession` no `prisma/schema.prisma` com migração aplicada no PostgreSQL Supabase.
+- **Rotas REST Padronizadas:** `GET`/`PUT` `/api/profile`, `GET`/`POST` `/api/profile/weight` e `DELETE` `/api/profile/weight/[id]` com validação Zod (`UserProfileSchema`, `WeightRecordSchema`), envelope `ApiResponse` e testes em `__tests__/api/profile-routes.test.ts`.
+
+#### 13. Módulo Perfil do Atleta, Classificação OMS e Modal de Pesagem (✅ Implementado)
+- **Status:** Página `/perfil` com cálculo em tempo real de IMC e classificação segundo a Organização Mundial da Saúde (OMS), gráfico de evolução temporal do peso corporal com Recharts e histórico de pesagens com opção de exclusão.
+- **Prompt Semanal:** Algoritmo de lembrete em `lib/services/profileService.ts` (`isWeeklyWeightDue`), verificação da segunda-feira ou janela $\ge 7$ dias com opção de adiar por 24 horas e modal não-obstrutivo `WeeklyWeightModal.tsx` integrado no layout global (`Navbar` e `BottomNav`).
+- **Testes:** Suítes em `__tests__/services/profileService.test.ts`, `__tests__/components/WeeklyWeightModal.test.tsx` e `__tests__/pages/perfil.test.tsx`.
+
+#### 14. Integração no Diário de Treinos, Simulador Intervalado e Dashboard (✅ Implementado)
+- **Status:** Formulário de treinos com pré-carregamento do peso corporal e card de previsão calórica em tempo real; badges de calorias nos cards de treinos com retrocompatibilidade para treinos antigos; estimativa de calorias segmentada por etapa no simulador intervalado (`/intervalado`); novos KPIs e gráficos analíticos de calorias semanais e por modalidade em `/treinos`.
+- **Testes:** Suítes em `__tests__/components/TrainingFormCalories.test.tsx`, `__tests__/pages/intervalado.test.tsx` e `__tests__/components/TrainingEvolutionDashboardCalories.test.tsx`.
+
+---
+
 ### Eixo C: Recursos de Produto para o Atleta na Pista
 
-#### 6. Transformação em PWA Completo (Progressive Web App)
+#### 15. Transformação em PWA Completo (Progressive Web App)
 - **Solução proposta:** Configurar `manifest.json`, ícones nativos e service worker para cache estático da interface:
   - Botão *"Instalar PaceLab"* na tela inicial do Android e iOS.
   - Execução em tela cheia (standalone) sem barra de navegação do browser.
 
-#### 7. Wake Lock API (Manter Tela Ativa na Pista)
+#### 16. Wake Lock API (Manter Tela Ativa na Pista)
 - **Solução proposta:** Integrar a API nativa `navigator.wakeLock.request("screen")` durante a navegação no módulo Meu TAF ou durante cronometragem, impedindo que a tela do celular bloqueie no meio do treino.
 
-#### 8. Cronômetro Interativo com Bip Sonoro de Parciais de Volta (400m)
+#### 17. Cronômetro Interativo com Bip Sonoro de Parciais de Volta (400m)
 - **Solução proposta:** Adicionar cronômetro nativo na aba de simulados que emite sinal sonoro a cada volta de 400m projetada, orientando o atleta auditivamente sobre estar à frente ou atrás do ritmo da aprovação.
 
 ---
 
 ### Eixo D: Relatórios, Estimativas e Compartilhamento
 
-#### 9. Exportação de Laudo Técnico do TAF em PDF
+#### 18. Exportação de Laudo Técnico do TAF em PDF
 - **Solução proposta:** Gerar laudo formatado para impressão ou envio via WhatsApp contendo:
   - Evolução gráfica dos 12 minutos.
   - Projeção de aprovação segundo o edital da Guarda Municipal.
   - Histórico de parciais e recorde pessoal para apresentação a preparadores físicos e instrutores.
 
-#### 10. Estimativa de VO2 Máx (Teste de Cooper)
+#### 19. Estimativa de VO2 Máx (Teste de Cooper)
 - **Solução proposta:** Adicionar cálculo estimativo de VO2 Máx baseado na fórmula clássica de Cooper a partir da distância atingida nos 12 minutos:
   $$\text{VO}_2\text{ Máx} = \frac{\text{Distância (m)} - 504.9}{44.73}$$
 - **Benefícios:** Agrega valor fisiológico e científico à preparação física do aluno.
@@ -138,12 +164,12 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 
 ### Eixo E: Qualidade de Engenharia & CI/CD
 
-#### 11. Pipeline de CI no GitHub Actions
+#### 20. Pipeline de CI no GitHub Actions
 - **Solução proposta:** Workflow automatizado disparado em todo push/pull request:
   - Validação de tipos (`npx tsc --noEmit`).
   - Linter (`npx eslint`).
-  - Execução dos 349 testes automatizados (`npm test`).
+  - Execução dos 406 testes automatizados (`npm test`).
   - Verificação de build de produção (`npm run build`).
 
-#### 12. Seed Script do Prisma para Desenvolvimento Local
+#### 21. Seed Script do Prisma para Desenvolvimento Local
 - **Solução proposta:** Criar `prisma/seed.ts` com dados representativos de teste para popular o banco local com 1 comando (`npx prisma db seed`).

@@ -111,6 +111,8 @@ export function TrainingEvolutionDashboard({
         totalTrainingLoad: 0,
         longestRunKm: 0,
         avgRpe: null,
+        totalCalories: 0,
+        totalActiveCalories: 0,
       };
     }
 
@@ -120,12 +122,16 @@ export function TrainingEvolutionDashboard({
     let longestRunKm = 0;
     let rpeSum = 0;
     let rpeCount = 0;
+    let totalCalories = 0;
+    let totalActiveCalories = 0;
 
     filteredTrainings.forEach((t) => {
       const km = t.distanceKm || 0;
       const dur = t.durationSeconds || 0;
       totalKm += km;
       totalDurationSeconds += dur;
+      totalCalories += t.totalCalories || t.activeCalories || 0;
+      totalActiveCalories += t.activeCalories || 0;
 
       if (km > longestRunKm) {
         longestRunKm = km;
@@ -157,6 +163,8 @@ export function TrainingEvolutionDashboard({
       totalTrainingLoad: totalLoad,
       longestRunKm: Number(longestRunKm.toFixed(1)),
       avgRpe,
+      totalCalories: Math.round(totalCalories),
+      totalActiveCalories: Math.round(totalActiveCalories),
     };
   }, [filteredTrainings]);
 
@@ -387,6 +395,98 @@ export function TrainingEvolutionDashboard({
     ].filter((item) => item.value > 0);
   }, [filteredTrainings]);
 
+  // ─── 8. Gráfico 6: Gasto Calórico Semanal Acumulado (BarChart) ────────────────
+  const weeklyCaloriesChartData = useMemo(() => {
+    if (filteredTrainings.length === 0) return [];
+
+    const weekMap: Record<
+      string,
+      {
+        weekLabel: string;
+        timestamp: number;
+        activeCalories: number;
+        totalCalories: number;
+        sessionsCount: number;
+      }
+    > = {};
+
+    filteredTrainings.forEach((t) => {
+      const date = parseSafeDate(t.sessionDate);
+      if (!date) return;
+
+      const day = date.getDay();
+      const diffToMonday = date.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(date);
+      monday.setDate(diffToMonday);
+      monday.setHours(0, 0, 0, 0);
+
+      const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+      const weekLabel = `${String(monday.getDate()).padStart(2, "0")}/${String(monday.getMonth() + 1).padStart(2, "0")}`;
+
+      if (!weekMap[weekKey]) {
+        weekMap[weekKey] = {
+          weekLabel,
+          timestamp: monday.getTime(),
+          activeCalories: 0,
+          totalCalories: 0,
+          sessionsCount: 0,
+        };
+      }
+
+      weekMap[weekKey].activeCalories += t.activeCalories || 0;
+      weekMap[weekKey].totalCalories += t.totalCalories || t.activeCalories || 0;
+      weekMap[weekKey].sessionsCount += 1;
+    });
+
+    return Object.values(weekMap)
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map((w) => ({
+        weekLabel: w.weekLabel,
+        activeCalories: Math.round(w.activeCalories),
+        totalCalories: Math.round(w.totalCalories),
+        sessionsCount: w.sessionsCount,
+      }));
+  }, [filteredTrainings]);
+
+  // ─── 9. Gráfico 7: Distribuição de Calorias por Modalidade (Donut) ────────────
+  const activityCaloriesData = useMemo(() => {
+    if (filteredTrainings.length === 0) return [];
+
+    let calContinua = 0;
+    let calIntervalada = 0;
+    let calCaminhada = 0;
+
+    filteredTrainings.forEach((t) => {
+      const cal = t.activeCalories || 0;
+      if (t.activityType === "corrida_intervalada") calIntervalada += cal;
+      else if (t.activityType === "caminhada") calCaminhada += cal;
+      else calContinua += cal;
+    });
+
+    const totalCal = calContinua + calIntervalada + calCaminhada;
+
+    return [
+      {
+        name: "Corrida Contínua",
+        value: Math.round(calContinua),
+        percent: totalCal > 0 ? Math.round((calContinua / totalCal) * 100) : 0,
+        color: ACTIVITY_COLORS.corrida_continua,
+      },
+      {
+        name: "Intervalado / Tiros",
+        value: Math.round(calIntervalada),
+        percent: totalCal > 0 ? Math.round((calIntervalada / totalCal) * 100) : 0,
+        color: ACTIVITY_COLORS.corrida_intervalada,
+      },
+      {
+        name: "Caminhada",
+        value: Math.round(calCaminhada),
+        percent: totalCal > 0 ? Math.round((calCaminhada / totalCal) * 100) : 0,
+        color: ACTIVITY_COLORS.caminhada,
+      },
+    ].filter((item) => item.value > 0);
+  }, [filteredTrainings]);
+
   // Formata horas e minutos totais
   const formattedTotalTime = useMemo(() => {
     const totalMinutes = Math.floor(metrics.totalDurationSeconds / 60);
@@ -466,7 +566,7 @@ export function TrainingEvolutionDashboard({
       </div>
 
       {/* ─── Cards de KPIs Avançados do Período ─── */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* 1. Volume Total */}
         <div
           data-testid="kpi-total-volume"
@@ -499,13 +599,33 @@ export function TrainingEvolutionDashboard({
           <p className="text-[11px] text-slate-400 mt-0.5">Em movimento</p>
         </div>
 
-        {/* 3. Pace Médio Ponderado */}
+        {/* 3. Gasto Calórico Ativo (Fase 5) */}
+        <div
+          data-testid="kpi-total-calories"
+          className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+        >
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+            <Flame className="w-3.5 h-3.5 text-amber-500" />
+            <span>Gasto Calórico</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400">
+            {metrics.totalActiveCalories}{" "}
+            <span className="text-xs font-normal text-slate-400">kcal</span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            {metrics.totalCalories > 0
+              ? `${metrics.totalCalories} kcal totais`
+              : "Calorias ativas"}
+          </p>
+        </div>
+
+        {/* 4. Pace Médio Ponderado */}
         <div
           data-testid="kpi-avg-pace"
           className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
         >
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            <Zap className="w-3.5 h-3.5 text-amber-500" />
+            <Zap className="w-3.5 h-3.5 text-indigo-500" />
             <span>Pace Médio</span>
           </div>
           <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
@@ -514,7 +634,7 @@ export function TrainingEvolutionDashboard({
           <p className="text-[11px] text-slate-400 mt-0.5">Ponderado por volume</p>
         </div>
 
-        {/* 4. Carga de Treino (TRIMP) */}
+        {/* 5. Carga de Treino (TRIMP) */}
         <div
           data-testid="kpi-training-load"
           className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
@@ -530,10 +650,10 @@ export function TrainingEvolutionDashboard({
           <p className="text-[11px] text-slate-400 mt-0.5">TRIMP (Duração × RPE)</p>
         </div>
 
-        {/* 5. Maior Longão */}
+        {/* 6. Maior Longão */}
         <div
           data-testid="kpi-longest-run"
-          className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs col-span-2 sm:col-span-1"
+          className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
         >
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
             <Award className="w-3.5 h-3.5 text-rose-500" />
@@ -888,6 +1008,149 @@ export function TrainingEvolutionDashboard({
                     </div>
                     <span className="font-bold text-slate-900 dark:text-slate-100">
                       {item.value} km <span className="text-slate-400 text-[10px]">({item.percent}%)</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ─── Grid de Análise Calórica (Fase 5) ─── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
+            {/* Gráfico 6: Gasto Calórico Semanal Acumulado (kcal) */}
+            <div
+              data-testid="chart-weekly-calories"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Flame className="w-4 h-4 text-amber-500" />
+                    Gasto Calórico Semanal Acumulado (kcal)
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Calorias ativas queimadas durante as sessões de cada semana (Compêndio 2024).
+                  </p>
+                </div>
+              </div>
+
+              {isMounted ? (
+                <div className="h-64 sm:h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={200}>
+                    <BarChart
+                      data={weeklyCaloriesChartData}
+                      margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <XAxis dataKey="weekLabel" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                      <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" unit=" kcal" />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-slate-900 text-white text-xs p-3 rounded-xl shadow-xl border border-slate-800 space-y-1">
+                                <span className="font-bold text-slate-300 block">
+                                  Semana de {data.weekLabel}
+                                </span>
+                                <div className="text-sm font-black text-amber-400">
+                                  {data.activeCalories} kcal ativas
+                                </div>
+                                <div className="text-slate-400 text-[11px]">
+                                  {data.totalCalories} kcal totais • {data.sessionsCount} sessões
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar dataKey="activeCalories" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-64 w-full animate-pulse bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+              )}
+            </div>
+
+            {/* Gráfico 7: Distribuição de Calorias por Modalidade */}
+            <div
+              data-testid="chart-activity-calories"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm"
+            >
+              <div className="mb-4">
+                <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-orange-500" />
+                  Calorias por Modalidade
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Proporção de energia gasta em corrida contínua, tiros e caminhada.
+                </p>
+              </div>
+
+              {activityCaloriesData.length === 0 ? (
+                <div className="h-56 flex items-center justify-center text-xs text-slate-400">
+                  Sem dados calóricos no período
+                </div>
+              ) : isMounted ? (
+                <div className="h-44 sm:h-52 w-full">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={150}>
+                    <PieChart>
+                      <Pie
+                        data={activityCaloriesData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={70}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {activityCaloriesData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-slate-900 text-white text-xs p-2.5 rounded-xl shadow-xl border border-slate-800">
+                                <span className="font-bold text-slate-300 block mb-0.5">
+                                  {data.name}
+                                </span>
+                                <div className="text-sm font-black text-amber-400">
+                                  {data.value} kcal ({data.percent}%)
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-44 w-full animate-pulse bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+              )}
+
+              {/* Legenda do Donut de Calorias */}
+              <div className="grid grid-cols-1 gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                {activityCaloriesData.map((item) => (
+                  <div key={item.name} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="text-slate-700 dark:text-slate-300 font-medium">
+                        {item.name}
+                      </span>
+                    </div>
+                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                      {item.value} kcal{" "}
+                      <span className="text-slate-400 text-[10px]">({item.percent}%)</span>
                     </span>
                   </div>
                 ))}

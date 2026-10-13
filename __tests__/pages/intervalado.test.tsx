@@ -159,4 +159,13 @@ describe("IntervaladoPage (Fase 7)", () => {
     // Deve renderizar o banner de limite de tempo aplicado
     expect(screen.getByText(/Limite de Tempo: 12:00/i)).toBeInTheDocument();
   });
+
+  it("exibe estimativa de gasto calórico consolidado e por etapa na sessão intervalada", () => {
+    render(<IntervaladoPage />);
+
+    expect(screen.getByTestId("interval-calories-card")).toBeInTheDocument();
+    expect(screen.getByTestId("interval-active-calories")).toBeInTheDocument();
+    expect(screen.getByTestId("interval-total-calories")).toBeInTheDocument();
+    expect(screen.getByText("Calorias")).toBeInTheDocument();
+  });
 });

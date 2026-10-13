@@ -527,7 +527,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
           createdAt: new Date(),
           updatedAt: new Date(),
         },
-      ]);
+      ] as never);
 
       const getReq = new Request("http://localhost/api/taf/trainings?limit=1");
       const getRes = await getTrainings(getReq);
@@ -571,7 +571,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
         splits: [],
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      } as never);
 
       const postReq = new Request("http://localhost/api/taf/trainings", {
         method: "POST",
@@ -610,7 +610,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
         splits: [],
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      } as never);
 
       const postReq = new Request("http://localhost/api/taf/trainings", {
         method: "POST",
@@ -671,7 +671,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
         splits: [],
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      } as never);
 
       const putReq = new Request("http://localhost/api/taf/trainings/tr-1", {
         method: "PUT",

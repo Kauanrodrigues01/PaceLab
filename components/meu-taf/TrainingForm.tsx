@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { TrainingSession, ActivityType, SplitDetail } from "@/types";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import { formatPace } from "@/lib/formatting/time";
+import { estimateTrainingCalories } from "@/lib/math/calories";
+import { profileService } from "@/lib/services/profileService";
 import {
   Flame,
   Zap,
@@ -104,17 +106,28 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
         setSplits([]);
       }
     } else {
-      // Padrão novo treino
+      // Padrão novo treino: pré-carrega peso vigente do perfil se houver
       setActivityType("corrida_continua");
       setDistanceInput("5.0");
       setHoursInput("0");
       setMinutesInput("27");
       setSecondsInput("30");
       setPerceivedEffort(6);
-      setBodyWeightKg("");
       setNotes("");
       setEnableSplits(false);
       setSplits([]);
+      profileService
+        .getProfile()
+        .then((prof) => {
+          if (prof?.currentWeightKg) {
+            setBodyWeightKg(String(prof.currentWeightKg));
+          } else {
+            setBodyWeightKg("");
+          }
+        })
+        .catch(() => {
+          setBodyWeightKg("");
+        });
     }
   }, [editingTraining]);
 
@@ -162,6 +175,26 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       // Ignora erro momentâneo de digitação
     }
   }
+
+  // Estimativa em tempo real de calorias (Compêndio 2024)
+  const calorieEstimate = React.useMemo(() => {
+    const sanitized = bodyWeightKg.trim().replace(",", ".");
+    const weight = parseFloat(sanitized);
+    if (isNaN(weight) || weight <= 0 || parsedDistanceKm <= 0 || totalDurationSeconds <= 0) {
+      return null;
+    }
+    try {
+      return estimateTrainingCalories({
+        activityType,
+        speedKmh: liveSpeedKmh,
+        distanceKm: parsedDistanceKm,
+        durationSeconds: totalDurationSeconds,
+        weightKg: weight,
+      });
+    } catch {
+      return null;
+    }
+  }, [activityType, liveSpeedKmh, parsedDistanceKm, totalDurationSeconds, bodyWeightKg]);
 
   // Gera parciais por quilômetro igualmente
   const autoGenerateSplits = () => {
@@ -239,6 +272,18 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
         bodyWeightKg: parsedWeight,
         notes: notes.trim() || null,
         splits: enableSplits && splits.length > 0 ? splits : [],
+        activeCalories: calorieEstimate ? calorieEstimate.activeCalories : null,
+        totalCalories: calorieEstimate ? calorieEstimate.totalCalories : null,
+        metValue: calorieEstimate ? calorieEstimate.metValue : null,
+        calorieMethod: calorieEstimate ? calorieEstimate.method : null,
+        calorieSource: calorieEstimate ? "auto_calculated" : null,
+        calorieMetadata: calorieEstimate
+          ? {
+              compendiumCode: calorieEstimate.compendiumCode,
+              activityDescription: calorieEstimate.compendiumDescription,
+              version: calorieEstimate.version,
+            }
+          : null,
         createdAt: editingTraining ? editingTraining.createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -568,6 +613,76 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
           </div>
         </div>
       </div>
+
+      {/* Estimativa de Calorias em Tempo Real (Compêndio 2024) */}
+      {calorieEstimate ? (
+        <div
+          data-testid="live-calories-card"
+          className="mb-5 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 dark:from-amber-500/15 dark:via-orange-500/15 dark:to-red-500/15 border border-amber-200 dark:border-amber-900/60 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 transition-all"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-sm shrink-0">
+              <Flame className="w-5 h-5 fill-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                  Gasto Calórico Estimado
+                </span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">
+                  MET {calorieEstimate.metValue.toFixed(1)}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                {calorieEstimate.compendiumDescription} • Compêndio 2024
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="text-right">
+              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">
+                Ativas (Exercício)
+              </span>
+              <span
+                data-testid="live-active-calories"
+                className="text-lg font-black text-amber-600 dark:text-amber-400"
+              >
+                {calorieEstimate.activeCalories}{" "}
+                <span className="text-xs font-normal">kcal</span>
+              </span>
+            </div>
+            <div className="h-7 w-px bg-slate-200 dark:bg-slate-700" />
+            <div className="text-right">
+              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">
+                Totais
+              </span>
+              <span
+                data-testid="live-total-calories"
+                className="text-sm font-bold text-slate-700 dark:text-slate-300"
+              >
+                {calorieEstimate.totalCalories}{" "}
+                <span className="text-xs font-normal">kcal</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        parsedDistanceKm > 0 &&
+        totalDurationSeconds > 0 && (
+          <div
+            data-testid="calories-weight-hint"
+            className="mb-5 bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-3 flex items-center justify-between text-xs text-slate-500"
+          >
+            <div className="flex items-center gap-2">
+              <Flame className="w-4 h-4 text-slate-400 shrink-0" />
+              <span>
+                Preencha seu peso corporal no campo acima para calcular o gasto calórico com base científica (MET).
+              </span>
+            </div>
+          </div>
+        )
+      )}
 
       {/* Subform Opcional de Parciais de Km */}
       <div className="mb-5 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50/50 dark:bg-slate-800/30">

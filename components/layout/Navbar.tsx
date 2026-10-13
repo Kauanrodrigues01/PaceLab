@@ -9,12 +9,15 @@ import {
   Activity,
   Calendar,
   Trophy,
+  Scale,
 } from "lucide-react";
+import { WeeklyWeightModal } from "@/components/profile/WeeklyWeightModal";
 
 const navItems = [
   { href: "/calculadora", label: "Calculadoras", icon: Calculator },
   { href: "/treinos", label: "Diário de Treinos", icon: Calendar },
   { href: "/meu-taf", label: "Meu TAF", icon: Trophy, highlight: true },
+  { href: "/perfil", label: "Perfil & Peso", icon: Scale },
 ];
 
 export function Navbar() {
@@ -84,6 +87,7 @@ export function Navbar() {
           <ThemeToggle />
         </div>
       </div>
+      <WeeklyWeightModal />
     </header>
   );
 }

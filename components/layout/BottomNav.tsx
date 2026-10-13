@@ -8,6 +8,7 @@ import {
   Calculator,
   Calendar,
   Trophy,
+  Scale,
 } from "lucide-react";
 
 const mobileNavItems = [
@@ -15,6 +16,7 @@ const mobileNavItems = [
   { href: "/calculadora", label: "Calculadoras", icon: Calculator },
   { href: "/treinos", label: "Treinos", icon: Calendar },
   { href: "/meu-taf", label: "Meu TAF", icon: Trophy, highlight: true },
+  { href: "/perfil", label: "Perfil", icon: Scale },
 ];
 
 export function BottomNav() {
@@ -25,7 +27,7 @@ export function BottomNav() {
       aria-label="Navegação móvel"
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 py-1.5 shadow-lg safe-area-bottom"
     >
-      <div className="grid grid-cols-4 max-w-md mx-auto gap-1">
+      <div className="grid grid-cols-5 max-w-md mx-auto gap-1">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const isActive =

@@ -149,9 +149,70 @@ export const CreateTrainingSessionSchema = z.object({
     .nullable()
     .optional(),
   splits: z.array(SplitDetailSchema).optional().default([]),
+  activeCalories: z.coerce.number().positive("As calorias ativas devem ser maiores que zero").nullable().optional(),
+  totalCalories: z.coerce.number().positive("As calorias totais devem ser maiores que zero").nullable().optional(),
+  metValue: z.coerce.number().positive("O valor de MET deve ser maior que zero").nullable().optional(),
+  calorieMethod: z.string().nullable().optional(),
+  calorieSource: z.string().nullable().optional(),
+  calorieMetadata: z.any().nullable().optional(),
 });
 
 export const UpdateTrainingSessionSchema = CreateTrainingSessionSchema.partial();
+
+// ─── Perfil do Atleta (UserProfile) ──────────────────────────────────────────
+
+export const UserProfileInputSchema = z.object({
+  id: z.string().optional(),
+  userId: z.string().nullable().optional(),
+  name: z
+    .string()
+    .trim()
+    .max(100, "O nome não pode ter mais de 100 caracteres")
+    .nullable()
+    .optional(),
+  heightCm: z.coerce
+    .number()
+    .min(50, "A altura deve ser de pelo menos 50 cm")
+    .max(260, "A altura não pode ultrapassar 260 cm")
+    .nullable()
+    .optional(),
+  currentWeightKg: z.coerce
+    .number()
+    .min(30, "O peso corporal deve ser de no mínimo 30 kg")
+    .max(250, "O peso corporal não pode ultrapassar 250 kg")
+    .nullable()
+    .optional(),
+  birthDate: z
+    .union([z.string(), z.date()])
+    .nullable()
+    .optional()
+    .transform((val) => (val ? new Date(val).toISOString() : null)),
+  gender: z.enum(["masculino", "feminino", "outro"]).nullable().optional(),
+});
+
+export const UpdateUserProfileSchema = UserProfileInputSchema.partial();
+
+// ─── Histórico de Pesagens (WeightRecord) ────────────────────────────────────
+
+export const CreateWeightRecordSchema = z.object({
+  id: z.string().optional(),
+  profileId: z.string().optional(),
+  weightKg: z.coerce
+    .number()
+    .min(30, "O peso corporal informado deve ser de no mínimo 30 kg")
+    .max(250, "O peso corporal informado não pode ultrapassar 250 kg"),
+  recordedAt: z
+    .union([z.string(), z.date()])
+    .optional()
+    .transform((val) => (val ? new Date(val).toISOString() : new Date().toISOString())),
+  notes: z
+    .string()
+    .trim()
+    .max(500, "As anotações não podem ter mais de 500 caracteres")
+    .nullable()
+    .optional(),
+  source: z.string().optional().default("manual"),
+});
 
 // ─── Paginação e Filtros de Consulta ───────────────────────────────────────────
 
@@ -190,4 +251,7 @@ export type CreateTafAttemptInput = z.infer<typeof CreateTafAttemptSchema>;
 export type UpdateTafAttemptInput = z.infer<typeof UpdateTafAttemptSchema>;
 export type CreateTrainingSessionInput = z.infer<typeof CreateTrainingSessionSchema>;
 export type UpdateTrainingSessionInput = z.infer<typeof UpdateTrainingSessionSchema>;
+export type UserProfileInput = z.infer<typeof UserProfileInputSchema>;
+export type UpdateUserProfileInput = z.infer<typeof UpdateUserProfileSchema>;
+export type CreateWeightRecordInput = z.infer<typeof CreateWeightRecordSchema>;
 export type PaginationQueryInput = z.infer<typeof PaginationQuerySchema>;

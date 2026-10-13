@@ -78,11 +78,50 @@ model TrainingSession {
   bodyWeightKg    Float?       @map("body_weight_kg")
   notes           String?      @map("notes")
   splits          Json?        @default("[]")
+  // Métricas de Gasto Calórico (Compêndio 2024)
+  activeCalories  Float?       @map("active_calories")
+  totalCalories   Float?       @map("total_calories")
+  metValue        Float?       @map("met_value")
+  calorieMethod   String?      @map("calorie_method")
+  calorieSource   String?      @map("calorie_source")
+  calorieMetadata Json?        @map("calorie_metadata")
+
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
 
   @@index([userId, sessionDate(sort: Desc)])
   @@index([userId, activityType])
   @@map("training_sessions")
+}
+
+// 4. Perfil do Atleta
+model UserProfile {
+  id              String         @id @default(uuid())
+  userId          String?        @unique @map("user_id")
+  name            String?        @map("name")
+  heightCm        Float?         @map("height_cm")
+  currentWeightKg Float?         @map("current_weight_kg")
+  birthDate       DateTime?      @map("birth_date")
+  gender          String?        @map("gender")
+  weightRecords   WeightRecord[]
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@map("user_profiles")
+}
+
+// 5. Histórico de Pesagens
+model WeightRecord {
+  id         String      @id @default(uuid())
+  profileId  String      @map("profile_id")
+  profile    UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  weightKg   Float       @map("weight_kg")
+  recordedAt DateTime    @default(now()) @map("recorded_at")
+  notes      String?     @map("notes")
+  source     String?     @default("manual") @map("source")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@index([profileId, recordedAt(sort: Desc)])
+  @@map("weight_records")
 }
 
