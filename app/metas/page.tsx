@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Target,
   Timer,
@@ -13,6 +13,7 @@ import {
   Check,
   Flag,
   Compass,
+  Medal,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -31,7 +32,8 @@ import {
   validateTimeString,
 } from "@/lib/validation/inputs";
 import { historyStorage } from "@/lib/storage/localStorage";
-import { GoalResult } from "@/types";
+import { tafService } from "@/lib/services/tafService";
+import { GoalResult, PacingStrategy, TafGoalConfig } from "@/types";
 
 type GoalMethod = "pace" | "time";
 
@@ -43,6 +45,37 @@ export default function MetasPage() {
   const [paceInput, setPaceInput] = useState("5:00");
   const [timeInput, setTimeInput] = useState("25:00");
   const [splitDistanceMeters, setSplitDistanceMeters] = useState("1000");
+  const [pacingStrategy, setPacingStrategy] = useState<PacingStrategy>("even");
+  const [tafGoal, setTafGoal] = useState<TafGoalConfig | null>(null);
+
+  // Carrega meta oficial do TAF se houver
+  useEffect(() => {
+    let isMounted = true;
+    tafService
+      .getGoal()
+      .then((g: TafGoalConfig | null) => {
+        if (isMounted && g) setTafGoal(g);
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleApplyTafGoal = () => {
+    const minMeters = tafGoal?.minDistanceMeters ?? 2400;
+    const kmStr = (minMeters / 1000).toString();
+    setDistanceInput(kmStr);
+    if (method === "time") {
+      setTimeInput("12:00");
+    } else {
+      const paceSec = Math.round(720 / (minMeters / 1000));
+      const mins = Math.floor(paceSec / 60);
+      const secs = paceSec % 60;
+      setPaceInput(`${mins}:${secs.toString().padStart(2, "0")}`);
+    }
+    setErrors({});
+  };
 
   // Erros
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -110,6 +143,7 @@ export default function MetasPage() {
           distanceKm: distNum,
           paceSeconds: paceSec,
           splitDistanceMeters: splitNum,
+          pacingStrategy,
         });
         setGoalResult(res);
         setErrors({});
@@ -135,6 +169,7 @@ export default function MetasPage() {
           distanceKm: distNum,
           totalTimeSeconds: totalSec,
           splitDistanceMeters: splitNum,
+          pacingStrategy,
         });
         setGoalResult(res);
         setErrors({});
@@ -262,7 +297,20 @@ export default function MetasPage() {
                 />
 
                 {/* Atalhos Rápidos de Distância */}
-                <div className="flex flex-wrap gap-1.5 mt-2">
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  {tafGoal && (
+                    <button
+                      type="button"
+                      onClick={handleApplyTafGoal}
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 font-bold border border-amber-400/40 dark:border-amber-700/50 transition-colors"
+                      title="Carregar meta oficial do concurso salva no seu perfil"
+                    >
+                      <Medal className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>
+                        Edital TAF: {(tafGoal.minDistanceMeters || 2400) / 1000} km em 12min ({tafGoal.institutionName || "Concurso"})
+                      </span>
+                    </button>
+                  )}
                   {distanceShortcuts.map((sc) => (
                     <button
                       key={sc.value}
@@ -328,6 +376,53 @@ export default function MetasPage() {
                 />
               )}
 
+              {/* Estratégia de Ritmo (Pacing) */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
+                  Estratégia de Ritmo (Pacing)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPacingStrategy("even")}
+                    className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
+                      pacingStrategy === "even"
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 shadow-xs"
+                        : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="font-bold">Constante</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">Mesmo ritmo</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPacingStrategy("negative")}
+                    className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
+                      pacingStrategy === "negative"
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 shadow-xs"
+                        : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="font-bold">Split Negativo</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">2ª metade veloz</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPacingStrategy("progressive")}
+                    className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
+                      pacingStrategy === "progressive"
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 shadow-xs"
+                        : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="font-bold">Progressivo</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">Acelera por km</div>
+                  </button>
+                </div>
+              </div>
+
               {/* Intervalo de Parcial (Splits) */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
@@ -385,7 +480,7 @@ export default function MetasPage() {
                   textToCopy={goalResult.splits
                     .map(
                       (s) =>
-                        `#${s.index} (${s.accumulatedDistanceKm.toFixed(2)}km): Parcial ${s.splitTimeFormatted} | Acumulado ${s.accumulatedTimeFormatted}`
+                        `#${s.index} (${s.accumulatedDistanceKm.toFixed(2)}km): Parcial ${s.splitTimeFormatted} | Ritmo ${s.paceFormatted || goalResult.paceFormatted} | Acumulado ${s.accumulatedTimeFormatted}`
                     )
                     .join("\n")}
                   label="Copiar Tabela"
@@ -399,6 +494,7 @@ export default function MetasPage() {
                       <th className="py-2.5 font-semibold">Parcial</th>
                       <th className="py-2.5 font-semibold">Distância do Trecho</th>
                       <th className="py-2.5 font-semibold">Distância Acumulada</th>
+                      <th className="py-2.5 font-semibold">Ritmo /km</th>
                       <th className="py-2.5 font-semibold">Tempo da Parcial</th>
                       <th className="py-2.5 text-right font-semibold">Tempo Acumulado</th>
                     </tr>
@@ -423,6 +519,20 @@ export default function MetasPage() {
                         </td>
                         <td className="py-2.5 text-slate-800 dark:text-slate-200 font-semibold">
                           {s.accumulatedDistanceKm.toFixed(2)} km
+                        </td>
+                        <td className="py-2.5 text-slate-700 dark:text-slate-300">
+                          <span>{s.paceFormatted ?? goalResult.paceFormatted}</span>
+                          {s.strategyDiffPercent && s.strategyDiffPercent !== 0 ? (
+                            <span
+                              className={`ml-1.5 text-[10px] px-1 py-0.5 rounded font-mono ${
+                                s.strategyDiffPercent < 0
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                  : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                              }`}
+                            >
+                              {s.strategyDiffPercent > 0 ? `+${s.strategyDiffPercent}%` : `${s.strategyDiffPercent}%`}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="py-2.5 text-blue-600 dark:text-blue-400 font-bold">
                           {s.splitTimeFormatted}

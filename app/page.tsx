@@ -15,6 +15,8 @@ import {
   Activity,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { AthleteActiveStatusCard } from "@/components/home/AthleteActiveStatusCard";
+import { QuickPaceWidget } from "@/components/home/QuickPaceWidget";
 
 export default function Home() {
   const tools = [
@@ -107,6 +109,12 @@ export default function Home() {
           </Link>
         </div>
       </div>
+
+      {/* Widget de Cálculo Rápido no Hero */}
+      <QuickPaceWidget />
+
+      {/* Card de Status Ativo do Atleta (TAF, Peso, Calorias e Prova) */}
+      <AthleteActiveStatusCard />
 
       {/* Card Especial de Destaque do Meu TAF (Fase G) */}
       <div

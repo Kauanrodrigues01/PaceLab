@@ -3,7 +3,7 @@
 **Projeto:** PaceLab  
 **Módulos:** Documentação Swagger (`/docs`, `/api/docs/spec`), Metas TAF Multimodais (`prisma/schema.prisma`, `/api/taf/goals`, `/perfil`), Revitalização de UI/UX (`/`, `/calculadora`, `/taf`, `/intervalado`, `/meu-taf`, `/treinos`, `/metas`, `/historico`, Design System)  
 **Data:** 13/10/2026  
-**Status:** Proposto / Em Planejamento  
+**Status:** Concluído e Homologado (100% dos testes verdes e build de produção aprovado)  
 **Referência:** [docs/roadmap/01_roadmap_melhorias_futuras.md](../../roadmap/01_roadmap_melhorias_futuras.md)
 
 ---
@@ -186,33 +186,33 @@ model TafGoal {
 ### 🔹 Fase 5: Revitalização de UI/UX — Calculadoras, Home, Histórico e Design System
 **Objetivo:** Elevar o nível de acabamento das calculadoras públicas, landing page, histórico e consistência global do design system.
 
-- [ ] **5.1** Aprimorar `app/page.tsx` (Home):
+- [x] **5.1** Aprimorar `app/page.tsx` (Home):
   - Criar **Card de Status Ativo do Atleta** (último simulado, peso, calorias semanais e contagem regressiva para a prova).
   - Criar **Quick Pace Widget** integrado no hero para cálculo em 2 cliques.
-- [ ] **5.2** Aprimorar `app/calculadora/page.tsx` e `app/metas/page.tsx`:
+- [x] **5.2** Aprimorar `app/calculadora/page.tsx` e `app/metas/page.tsx`:
   - Gerador visual de parciais km a km com tempos acumulados e pace ponderado.
   - Adicionar preset TAF dinâmico com o edital do usuário.
   - Estratégias de ritmo (pacing: constante, conservador e progressivo).
-- [ ] **5.3** Aprimorar `app/taf/page.tsx`:
+- [x] **5.3** Aprimorar `app/taf/page.tsx`:
   - Régua interativa de pontuação/distância com feedback visual imediato de aprovação.
   - Tabela de parciais recomendadas por volta de 400m na pista.
-- [ ] **5.4** Aprimorar `app/historico/page.tsx`:
+- [x] **5.4** Aprimorar `app/historico/page.tsx`:
   - Filtro por categoria de cálculo e botão "Converter em Treino do Diário" com 1 clique.
-- [ ] **5.5** Polimento do Design System global:
+- [x] **5.5** Polimento do Design System global:
   - Micro-animações em botões e badges, anéis de foco acessíveis (WCAG), paleta dark mode uniforme.
-- [ ] **5.6 [Portão de Qualidade Fase 5]**: `npm test`, `npx tsc --noEmit` e `npx eslint .` 100% verdes.
+- [x] **5.6 [Portão de Qualidade Fase 5]**: `npm test`, `npx tsc --noEmit` e `npx eslint .` 100% verdes.
 
 ---
 
 ### 🔹 Fase 6: Homologação Final, Qualidade, Build e Atualização de Roadmap
 **Objetivo:** Garantir 100% de testes verdes, compilação de produção limpa, retrocompatibilidade absoluta e documentação no roadmap oficial.
 
-- [ ] **6.1** Executar suíte completa de testes (`npm test`) -> 100% aprovados.
-- [ ] **6.2** Verificar tipagem estrita com TypeScript (`npx tsc --noEmit`) -> 0 erros.
-- [ ] **6.3** Executar linter (`npx eslint .`) -> 0 erros e 0 warnings.
-- [ ] **6.4** Validar compilação de produção (`npm run build`) -> todas as páginas estáticas e rotas dinâmicas compiladas.
-- [ ] **6.5** Atualizar roadmap oficial em `docs/roadmap/01_roadmap_melhorias_futuras.md`.
-- [ ] **6.6** Mover plano para `docs/plans/executed/` e sugerir commit semântico.
+- [x] **6.1** Executar suíte completa de testes (`npm test`) -> 100% aprovados.
+- [x] **6.2** Verificar tipagem estrita com TypeScript (`npx tsc --noEmit`) -> 0 erros.
+- [x] **6.3** Executar linter (`npx eslint .`) -> 0 erros e 0 warnings.
+- [x] **6.4** Validar compilação de produção (`npm run build`) -> todas as páginas estáticas e rotas dinâmicas compiladas.
+- [x] **6.5** Atualizar roadmap oficial em `docs/roadmap/01_roadmap_melhorias_futuras.md`.
+- [x] **6.6** Mover plano para `docs/plans/executed/` e sugerir commit semântico.
 
 ---
 

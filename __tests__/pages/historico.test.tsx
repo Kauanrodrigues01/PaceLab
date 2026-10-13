@@ -258,4 +258,137 @@ describe("HistoricoPage (Fase 8)", () => {
     expect(screen.getByText("5.50 km")).toBeInTheDocument();
     expect(screen.getByText("6:00 min/km")).toBeInTheDocument();
   });
+
+  it("filtra registros por categoria (Todas, Corridas, TAF, Metas)", async () => {
+    historyStorage.save({
+      id: "run-1",
+      date: "2026-10-10",
+      distanceKm: 5,
+      timeSeconds: 1500,
+      paceSeconds: 300,
+      paceFormatted: "5:00",
+      speedKmh: 12,
+      notes: "Rodagem leve matinal",
+      createdAt: new Date().toISOString(),
+    });
+    historyStorage.save({
+      id: "taf-1",
+      date: "2026-10-11",
+      distanceKm: 2.4,
+      timeSeconds: 720,
+      paceSeconds: 300,
+      paceFormatted: "5:00",
+      speedKmh: 12,
+      notes: "Simulado TAF PMPR",
+      createdAt: new Date().toISOString(),
+    });
+    historyStorage.save({
+      id: "goal-1",
+      date: "2026-10-12",
+      distanceKm: 10,
+      timeSeconds: 3000,
+      paceSeconds: 300,
+      paceFormatted: "5:00",
+      speedKmh: 12,
+      notes: "Planejamento Meta 10k sub-50",
+      createdAt: new Date().toISOString(),
+    });
+
+    const user = userEvent.setup();
+    render(<HistoricoPage />);
+
+    // Todas as 3 devem aparecer inicialmente
+    expect(screen.getByText(/Rodagem leve matinal/i)).toBeInTheDocument();
+    expect(screen.getByText(/Simulado TAF PMPR/i)).toBeInTheDocument();
+    expect(screen.getByText(/Planejamento Meta 10k sub-50/i)).toBeInTheDocument();
+
+    // Filtra por TAF
+    const tafFilterBtn = screen.getByRole("button", { name: /TAF/i });
+    await user.click(tafFilterBtn);
+
+    expect(screen.getByText(/Simulado TAF PMPR/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Rodagem leve matinal/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Planejamento Meta 10k sub-50/i)).not.toBeInTheDocument();
+
+    // Filtra por Metas
+    const goalsFilterBtn = screen.getByRole("button", { name: /Metas/i });
+    await user.click(goalsFilterBtn);
+
+    expect(screen.getByText(/Planejamento Meta 10k sub-50/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Simulado TAF PMPR/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Rodagem leve matinal/i)).not.toBeInTheDocument();
+
+    // Filtra por Corridas
+    const runsFilterBtn = screen.getByRole("button", { name: /Corridas/i });
+    await user.click(runsFilterBtn);
+
+    expect(screen.getByText(/Rodagem leve matinal/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Simulado TAF PMPR/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Planejamento Meta 10k sub-50/i)).not.toBeInTheDocument();
+
+    // Retorna para Todas
+    const allFilterBtn = screen.getByRole("button", { name: /Todas/i });
+    await user.click(allFilterBtn);
+
+    expect(screen.getByText(/Rodagem leve matinal/i)).toBeInTheDocument();
+    expect(screen.getByText(/Simulado TAF PMPR/i)).toBeInTheDocument();
+    expect(screen.getByText(/Planejamento Meta 10k sub-50/i)).toBeInTheDocument();
+  });
+
+  it("converte um registro do histórico em treino do diário com 1 clique", async () => {
+    const { tafService } = await import("@/lib/services/tafService");
+    const saveTrainingSpy = vi.spyOn(tafService, "saveTraining").mockResolvedValue({
+      id: "training-123",
+      sessionDate: "2026-10-10",
+      activityType: "corrida_continua",
+      distanceKm: 5,
+      durationSeconds: 1500,
+      speedKmh: 12,
+      paceSeconds: 300,
+      paceFormatted: "5:00",
+      notes: "Convertido",
+      totalCalories: 300,
+      activeCalories: 260,
+      metValue: 11.5,
+      calorieMethod: "compendium_2024",
+      calorieSource: "automatic",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    historyStorage.save({
+      id: "entry-convert-1",
+      date: "2026-10-10",
+      distanceKm: 5,
+      timeSeconds: 1500,
+      paceSeconds: 300,
+      paceFormatted: "5:00",
+      speedKmh: 12,
+      notes: "Treino matinal",
+      createdAt: new Date().toISOString(),
+    });
+
+    const user = userEvent.setup();
+    render(<HistoricoPage />);
+
+    const convertBtn = screen.getByRole("button", { name: "Converter em Treino do Diário" });
+    await user.click(convertBtn);
+
+    expect(saveTrainingSpy).toHaveBeenCalledTimes(1);
+    expect(saveTrainingSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionDate: "2026-10-10",
+        activityType: "corrida_continua",
+        distanceKm: 5,
+        durationSeconds: 1500,
+        speedKmh: 12,
+        calorieMethod: "compendium_2024",
+      })
+    );
+
+    // Deve substituir o botão pelo badge de sucesso
+    expect(screen.getByText("Convertido para Treino!")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Converter em Treino do Diário" })).not.toBeInTheDocument();
+  });
 });
+

@@ -28,6 +28,7 @@ import { calcTaf, calcFixedTargetTaf } from "@/lib/math/taf";
 import { formatDecimal, parseTime } from "@/lib/formatting/time";
 import { historyStorage } from "@/lib/storage/localStorage";
 import { tafService } from "@/lib/services/tafService";
+import { TafApprovalRuler } from "@/components/meu-taf/TafApprovalRuler";
 import { TafResult, FixedTargetResult, TafGoalConfig } from "@/types";
 
 type TafMode = "fixed-time" | "fixed-distance";
@@ -397,7 +398,18 @@ export default function TafPage() {
                       inputMode="numeric"
                     />
                     {/* Atalhos Rápidos de Meta */}
-                    <div className="flex flex-wrap gap-1 mt-1.5">
+                    <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                      {goal && (
+                        <button
+                          type="button"
+                          onClick={() => setTargetMetersInput((goal.minDistanceMeters ?? 2400).toString())}
+                          className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 font-bold border border-amber-400/40 dark:border-amber-700/50 transition-colors inline-flex items-center gap-1"
+                          title="Carregar meta oficial do edital salva no perfil"
+                        >
+                          <Medal className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                          <span>Edital: {goal.minDistanceMeters ?? 2400}m</span>
+                        </button>
+                      )}
                       {targetShortcuts.map((sc) => (
                         <button
                           key={sc.value}
@@ -545,6 +557,7 @@ export default function TafPage() {
                       <th className="py-2.5 font-semibold">Acumulado</th>
                       <th className="py-2.5 font-semibold">Tempo da Volta</th>
                       <th className="py-2.5 font-semibold">Tempo Acumulado</th>
+                      <th className="py-2.5 font-semibold">Tática da Volta</th>
                       <th className="py-2.5 text-right font-semibold">% Meta</th>
                     </tr>
                   </thead>
@@ -566,6 +579,15 @@ export default function TafPage() {
                         <td className="py-2.5 text-slate-900 dark:text-slate-100 font-bold">
                           {s.accumulatedTimeFormatted}
                         </td>
+                        <td className="py-2.5 text-slate-600 dark:text-slate-400 font-sans text-[11px]">
+                          {s.lap === 1
+                            ? "🎯 Saída controlada (evite largar forte demais)"
+                            : s.lap === tafResult.splits.length
+                            ? "⚡ Sprint final (aceleração máxima)"
+                            : s.lap === tafResult.splits.length - 1
+                            ? "💪 Ajuste de ritmo e foco mental"
+                            : "🏃 Manutenção de cadência"}
+                        </td>
                         <td className="py-2.5 text-right text-slate-500 dark:text-slate-400 font-sans text-[11px]">
                           {s.progressPercent.toFixed(0)}%
                         </td>
@@ -580,6 +602,23 @@ export default function TafPage() {
 
         {/* Coluna de Resultados (5 colunas) */}
         <div className="lg:col-span-5 space-y-4">
+          {/* Régua Visual de Aprovação */}
+          {mode === "fixed-time" && (
+            <TafApprovalRuler
+              currentDistance={
+                currentMetersInput.trim().length > 0 && Number(currentMetersInput) > 0
+                  ? Number(currentMetersInput)
+                  : Number(targetMetersInput) || 2400
+              }
+              minDistance={goal?.minDistanceMeters ?? 2400}
+              targetDistance={
+                goal?.targetDistanceMeters ??
+                Math.max(Number(targetMetersInput) || 2400, (goal?.minDistanceMeters ?? 2400) + 200)
+              }
+              institutionName={goal?.institutionName ?? "Edital TAF"}
+            />
+          )}
+
           {mode === "fixed-time" && tafResult && (
             <Card
               title="Métricas do Teste"

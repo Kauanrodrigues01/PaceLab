@@ -17,6 +17,8 @@ import {
   AlertCircle,
   Footprints,
   Sparkles,
+  BookOpen,
+  Check,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -29,8 +31,12 @@ import {
   parseTime,
 } from "@/lib/formatting/time";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
+import { getMetForSpeedAndActivity, calcCalories } from "@/lib/math/calories";
+import { tafService } from "@/lib/services/tafService";
 import { validateDistance, validateTimeString } from "@/lib/validation/inputs";
-import { HistoryEntry } from "@/types";
+import { HistoryEntry, TrainingSession } from "@/types";
+
+type HistoryCategory = "all" | "runs" | "taf" | "goals";
 
 export default function HistoricoPage() {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
@@ -52,9 +58,69 @@ export default function HistoricoPage() {
   const [editNotes, setEditNotes] = useState("");
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 
+  // Filtros e Conversão
+  const [activeFilter, setActiveFilter] = useState<HistoryCategory>("all");
+  const [convertedIds, setConvertedIds] = useState<Set<string>>(new Set());
+
   // Auto-cálculo em tempo real para novo registro
   const [previewPace, setPreviewPace] = useState<string | null>(null);
   const [previewSpeed, setPreviewSpeed] = useState<string | null>(null);
+
+  // Classificação de categoria da entrada
+  const getEntryCategory = (entry: HistoryEntry): "taf" | "goals" | "runs" => {
+    const notes = (entry.notes || "").toLowerCase();
+    if (notes.includes("taf")) return "taf";
+    if (notes.includes("meta")) return "goals";
+    return "runs";
+  };
+
+  const categoryCounts = {
+    all: entries.length,
+    runs: entries.filter((e) => getEntryCategory(e) === "runs").length,
+    taf: entries.filter((e) => getEntryCategory(e) === "taf").length,
+    goals: entries.filter((e) => getEntryCategory(e) === "goals").length,
+  };
+
+  const filteredEntries = entries.filter((e) => {
+    if (activeFilter === "all") return true;
+    return getEntryCategory(e) === activeFilter;
+  });
+
+  // Converter entrada em treino do diário em 1 clique
+  const handleConvertToTraining = async (entry: HistoryEntry) => {
+    try {
+      const metData = getMetForSpeedAndActivity("corrida_continua", entry.speedKmh);
+      const cals = calcCalories({
+        weightKg: 70,
+        durationSeconds: entry.timeSeconds,
+        met: metData.met,
+      });
+
+      const trainingSession: TrainingSession = {
+        id: "converted-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+        sessionDate: entry.date,
+        activityType: "corrida_continua",
+        distanceKm: entry.distanceKm,
+        durationSeconds: entry.timeSeconds,
+        speedKmh: entry.speedKmh,
+        paceSeconds: entry.paceSeconds,
+        paceFormatted: entry.paceFormatted,
+        notes: entry.notes ? `${entry.notes} (Convertido do Histórico)` : "Convertido do Histórico de Cálculos",
+        totalCalories: cals.totalCalories,
+        activeCalories: cals.activeCalories,
+        metValue: metData.met,
+        calorieMethod: "compendium_2024",
+        calorieSource: "automatic",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await tafService.saveTraining(trainingSession);
+      setConvertedIds((prev) => new Set(prev).add(entry.id));
+    } catch (err) {
+      console.error("Erro ao converter para diário de treinos:", err);
+    }
+  };
 
   // Carregar dados
   const loadEntries = () => {
@@ -390,37 +456,99 @@ export default function HistoricoPage() {
 
       {/* Barra de Ações: Exportações & Limpar */}
       {entries.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 font-medium">
-            <span>Total de Registros:</span>
-            <Badge variant="primary">{entries.length}</Badge>
+        <div className="space-y-3">
+          {/* Chips de Filtro por Categoria */}
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-200/70 dark:bg-slate-800/80 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setActiveFilter("all")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeFilter === "all"
+                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <span>Todas</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono">
+                {categoryCounts.all}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter("runs")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeFilter === "runs"
+                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <span>Corridas</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono">
+                {categoryCounts.runs}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter("taf")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeFilter === "taf"
+                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <span>TAF</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono">
+                {categoryCounts.taf}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFilter("goals")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeFilter === "goals"
+                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <span>Metas</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono">
+                {categoryCounts.goals}
+              </span>
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCsv}
-              icon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
-            >
-              Exportar CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportJson}
-              icon={<FileCode className="w-3.5 h-3.5 text-blue-600" />}
-            >
-              Exportar JSON
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearAll}
-              icon={<Trash2 className="w-3.5 h-3.5 text-rose-600" />}
-            >
-              Limpar Tudo
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 font-medium">
+              <span>Total de Registros:</span>
+              <Badge variant="primary">{entries.length}</Badge>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportCsv}
+                icon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
+              >
+                Exportar CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportJson}
+                icon={<FileCode className="w-3.5 h-3.5 text-blue-600" />}
+              >
+                Exportar JSON
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearAll}
+                icon={<Trash2 className="w-3.5 h-3.5 text-rose-600" />}
+              >
+                Limpar Tudo
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -446,9 +574,13 @@ export default function HistoricoPage() {
             </div>
           </div>
         </Card>
+      ) : filteredEntries.length === 0 ? (
+        <div className="p-8 text-center rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs">
+          Nenhuma atividade encontrada nesta categoria selecionada.
+        </div>
       ) : (
         <div className="space-y-3">
-          {entries.map((entry) => (
+          {filteredEntries.map((entry) => (
             <div
               key={entry.id}
               className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-shadow"
@@ -546,23 +678,42 @@ export default function HistoricoPage() {
                   </div>
 
                   {/* Ações de Linha */}
-                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={() => handleStartEdit(entry)}
-                      aria-label={`Editar treino de ${entry.date}`}
-                      className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(entry.id)}
-                      aria-label={`Excluir treino de ${entry.date}`}
-                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-center">
+                    {convertedIds.has(entry.id) ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 rounded-lg">
+                        <Check className="w-3.5 h-3.5" />
+                        Convertido para Treino!
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() => handleConvertToTraining(entry)}
+                        icon={<BookOpen className="w-3.5 h-3.5 text-blue-500" />}
+                      >
+                        Converter em Treino do Diário
+                      </Button>
+                    )}
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(entry)}
+                        aria-label={`Editar treino de ${entry.date}`}
+                        className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(entry.id)}
+                        aria-label={`Excluir treino de ${entry.date}`}
+                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

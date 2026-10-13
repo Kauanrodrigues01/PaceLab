@@ -15,6 +15,9 @@ import {
   Flame,
   History,
   Layers,
+  ChevronDown,
+  ChevronUp,
+  ListOrdered,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -26,6 +29,9 @@ import TafPage from "@/app/taf/page";
 import MetasPage from "@/app/metas/page";
 import IntervaladoPage from "@/app/intervalado/page";
 import HistoricoPage from "@/app/historico/page";
+import { calcGoalFromPace } from "@/lib/math/goals";
+import { tafService } from "@/lib/services/tafService";
+import { TafGoalConfig } from "@/types";
 import {
   calcDistanceFromTimeAndSpeed,
   calcPaceFromDistanceAndTime,
@@ -139,6 +145,22 @@ export default function CalculadoraPage() {
   const [timeInput, setTimeInput] = useState("20:00");
   const [paceInput, setPaceInput] = useState("6:40");
   const [speedInput, setSpeedInput] = useState("9.0");
+  const [tafGoal, setTafGoal] = useState<TafGoalConfig | null>(null);
+  const [showSplits, setShowSplits] = useState(false);
+
+  // Carrega meta do TAF
+  useEffect(() => {
+    let isMounted = true;
+    tafService
+      .getGoal()
+      .then((g: TafGoalConfig | null) => {
+        if (isMounted && g) setTafGoal(g);
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Restaura rascunho do sessionStorage ao montar no cliente
   useEffect(() => {
@@ -661,7 +683,22 @@ export default function CalculadoraPage() {
                         inputMode="decimal"
                       />
                       {/* Atalhos Rápidos */}
-                      <div className="flex flex-wrap gap-1.5 mt-2">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        {tafGoal && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const minM = tafGoal.minDistanceMeters ?? 2400;
+                              setDistanceInput((minM / 1000).toString());
+                              clearError("distance");
+                            }}
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 font-bold border border-amber-400/40 dark:border-amber-700/50 transition-colors"
+                            title="Carregar distância da meta oficial do edital"
+                          >
+                            <Medal className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <span>{(tafGoal.minDistanceMeters || 2400) / 1000}k TAF</span>
+                          </button>
+                        )}
                         {distanceShortcuts.map((sc) => (
                           <button
                             key={sc.value}
@@ -995,6 +1032,64 @@ export default function CalculadoraPage() {
                         {savedToHistory ? "Salvo no Histórico!" : "Salvar esta atividade no Histórico"}
                       </Button>
                     </div>
+
+                    {/* Visualizador Colapsável de Parciais km a km (Splits) */}
+                    {Number(distanceInput.replace(",", ".")) > 0 && (
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setShowSplits((prev) => !prev)}
+                          className="flex items-center justify-between w-full py-2 px-3 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-xl transition-colors"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <ListOrdered className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            <span>Parciais km a km (Splits)</span>
+                          </span>
+                          {showSplits ? (
+                            <ChevronUp className="w-4 h-4 text-slate-400" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-slate-400" />
+                          )}
+                        </button>
+
+                        {showSplits && (
+                          <div className="mt-2 space-y-1.5">
+                            {(() => {
+                              try {
+                                const distNum = Number(distanceInput.replace(",", "."));
+                                const splits = calcGoalFromPace({
+                                  distanceKm: distNum,
+                                  paceSeconds: dtResult.paceSeconds,
+                                  splitDistanceMeters: 1000,
+                                }).splits;
+                                return (
+                                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-xl text-xs font-mono">
+                                    {splits.map((s) => (
+                                      <div
+                                        key={s.index}
+                                        className="flex items-center justify-between px-3 py-1.5 bg-slate-50/50 dark:bg-slate-900/40"
+                                      >
+                                        <span className="text-slate-600 dark:text-slate-400 font-sans">
+                                          km {s.index} ({s.distanceKm.toFixed(1)}k)
+                                        </span>
+                                        <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                          {s.splitTimeFormatted}
+                                        </span>
+                                        <span className="text-slate-500 dark:text-slate-500 font-sans">
+                                          Acum: {s.accumulatedTimeFormatted}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              } catch {
+                                return null;
+                              }
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

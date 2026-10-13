@@ -57,4 +57,35 @@ describe("calcGoalFromTime", () => {
   it("rejeita tempo <= 0", () => {
     expect(() => calcGoalFromTime({ distanceKm: 5, totalTimeSeconds: 0 })).toThrow();
   });
+
+  it("calcula estratégia de Split Negativo mantendo o tempo total e acelerando na 2ª metade", () => {
+    const result = calcGoalFromPace({
+      distanceKm: 10,
+      paceSeconds: 300, // 5:00
+      splitDistanceMeters: 1000,
+      pacingStrategy: "negative",
+    });
+
+    expect(result.totalTimeFormatted).toBe("50:00");
+    expect(result.splits.length).toBe(10);
+    // Primeiro split é mais conservador (mais lento) que o último split
+    expect(result.splits[0].splitTimeSeconds).toBeGreaterThan(result.splits[9].splitTimeSeconds);
+    // Tempo acumulado final é rigorosamente o tempo total
+    expect(result.splits[9].accumulatedTimeFormatted).toBe("50:00");
+    expect(result.splits[0].paceFormatted).toBeDefined();
+  });
+
+  it("calcula estratégia Progressiva acelerando continuamente", () => {
+    const result = calcGoalFromTime({
+      distanceKm: 5,
+      totalTimeSeconds: 1500, // 25:00 (5:00/km)
+      splitDistanceMeters: 1000,
+      pacingStrategy: "progressive",
+    });
+
+    expect(result.totalTimeFormatted).toBe("25:00");
+    expect(result.splits[0].splitTimeSeconds).toBeGreaterThan(result.splits[1].splitTimeSeconds);
+    expect(result.splits[1].splitTimeSeconds).toBeGreaterThan(result.splits[2].splitTimeSeconds);
+    expect(result.splits[4].accumulatedTimeFormatted).toBe("25:00");
+  });
 });

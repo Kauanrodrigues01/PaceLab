@@ -5,6 +5,8 @@ import CalculadoraPage from "@/app/calculadora/page";
 
 describe("CalculadoraPage", () => {
   beforeEach(() => {
+    window.history.replaceState({}, "", "/calculadora");
+    sessionStorage.clear();
     Object.defineProperty(navigator, "clipboard", {
       value: {
         writeText: vi.fn().mockResolvedValue(undefined),
@@ -301,5 +303,20 @@ describe("CalculadoraPage", () => {
       expect(screen.getByTestId("hub-tab-taf-content")).toBeInTheDocument();
       getSpy.mockRestore();
     });
+  });
+
+  it("permite expandir o visualizador de parciais km a km no modo distância/tempo", async () => {
+    const user = userEvent.setup();
+    render(<CalculadoraPage />);
+
+    // Inicialmente o botão de parciais está presente
+    const toggleBtn = screen.getByRole("button", { name: /Parciais km a km \(Splits\)/i });
+    expect(toggleBtn).toBeInTheDocument();
+
+    // Expande os splits
+    await user.click(toggleBtn);
+
+    // Deve exibir km 1
+    expect(screen.getByText(/km 1/i)).toBeInTheDocument();
   });
 });

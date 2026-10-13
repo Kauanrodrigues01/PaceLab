@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import TafPage from "@/app/taf/page";
 
@@ -152,5 +152,18 @@ describe("TafPage (Fase 5)", () => {
 
     const targetInput = screen.getByLabelText("Meta de Distância");
     expect(targetInput).toHaveValue("2500");
+  });
+
+  it("renderiza a régua visual de aprovação e as dicas táticas por volta de pista", async () => {
+    render(<TafPage />);
+
+    // Régua visual de aprovação
+    await waitFor(() => {
+      expect(screen.getByTestId("taf-approval-ruler")).toBeInTheDocument();
+    });
+
+    // Coluna e feedback tático na tabela
+    expect(screen.getByText("Tática da Volta")).toBeInTheDocument();
+    expect(screen.getByText(/Saída controlada/i)).toBeInTheDocument();
   });
 });

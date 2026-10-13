@@ -132,44 +132,65 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 
 ---
 
+### Eixo B.4: Documentação Swagger/OpenAPI, Metas TAF Dinâmicas Multimodais e Revitalização de UI/UX — ✅ Concluído e Validado
+
+> **Status:** Concluído em 13/10/2026. Documentação completa e plano executado em [docs/plans/executed/09_plan_swagger_ux_metas_taf_dinamicas.md](../plans/executed/09_plan_swagger_ux_metas_taf_dinamicas.md).
+
+#### 15. Documentação Interativa da API com Swagger & OpenAPI 3.0 (✅ Implementado)
+- **Status:** Endpoint oficial `/api/docs/spec` gerando especificação OpenAPI 3.0 completa para 100% das rotas de `taf` e `profile`. Interface interativa em `/docs` com Swagger UI customizado no tema dark glassmorphism do PaceLab, atalho de acesso no rodapé global e testes automatizados em `__tests__/api/docs.test.ts`.
+
+#### 16. Modelo Multimodal e Eliminação Definitiva de Hardcoding (✅ Implementado)
+- **Status:** Expansão do modelo Prisma `TafGoal` com suporte multimodal (`institution`, `minDistanceMeters`, `pullupsTarget`, `pushupsTarget`, `absTarget`) e migração SQL segura.
+- **Zero Hardcoding:** Eliminação total de valores estáticos legados (2.300m / 2.400m). O Meu TAF, Intervalado, Calculadora Principal, Metas e Home agora carregam e calculam réguas de aprovação e atalhos baseados estritamente na meta do edital cadastrado do atleta.
+- **Configuração no Perfil:** Criação do componente `TafGoalConfigCard.tsx` em `/perfil` com presets de 1 clique (PMPR, PF, PRF, PMESP, PCERJ) e validação Zod bidirecional.
+
+#### 17. Revitalização de UI/UX e Métricas Fisiológicas Avançadas (✅ Implementado)
+- **Status:**
+  - **Cooper VO2 Máx Integrado:** Cálculo fisiológico a partir da distância atingida nos 12 minutos integrado com faixas de classificação por sexo e idade (`CooperVo2MaxCard.tsx`);
+  - **Gráfico de Perfil de Tiros:** Visualizador gráfico em barras com gradiente de intensidade de ritmo no simulador intervalado (`IntervalLapProfileChart.tsx`);
+  - **Cartão de Pista para Treino:** Visão condensada e de alto contraste em modal para acompanhamento na borda da pista (`TrackWorkoutCardModal.tsx`);
+  - **Heatmap de Consistência Anual:** Matriz de frequência anual estilo GitHub para visualização da aderência aos treinos (`TrainingConsistencyHeatmap.tsx`);
+  - **Quick Pace Widget & Card do Atleta:** Cálculo de ritmo em 2 cliques e contagem regressiva para a prova na Home (`app/page.tsx`);
+  - **Estratégias de Ritmo (Pacing):** Divisão automática constante, split negativo e progressivo em `/metas` e parciais km a km em `/calculadora`;
+  - **Régua de Aprovação TAF & Tática de Volta:** Régua visual de pontuação e coluna tática da pista de 400m em `/taf`;
+  - **Filtros e Conversão no Histórico:** Chips de filtro por categoria e conversão em 1 clique para treino do diário com cálculo calórico do Compêndio 2024 em `/historico`.
+
+---
+
 ### Eixo C: Recursos de Produto para o Atleta na Pista
 
-#### 15. Transformação em PWA Completo (Progressive Web App)
+#### 18. Transformação em PWA Completo (Progressive Web App)
 - **Solução proposta:** Configurar `manifest.json`, ícones nativos e service worker para cache estático da interface:
   - Botão *"Instalar PaceLab"* na tela inicial do Android e iOS.
   - Execução em tela cheia (standalone) sem barra de navegação do browser.
 
-#### 16. Wake Lock API (Manter Tela Ativa na Pista)
+#### 19. Wake Lock API (Manter Tela Ativa na Pista)
 - **Solução proposta:** Integrar a API nativa `navigator.wakeLock.request("screen")` durante a navegação no módulo Meu TAF ou durante cronometragem, impedindo que a tela do celular bloqueie no meio do treino.
 
-#### 17. Cronômetro Interativo com Bip Sonoro de Parciais de Volta (400m)
+#### 20. Cronômetro Interativo com Bip Sonoro de Parciais de Volta (400m)
 - **Solução proposta:** Adicionar cronômetro nativo na aba de simulados que emite sinal sonoro a cada volta de 400m projetada, orientando o atleta auditivamente sobre estar à frente ou atrás do ritmo da aprovação.
 
 ---
 
 ### Eixo D: Relatórios, Estimativas e Compartilhamento
 
-#### 18. Exportação de Laudo Técnico do TAF em PDF
+#### 21. Exportação de Laudo Técnico do TAF em PDF
 - **Solução proposta:** Gerar laudo formatado para impressão ou envio via WhatsApp contendo:
   - Evolução gráfica dos 12 minutos.
   - Projeção de aprovação segundo o edital da Guarda Municipal.
   - Histórico de parciais e recorde pessoal para apresentação a preparadores físicos e instrutores.
 
-#### 19. Estimativa de VO2 Máx (Teste de Cooper)
-- **Solução proposta:** Adicionar cálculo estimativo de VO2 Máx baseado na fórmula clássica de Cooper a partir da distância atingida nos 12 minutos:
-  $$\text{VO}_2\text{ Máx} = \frac{\text{Distância (m)} - 504.9}{44.73}$$
-- **Benefícios:** Agrega valor fisiológico e científico à preparação física do aluno.
-
 ---
 
 ### Eixo E: Qualidade de Engenharia & CI/CD
 
-#### 20. Pipeline de CI no GitHub Actions
+#### 22. Pipeline de CI no GitHub Actions
 - **Solução proposta:** Workflow automatizado disparado em todo push/pull request:
   - Validação de tipos (`npx tsc --noEmit`).
   - Linter (`npx eslint`).
-  - Execução dos 406 testes automatizados (`npm test`).
+  - Execução dos testes automatizados (`npm test`).
   - Verificação de build de produção (`npm run build`).
 
-#### 21. Seed Script do Prisma para Desenvolvimento Local
+#### 23. Seed Script do Prisma para Desenvolvimento Local
 - **Solução proposta:** Criar `prisma/seed.ts` com dados representativos de teste para popular o banco local com 1 comando (`npx prisma db seed`).
+

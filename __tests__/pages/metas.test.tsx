@@ -142,4 +142,18 @@ describe("MetasPage (Fase 6)", () => {
 
     expect(screen.getByText("Meta Salva no Histórico!")).toBeInTheDocument();
   });
+
+  it("permite selecionar estratégia de Split Negativo e exibe coluna de Ritmo /km", async () => {
+    const user = userEvent.setup();
+    render(<MetasPage />);
+
+    const negBtn = screen.getByRole("button", { name: /Split Negativo/i });
+    await user.click(negBtn);
+
+    const calcBtn = screen.getByRole("button", { name: "Gerar Planilha de Splits" });
+    await user.click(calcBtn);
+
+    expect(screen.getByText("Ritmo /km")).toBeInTheDocument();
+    expect(screen.getByText("Split 1")).toBeInTheDocument();
+  });
 });

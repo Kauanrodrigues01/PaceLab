@@ -114,6 +114,8 @@ export interface PaceAverageResult {
 }
 
 // ─── Metas e Parciais ─────────────────────────────────────────────────────────
+export type PacingStrategy = "even" | "negative" | "progressive";
+
 export interface GoalSplit {
   index: number;
   distanceKm: Kilometers;
@@ -122,6 +124,8 @@ export interface GoalSplit {
   splitTimeFormatted: string;
   accumulatedTimeSeconds: Seconds;
   accumulatedTimeFormatted: string;
+  paceFormatted?: string;
+  strategyDiffPercent?: number;
 }
 
 export interface GoalResult {
