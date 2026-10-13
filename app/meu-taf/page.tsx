@@ -10,6 +10,12 @@ import { TafAttemptList } from "@/components/meu-taf/TafAttemptList";
 import { EvolutionDashboard } from "@/components/meu-taf/EvolutionDashboard";
 import { PeriodComparator } from "@/components/meu-taf/PeriodComparator";
 import { GoalAndBackupSettings } from "@/components/meu-taf/GoalAndBackupSettings";
+import { CooperVo2MaxCard } from "@/components/meu-taf/CooperVo2MaxCard";
+import { TafApprovalRuler } from "@/components/meu-taf/TafApprovalRuler";
+import { TafComplementaryExercisesCard } from "@/components/meu-taf/TafComplementaryExercisesCard";
+import { calculateAge } from "@/lib/math/cooper";
+import { profileService } from "@/lib/services/profileService";
+import { UserProfile } from "@/types";
 import {
   Trophy,
   Target,
@@ -82,6 +88,8 @@ export default function MeuTafPage() {
     database?: string;
   }>({ connected: false, orm: "Prisma" });
 
+  const [athleteProfile, setAthleteProfile] = useState<UserProfile | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -94,17 +102,19 @@ export default function MeuTafPage() {
   const loadData = useCallback(async () => {
     setLoadError(null);
     try {
-      const [fetchedGoal, fetchedAttempts, fetchedTrainings, health] = await Promise.all([
+      const [fetchedGoal, fetchedAttempts, fetchedTrainings, health, profile] = await Promise.all([
         tafService.getGoal(),
         tafService.getAttempts(),
         tafService.getTrainings(),
         tafService.checkDatabaseHealth(),
+        profileService.getProfile().catch(() => null),
       ]);
 
       setGoal(fetchedGoal);
       setAttempts(fetchedAttempts);
       setTrainings(fetchedTrainings);
       setDbStatus(health);
+      if (profile) setAthleteProfile(profile);
 
       if (typeof window !== "undefined") {
         try {
@@ -246,7 +256,7 @@ export default function MeuTafPage() {
         <div className="relative z-10 max-w-2xl">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/15 backdrop-blur-md text-blue-100 mb-3 border border-white/20">
             <Trophy className="w-3.5 h-3.5 text-amber-300" />
-            Guarda Municipal de Fortaleza — TAF 12 Min
+            {goal.institutionName || "Edital Oficial"} — TAF 12 Min
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
             Meu TAF
@@ -560,9 +570,36 @@ export default function MeuTafPage() {
       {/* Conteúdo da Aba 1: Simulados de 12 Minutos */}
       {activeTab === "testes" && (
         <div className="space-y-6">
+          {/* Régua Visual de Aprovação */}
+          <TafApprovalRuler
+            currentDistance={
+              personalRecord12m?.distanceMeters || latest12mAttempt?.distanceMeters || 0
+            }
+            minDistance={goal?.minDistanceMeters || 2400}
+            targetDistance={targetDistance}
+            institutionName={goal?.institutionName}
+          />
+
+          {/* Estimativa de VO2 Máx pelo Teste de Cooper */}
+          {(personalRecord12m?.distanceMeters || latest12mAttempt?.distanceMeters) ? (
+            <CooperVo2MaxCard
+              distanceMeters={
+                personalRecord12m?.distanceMeters || latest12mAttempt?.distanceMeters || 0
+              }
+              initialAge={calculateAge(athleteProfile?.birthDate)}
+              initialGender={athleteProfile?.gender}
+            />
+          ) : null}
+
+          {/* Exercícios Complementares do TAF (Barra, Flexão, Abdominal) */}
+          <TafComplementaryExercisesCard goal={goal} />
+
           {/* Formulário de Registro Rápido */}
           <TafAttemptForm
             targetDistanceMeters={targetDistance}
+            minDistanceMeters={goal?.minDistanceMeters || 2400}
+            targetDurationMinutes={goal?.targetDurationMinutes || 12}
+            institutionName={goal?.institutionName || "Edital Padrão"}
             previousBestAttempt={personalRecord12m}
             lastAttemptSameDuration={latest12mAttempt}
             editingAttempt={editingAttempt}

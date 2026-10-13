@@ -32,9 +32,31 @@ enum LocationType {
 model TafGoal {
   id                    String    @id @default(uuid())
   userId                String?   @map("user_id")
-  targetDistanceMeters  Int       @default(2300) @map("target_distance_meters")
+  institutionName       String?   @default("Edital Padrão") @map("institution_name")
+  
+  // Corrida (Tempo e Distâncias)
+  minDistanceMeters     Int       @default(2400) @map("min_distance_meters")
+  targetDistanceMeters  Int       @default(2600) @map("target_distance_meters")
   targetDurationMinutes Int       @default(12) @map("target_duration_minutes")
   targetExamDate        DateTime? @map("target_exam_date")
+
+  // Barra Fixa
+  pullupType            String?   @default("dinamica") @map("pullup_type") // "dinamica" | "isometria"
+  pullupMinReps         Int?      @default(3) @map("pullup_min_reps")
+  pullupTargetReps      Int?      @default(5) @map("pullup_target_reps")
+  pullupMinSeconds      Int?      @map("pullup_min_seconds")
+  pullupTargetSeconds   Int?      @map("pullup_target_seconds")
+
+  // Flexão de Braço
+  pushupMinReps         Int?      @default(20) @map("pushup_min_reps")
+  pushupTargetReps      Int?      @default(30) @map("pushup_target_reps")
+  pushupDurationSeconds Int?      @map("pushup_duration_seconds")
+
+  // Abdominal
+  absMinReps            Int?      @default(30) @map("abs_min_reps")
+  absTargetReps         Int?      @default(40) @map("abs_target_reps")
+  absDurationSeconds    Int?      @map("abs_duration_seconds")
+
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 

@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { Footer } from "@/components/layout/Footer";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -37,6 +38,7 @@ export default function RootLayout({
         <ThemeProvider>
           <Navbar />
           <div className="flex-1 pb-20 md:pb-8">{children}</div>
+          <Footer />
           <BottomNav />
         </ThemeProvider>
       </body>

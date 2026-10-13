@@ -52,6 +52,44 @@ describe("Validações Zod do TAF (Fase 1 - Eixo B)", () => {
       expect(TafGoalInputSchema.safeParse({ targetDurationMinutes: 0 }).success).toBe(false);
       expect(TafGoalInputSchema.safeParse({ targetDurationMinutes: 65 }).success).toBe(false);
     });
+
+    it("valida campos multimodais completos com sucesso", () => {
+      const parsed = TafGoalInputSchema.parse({
+        institutionName: "Polícia Militar",
+        minDistanceMeters: 2400,
+        targetDistanceMeters: 2600,
+        targetDurationMinutes: 12,
+        pullupType: "dinamica",
+        pullupMinReps: 4,
+        pullupTargetReps: 7,
+        pushupMinReps: 25,
+        pushupTargetReps: 35,
+        pushupDurationSeconds: 60,
+        absMinReps: 35,
+        absTargetReps: 45,
+        absDurationSeconds: 60,
+      });
+
+      expect(parsed.institutionName).toBe("Polícia Militar");
+      expect(parsed.minDistanceMeters).toBe(2400);
+      expect(parsed.pullupType).toBe("dinamica");
+      expect(parsed.pullupMinReps).toBe(4);
+      expect(parsed.pushupMinReps).toBe(25);
+      expect(parsed.absMinReps).toBe(35);
+    });
+
+    it("rejeita modalidade de barra inválida", () => {
+      const result = TafGoalInputSchema.safeParse({
+        pullupType: "invalido",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("rejeita repetições negativas em exercícios complementares", () => {
+      expect(TafGoalInputSchema.safeParse({ pullupMinReps: -1 }).success).toBe(false);
+      expect(TafGoalInputSchema.safeParse({ pushupMinReps: -5 }).success).toBe(false);
+      expect(TafGoalInputSchema.safeParse({ absMinReps: -10 }).success).toBe(false);
+    });
   });
 
   describe("CreateTafAttemptSchema", () => {

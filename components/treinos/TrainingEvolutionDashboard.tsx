@@ -37,6 +37,7 @@ import {
   Info,
   ShieldCheck,
 } from "lucide-react";
+import { TrainingConsistencyHeatmap } from "./TrainingConsistencyHeatmap";
 
 interface TrainingEvolutionDashboardProps {
   trainings: TrainingSession[];
@@ -79,6 +80,8 @@ export function TrainingEvolutionDashboard({
         const diffMs = nowTime - tDate.getTime();
 
         switch (timeRange) {
+          case "7d":
+            return diffMs <= 7 * 24 * 60 * 60 * 1000 + 86400000;
           case "30d":
             return diffMs <= 30 * 24 * 60 * 60 * 1000 + 86400000;
           case "90d":
@@ -520,6 +523,17 @@ export function TrainingEvolutionDashboard({
         >
           <button
             type="button"
+            onClick={() => setTimeRange("7d")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              timeRange === "7d"
+                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+            }`}
+          >
+            7 dias
+          </button>
+          <button
+            type="button"
             onClick={() => setTimeRange("30d")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               timeRange === "30d"
@@ -665,6 +679,9 @@ export function TrainingEvolutionDashboard({
           <p className="text-[11px] text-slate-400 mt-0.5">Longão do período</p>
         </div>
       </div>
+
+      {/* ─── Heatmap de Consistência e Streaks ─── */}
+      <TrainingConsistencyHeatmap trainings={trainings} weeksCount={12} />
 
       {/* ─── Estado Vazio se não houver dados no período ─── */}
       {filteredTrainings.length === 0 ? (

@@ -16,6 +16,7 @@ import {
   XCircle,
   Footprints,
   Compass,
+  Trophy,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -26,7 +27,8 @@ import { Badge } from "@/components/ui/Badge";
 import { calcTaf, calcFixedTargetTaf } from "@/lib/math/taf";
 import { formatDecimal, parseTime } from "@/lib/formatting/time";
 import { historyStorage } from "@/lib/storage/localStorage";
-import { TafResult, FixedTargetResult } from "@/types";
+import { tafService } from "@/lib/services/tafService";
+import { TafResult, FixedTargetResult, TafGoalConfig } from "@/types";
 
 type TafMode = "fixed-time" | "fixed-distance";
 
@@ -57,6 +59,25 @@ export default function TafPage() {
 
   const [fixedResult, setFixedResult] = useState<FixedTargetResult | null>(null);
   const [savedToHistory, setSavedToHistory] = useState(false);
+
+  // Metas dinâmicas do TAF
+  const [goal, setGoal] = useState<TafGoalConfig | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    tafService
+      .getGoal()
+      .then((g) => {
+        if (isMounted && g) {
+          setGoal(g);
+        }
+      })
+      .catch(() => null);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Atalhos rápidos (aumentando de 100 em 100 metros)
   const targetShortcuts = [
@@ -249,6 +270,64 @@ export default function TafPage() {
           </p>
         </div>
       </div>
+
+      {/* Banner de Edital Cadastrado */}
+      {goal && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-blue-950/40 border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-blue-600 text-white shrink-0">
+              <Trophy className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 dark:text-slate-100">
+                Seu Edital Cadastrado: <span className="text-blue-600 dark:text-blue-400">{goal.institutionName || "Edital Padrão"}</span>
+              </p>
+              <p className="text-slate-600 dark:text-slate-400 mt-0.5">
+                Mínimo: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{goal.minDistanceMeters || 2400}m</span> • Meta: <span className="font-semibold text-blue-600 dark:text-blue-400">{goal.targetDistanceMeters}m</span> em {goal.targetDurationMinutes} min
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                const minD = goal.minDistanceMeters || 2400;
+                setDurationInput(String(goal.targetDurationMinutes));
+                setTargetMetersInput(String(minD));
+                setFixedDistInput(String(minD));
+                setMaxTimeInput(`${goal.targetDurationMinutes}:00`);
+                try {
+                  const res = calcTaf(goal.targetDurationMinutes, minD, Number(splitMetersInput) || 400, Number(currentMetersInput) || undefined);
+                  setTafResult(res);
+                } catch {
+                  // Fallback silencioso
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition-colors whitespace-nowrap"
+            >
+              Aplicar Mínimo ({goal.minDistanceMeters || 2400}m)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDurationInput(String(goal.targetDurationMinutes));
+                setTargetMetersInput(String(goal.targetDistanceMeters));
+                setFixedDistInput(String(goal.targetDistanceMeters));
+                setMaxTimeInput(`${goal.targetDurationMinutes}:00`);
+                try {
+                  const res = calcTaf(goal.targetDurationMinutes, goal.targetDistanceMeters, Number(splitMetersInput) || 400, Number(currentMetersInput) || undefined);
+                  setTafResult(res);
+                } catch {
+                  // Fallback silencioso
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-colors whitespace-nowrap"
+            >
+              Aplicar Meta ({goal.targetDistanceMeters}m)
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Seletor de Modo (Subtabs) */}
       <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-200/70 dark:bg-slate-800/80 rounded-2xl">

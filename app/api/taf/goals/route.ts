@@ -4,15 +4,7 @@ import { TafGoalInputSchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
 
-interface GoalDto {
-  id?: string;
-  userId?: string | null;
-  targetDistanceMeters: number;
-  targetDurationMinutes: number;
-  targetExamDate?: Date | string | null;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
+import type { TafGoal } from "@prisma/client";
 
 export async function GET() {
   return withApiHandler(async () => {
@@ -21,14 +13,32 @@ export async function GET() {
     });
 
     if (!goal) {
-      return apiSuccess<GoalDto>({
+      const defaultGoal: TafGoal = {
+        id: "default",
+        userId: null,
+        institutionName: "Edital Padrão",
+        minDistanceMeters: 2400,
         targetDistanceMeters: 2300,
         targetDurationMinutes: 12,
         targetExamDate: null,
-      });
+        pullupType: "dinamica",
+        pullupMinReps: 3,
+        pullupTargetReps: 5,
+        pullupMinSeconds: null,
+        pullupTargetSeconds: null,
+        pushupMinReps: 20,
+        pushupTargetReps: 30,
+        pushupDurationSeconds: null,
+        absMinReps: 30,
+        absTargetReps: 40,
+        absDurationSeconds: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      return apiSuccess(defaultGoal);
     }
 
-    return apiSuccess<GoalDto>(goal);
+    return apiSuccess(goal);
   });
 }
 
@@ -36,6 +46,25 @@ export async function POST(request: Request) {
   return withApiHandler(async () => {
     const body = await request.json();
     const validated = TafGoalInputSchema.parse(body);
+
+    const goalData = {
+      institutionName: validated.institutionName,
+      minDistanceMeters: validated.minDistanceMeters,
+      targetDistanceMeters: validated.targetDistanceMeters,
+      targetDurationMinutes: validated.targetDurationMinutes,
+      targetExamDate: validated.targetExamDate ? new Date(validated.targetExamDate) : null,
+      pullupType: validated.pullupType,
+      pullupMinReps: validated.pullupMinReps,
+      pullupTargetReps: validated.pullupTargetReps,
+      pullupMinSeconds: validated.pullupMinSeconds,
+      pullupTargetSeconds: validated.pullupTargetSeconds,
+      pushupMinReps: validated.pushupMinReps,
+      pushupTargetReps: validated.pushupTargetReps,
+      pushupDurationSeconds: validated.pushupDurationSeconds,
+      absMinReps: validated.absMinReps,
+      absTargetReps: validated.absTargetReps,
+      absDurationSeconds: validated.absDurationSeconds,
+    };
 
     const existingGoal = await prisma.tafGoal.findFirst({
       orderBy: { updatedAt: "desc" },
@@ -45,19 +74,11 @@ export async function POST(request: Request) {
     if (existingGoal) {
       savedGoal = await prisma.tafGoal.update({
         where: { id: existingGoal.id },
-        data: {
-          targetDistanceMeters: validated.targetDistanceMeters,
-          targetDurationMinutes: validated.targetDurationMinutes,
-          targetExamDate: validated.targetExamDate ? new Date(validated.targetExamDate) : null,
-        },
+        data: goalData,
       });
     } else {
       savedGoal = await prisma.tafGoal.create({
-        data: {
-          targetDistanceMeters: validated.targetDistanceMeters,
-          targetDurationMinutes: validated.targetDurationMinutes,
-          targetExamDate: validated.targetExamDate ? new Date(validated.targetExamDate) : null,
-        },
+        data: goalData,
       });
     }
 

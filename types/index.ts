@@ -292,9 +292,29 @@ export interface WeightRecord {
 export interface TafGoalConfig {
   id?: string;
   userId?: string | null;
-  targetDistanceMeters: number; // Padrão 2300 (Guarda Municipal Fortaleza)
+  institutionName?: string | null;
+  minDistanceMeters?: number; // Distância mínima para aprovação (ex: 2400)
+  targetDistanceMeters: number; // Meta pessoal de segurança (ex: 2600)
   targetDurationMinutes: number; // Padrão 12
   targetExamDate?: string | null; // ISO 8601 YYYY-MM-DD
+
+  // Barra Fixa
+  pullupType?: "dinamica" | "isometria" | null;
+  pullupMinReps?: number | null;
+  pullupTargetReps?: number | null;
+  pullupMinSeconds?: number | null;
+  pullupTargetSeconds?: number | null;
+
+  // Flexão de Braço
+  pushupMinReps?: number | null;
+  pushupTargetReps?: number | null;
+  pushupDurationSeconds?: number | null;
+
+  // Abdominal
+  absMinReps?: number | null;
+  absTargetReps?: number | null;
+  absDurationSeconds?: number | null;
+
   createdAt?: string;
   updatedAt?: string;
 }
@@ -339,7 +359,7 @@ export interface MonthlyVolume {
   sessionsCount: number;
 }
 
-export type TimeRangePreset = "30d" | "90d" | "year" | "all";
+export type TimeRangePreset = "7d" | "30d" | "90d" | "year" | "all";
 
 export type RpeIntensityZone = "leve" | "moderado" | "intenso" | "maximo";
 

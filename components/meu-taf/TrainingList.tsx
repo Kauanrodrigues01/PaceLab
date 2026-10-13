@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { TrainingSession, ActivityType } from "@/types";
+import { TrainingSession, ActivityType, ACTIVITY_LABELS } from "@/types";
 import { TrainingCard } from "./TrainingCard";
 import { formatPace, formatTime } from "@/lib/formatting/time";
 import { parseSafeDate } from "@/lib/math/evolution";
-import { Flame, Calendar, Activity } from "lucide-react";
+import { Flame, Calendar, Activity, Search, X } from "lucide-react";
 
 interface TrainingListProps {
   trainings: TrainingSession[];
@@ -16,6 +16,7 @@ interface TrainingListProps {
 export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps) {
   const [activityFilter, setActivityFilter] = useState<"all" | ActivityType>("all");
   const [periodFilter, setPeriodFilter] = useState<"all" | "7d" | "30d" | "90d">("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Ordena cronologicamente decrescente (mais recente primeiro)
   const sortedTrainings = useMemo(() => {
@@ -26,9 +27,10 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
     });
   }, [trainings]);
 
-  // Aplica filtros de modalidade e data
+  // Aplica filtros de modalidade, data e busca textual
   const filteredTrainings = useMemo(() => {
     const now = new Date().getTime();
+    const query = searchQuery.toLowerCase().trim();
 
     return sortedTrainings.filter((t) => {
       // Filtro de atividade
@@ -46,9 +48,19 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
         if (periodFilter === "90d" && diffDays > 90) return false;
       }
 
+      // Filtro de busca textual (notas, modalidade ou rpe)
+      if (query) {
+        const notesMatch = t.notes?.toLowerCase().includes(query) ?? false;
+        const activityMatch = ACTIVITY_LABELS[t.activityType]?.toLowerCase().includes(query) ?? false;
+        const rpeMatch = t.perceivedEffort ? `rpe ${t.perceivedEffort}`.includes(query) : false;
+        if (!notesMatch && !activityMatch && !rpeMatch) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [sortedTrainings, activityFilter, periodFilter]);
+  }, [sortedTrainings, activityFilter, periodFilter, searchQuery]);
 
   // Métricas agregadas do filtro ativo
   const aggregatedStats = useMemo(() => {
@@ -139,6 +151,27 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
               <option value="corrida_intervalada">Intervalado / Tiros</option>
               <option value="caminhada">Caminhada</option>
             </select>
+
+            {/* Campo de Busca Textual */}
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Buscar por notas..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-7 h-9 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

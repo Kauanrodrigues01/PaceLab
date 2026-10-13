@@ -75,16 +75,31 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
 
   // ─── Goals Route ─────────────────────────────────────────────────────────
   describe("Goals (/api/taf/goals)", () => {
+    const baseGoal = {
+      id: "goal-1",
+      userId: null,
+      institutionName: "Edital Padrão",
+      minDistanceMeters: 2400,
+      targetDistanceMeters: 2300,
+      targetDurationMinutes: 12,
+      targetExamDate: null,
+      pullupType: "dinamica",
+      pullupMinReps: 3,
+      pullupTargetReps: 5,
+      pullupMinSeconds: null,
+      pullupTargetSeconds: null,
+      pushupMinReps: 20,
+      pushupTargetReps: 30,
+      pushupDurationSeconds: null,
+      absMinReps: 30,
+      absTargetReps: 40,
+      absDurationSeconds: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
     it("GET retorna meta existente com envelope apiSuccess", async () => {
-      vi.mocked(prisma.tafGoal.findFirst).mockResolvedValueOnce({
-        id: "goal-1",
-        userId: null,
-        targetDistanceMeters: 2300,
-        targetDurationMinutes: 12,
-        targetExamDate: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+      vi.mocked(prisma.tafGoal.findFirst).mockResolvedValueOnce(baseGoal);
 
       const res = await getGoal();
       const data = await res.json();
@@ -110,13 +125,10 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
     it("POST cria ou atualiza meta com payload válido", async () => {
       vi.mocked(prisma.tafGoal.findFirst).mockResolvedValueOnce(null);
       vi.mocked(prisma.tafGoal.create).mockResolvedValueOnce({
+        ...baseGoal,
         id: "goal-2",
-        userId: null,
         targetDistanceMeters: 2400,
         targetDurationMinutes: 12,
-        targetExamDate: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
       });
 
       const req = new Request("http://localhost/api/taf/goals", {
@@ -130,6 +142,63 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.data.targetDistanceMeters).toBe(2400);
+    });
+
+    it("POST aceita e salva campos multimodais (edital, mínimo, barra, flexão, abdominal)", async () => {
+      vi.mocked(prisma.tafGoal.findFirst).mockResolvedValueOnce(null);
+      vi.mocked(prisma.tafGoal.create).mockResolvedValueOnce({
+        id: "goal-multi",
+        userId: null,
+        institutionName: "Polícia Militar SP",
+        minDistanceMeters: 2400,
+        targetDistanceMeters: 2600,
+        targetDurationMinutes: 12,
+        targetExamDate: null,
+        pullupType: "dinamica",
+        pullupMinReps: 4,
+        pullupTargetReps: 6,
+        pullupMinSeconds: null,
+        pullupTargetSeconds: null,
+        pushupMinReps: 25,
+        pushupTargetReps: 35,
+        pushupDurationSeconds: 60,
+        absMinReps: 35,
+        absTargetReps: 45,
+        absDurationSeconds: 60,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const req = new Request("http://localhost/api/taf/goals", {
+        method: "POST",
+        body: JSON.stringify({
+          institutionName: "Polícia Militar SP",
+          minDistanceMeters: 2400,
+          targetDistanceMeters: 2600,
+          targetDurationMinutes: 12,
+          pullupType: "dinamica",
+          pullupMinReps: 4,
+          pullupTargetReps: 6,
+          pushupMinReps: 25,
+          pushupTargetReps: 35,
+          pushupDurationSeconds: 60,
+          absMinReps: 35,
+          absTargetReps: 45,
+          absDurationSeconds: 60,
+        }),
+      });
+
+      const res = await postGoal(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.institutionName).toBe("Polícia Militar SP");
+      expect(data.data.minDistanceMeters).toBe(2400);
+      expect(data.data.targetDistanceMeters).toBe(2600);
+      expect(data.data.pullupMinReps).toBe(4);
+      expect(data.data.pushupMinReps).toBe(25);
+      expect(data.data.absMinReps).toBe(35);
     });
 
     it("POST rejeita payload com targetDistanceMeters inválido com 400 e details", async () => {

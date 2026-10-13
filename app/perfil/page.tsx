@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { TafGoalConfigCard } from "@/components/profile/TafGoalConfigCard";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -610,6 +611,9 @@ export default function PerfilPage() {
           </div>
         </Card>
       </div>
+
+      {/* ─── Metas do TAF & Edital Conectadas ──────────────────────────────── */}
+      <TafGoalConfigCard />
 
       {/* ─── Seção Gráfico de Evolução do Peso ─────────────────────────────── */}
       <Card className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">

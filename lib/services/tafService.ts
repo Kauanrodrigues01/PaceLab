@@ -5,9 +5,22 @@ import {
 } from "@/types";
 
 export const DEFAULT_GOAL: TafGoalConfig = {
+  institutionName: "Edital Padrão",
+  minDistanceMeters: 2400,
   targetDistanceMeters: 2300,
   targetDurationMinutes: 12,
   targetExamDate: null,
+  pullupType: "dinamica",
+  pullupMinReps: 3,
+  pullupTargetReps: 5,
+  pullupMinSeconds: null,
+  pullupTargetSeconds: null,
+  pushupMinReps: 20,
+  pushupTargetReps: 30,
+  pushupDurationSeconds: null,
+  absMinReps: 30,
+  absTargetReps: 40,
+  absDurationSeconds: null,
 };
 
 export interface TafPaginationOptions {

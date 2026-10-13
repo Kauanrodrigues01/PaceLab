@@ -1,0 +1,132 @@
+/* Custom Theme para Swagger UI no PaceLab */
+.swagger-custom-theme .swagger-ui {
+  font-family: inherit;
+  color: inherit;
+}
+
+.swagger-custom-theme .swagger-ui .topbar {
+  display: none; /* Oculta a barra de topo desnecessária do Swagger */
+}
+
+.swagger-custom-theme .swagger-ui .information-container {
+  padding: 1.5rem 1.5rem 0.5rem 1.5rem;
+}
+
+.swagger-custom-theme .swagger-ui .info {
+  margin: 0;
+}
+
+.swagger-custom-theme .swagger-ui .info .title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.swagger-custom-theme .swagger-ui .scheme-container {
+  background: transparent;
+  box-shadow: none;
+  padding: 0.5rem 1.5rem;
+}
+
+/* Dark Mode Overrides */
+.dark .swagger-custom-theme .swagger-ui {
+  color: #e2e8f0;
+}
+
+.dark .swagger-custom-theme .swagger-ui .info .title,
+.dark .swagger-custom-theme .swagger-ui .info p,
+.dark .swagger-custom-theme .swagger-ui .info li,
+.dark .swagger-custom-theme .swagger-ui .opblock-tag,
+.dark .swagger-custom-theme .swagger-ui .opblock-description-wrapper p,
+.dark .swagger-custom-theme .swagger-ui .opblock-external-docs-wrapper p,
+.dark .swagger-custom-theme .swagger-ui .opblock-title_normal p {
+  color: #f1f5f9;
+}
+
+.dark .swagger-custom-theme .swagger-ui .opblock-tag {
+  border-bottom-color: #334155;
+}
+
+.dark .swagger-custom-theme .swagger-ui .opblock {
+  background: #0f172a;
+  border-color: #334155;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+}
+
+.dark .swagger-custom-theme .swagger-ui .opblock .opblock-summary {
+  border-bottom-color: #1e293b;
+}
+
+.dark .swagger-custom-theme .swagger-ui .opblock .opblock-summary-method {
+  font-weight: 700;
+  border-radius: 0.375rem;
+}
+
+.dark .swagger-custom-theme .swagger-ui .opblock .opblock-summary-path,
+.dark .swagger-custom-theme .swagger-ui .opblock .opblock-summary-description {
+  color: #e2e8f0;
+}
+
+.dark .swagger-custom-theme .swagger-ui .tab li button.tablinks {
+  color: #94a3b8;
+}
+
+.dark .swagger-custom-theme .swagger-ui .tab li button.tablinks.active {
+  color: #38bdf8;
+}
+
+.dark .swagger-custom-theme .swagger-ui table thead tr th,
+.dark .swagger-custom-theme .swagger-ui table thead tr td,
+.dark .swagger-custom-theme .swagger-ui .parameters-col_name,
+.dark .swagger-custom-theme .swagger-ui .parameters-col_description,
+.dark .swagger-custom-theme .swagger-ui .response-col_status,
+.dark .swagger-custom-theme .swagger-ui .response-col_description {
+  color: #cbd5e1;
+}
+
+.dark .swagger-custom-theme .swagger-ui section.models {
+  border-color: #334155;
+  background-color: #0f172a;
+}
+
+.dark .swagger-custom-theme .swagger-ui section.models h4 {
+  color: #f1f5f9;
+}
+
+.dark .swagger-custom-theme .swagger-ui .model-box {
+  background-color: #1e293b;
+}
+
+.dark .swagger-custom-theme .swagger-ui .model,
+.dark .swagger-custom-theme .swagger-ui .model-title,
+.dark .swagger-custom-theme .swagger-ui .prop-name {
+  color: #93c5fd;
+}
+
+.dark .swagger-custom-theme .swagger-ui .prop-type {
+  color: #34d399;
+}
+
+.dark .swagger-custom-theme .swagger-ui input[type="text"],
+.dark .swagger-custom-theme .swagger-ui textarea,
+.dark .swagger-custom-theme .swagger-ui select {
+  background-color: #1e293b;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+.dark .swagger-custom-theme .swagger-ui .btn {
+  background-color: #334155;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+.dark .swagger-custom-theme .swagger-ui .btn.execute {
+  background-color: #059669;
+  border-color: #047857;
+  color: #ffffff;
+}
+
+.dark .swagger-custom-theme .swagger-ui .responses-inner {
+  background-color: #0f172a;
+}

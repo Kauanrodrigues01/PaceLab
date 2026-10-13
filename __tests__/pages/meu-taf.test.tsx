@@ -20,7 +20,7 @@ describe("MeuTafPage - Fase C (Histórico de 12 Minutos e Interface do TAF)", ()
     // Header principal
     expect(await screen.findByRole("heading", { name: "Meu TAF" })).toBeInTheDocument();
     expect(
-      screen.getByText(/Guarda Municipal de Fortaleza — TAF 12 Min/i)
+      screen.getByText(/(Guarda Municipal de Fortaleza|Edital Padrão|Edital Oficial) — TAF 12 Min/i)
     ).toBeInTheDocument();
 
     // Status de banco

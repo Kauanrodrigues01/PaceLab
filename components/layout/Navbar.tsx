@@ -10,6 +10,7 @@ import {
   Calendar,
   Trophy,
   Scale,
+  FileCode,
 } from "lucide-react";
 import { WeeklyWeightModal } from "@/components/profile/WeeklyWeightModal";
 
@@ -83,7 +84,15 @@ export function Navbar() {
         </nav>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <Link
+            href="/docs"
+            title="Documentação da API (Swagger)"
+            aria-label="Documentação da API (Swagger)"
+            className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <FileCode className="w-5 h-5" />
+          </Link>
           <ThemeToggle />
         </div>
       </div>

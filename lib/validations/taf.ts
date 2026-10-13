@@ -45,7 +45,25 @@ export const SplitDetailSchema = z.object({
 
 // ─── Metas do TAF (TafGoal) ────────────────────────────────────────────────────
 
+export const PullupTypeEnum = z.enum(["dinamica", "isometria"] as const, {
+  message: "Tipo de barra fixa inválido (escolha entre dinâmica ou isometria).",
+});
+
 export const TafGoalInputSchema = z.object({
+  institutionName: z
+    .string()
+    .trim()
+    .max(100, "O nome do concurso não pode ultrapassar 100 caracteres")
+    .nullable()
+    .optional()
+    .default("Edital Padrão"),
+  minDistanceMeters: z.coerce
+    .number()
+    .int("A distância mínima deve ser um valor inteiro em metros")
+    .min(500, "A distância mínima da prova deve ser de no mínimo 500 metros")
+    .max(10000, "A distância mínima da prova não pode ultrapassar 10.000 metros")
+    .optional()
+    .default(2400),
   targetDistanceMeters: z.coerce
     .number()
     .int("A distância alvo deve ser um valor inteiro em metros")
@@ -64,6 +82,89 @@ export const TafGoalInputSchema = z.object({
     .nullable()
     .optional()
     .transform((val) => (val && val.length > 0 ? val : null)),
+
+  // Barra Fixa
+  pullupType: PullupTypeEnum.nullable().optional().default("dinamica"),
+  pullupMinReps: z.coerce
+    .number()
+    .int("O mínimo de repetições na barra deve ser inteiro")
+    .min(0, "O mínimo de repetições na barra não pode ser negativo")
+    .max(100, "O valor máximo na barra é 100 repetições")
+    .nullable()
+    .optional()
+    .default(3),
+  pullupTargetReps: z.coerce
+    .number()
+    .int("A meta de repetições na barra deve ser inteiro")
+    .min(0, "A meta de repetições na barra não pode ser negativa")
+    .max(100, "O valor máximo na barra é 100 repetições")
+    .nullable()
+    .optional()
+    .default(5),
+  pullupMinSeconds: z.coerce
+    .number()
+    .int("Os segundos mínimos na barra devem ser inteiros")
+    .min(0, "Os segundos mínimos não podem ser negativos")
+    .max(600, "O valor máximo de isometria é 600 segundos")
+    .nullable()
+    .optional(),
+  pullupTargetSeconds: z.coerce
+    .number()
+    .int("Os segundos alvo na barra devem ser inteiros")
+    .min(0, "Os segundos alvo não podem ser negativos")
+    .max(600, "O valor máximo de isometria é 600 segundos")
+    .nullable()
+    .optional(),
+
+  // Flexão de Braço
+  pushupMinReps: z.coerce
+    .number()
+    .int("O mínimo de flexões deve ser inteiro")
+    .min(0, "O mínimo de flexões não pode ser negativo")
+    .max(200, "O valor máximo de flexões é 200")
+    .nullable()
+    .optional()
+    .default(20),
+  pushupTargetReps: z.coerce
+    .number()
+    .int("A meta de flexões deve ser inteira")
+    .min(0, "A meta de flexões não pode ser negativa")
+    .max(200, "O valor máximo de flexões é 200")
+    .nullable()
+    .optional()
+    .default(30),
+  pushupDurationSeconds: z.coerce
+    .number()
+    .int("O tempo limite de flexões deve ser em segundos")
+    .min(0, "O tempo limite não pode ser negativo")
+    .max(600, "O tempo limite máximo é de 600 segundos")
+    .nullable()
+    .optional(),
+
+  // Abdominal
+  absMinReps: z.coerce
+    .number()
+    .int("O mínimo de abdominais deve ser inteiro")
+    .min(0, "O mínimo de abdominais não pode ser negativo")
+    .max(200, "O valor máximo de abdominais é 200")
+    .nullable()
+    .optional()
+    .default(30),
+  absTargetReps: z.coerce
+    .number()
+    .int("A meta de abdominais deve ser inteira")
+    .min(0, "A meta de abdominais não pode ser negativa")
+    .max(200, "O valor máximo de abdominais é 200")
+    .nullable()
+    .optional()
+    .default(40),
+  absDurationSeconds: z.coerce
+    .number()
+    .int("O tempo limite de abdominais deve ser em segundos")
+    .min(0, "O tempo limite não pode ser negativo")
+    .max(600, "O tempo limite máximo é de 600 segundos")
+    .nullable()
+    .optional(),
 });
 
 export const TafGoalUpdateSchema = TafGoalInputSchema.partial();

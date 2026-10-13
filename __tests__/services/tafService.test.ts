@@ -57,6 +57,39 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
       }));
     });
 
+    it("salva e recupera meta multimodal completa via tafService", async () => {
+      const multimodalGoal = {
+        institutionName: "Polícia Federal",
+        minDistanceMeters: 2350,
+        targetDistanceMeters: 2500,
+        targetDurationMinutes: 12,
+        targetExamDate: "2026-11-20",
+        pullupType: "dinamica" as const,
+        pullupMinReps: 5,
+        pullupTargetReps: 8,
+        pushupMinReps: 30,
+        pushupTargetReps: 40,
+        absMinReps: 35,
+        absTargetReps: 45,
+      };
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: multimodalGoal,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+
+      const saved = await tafService.saveGoal(multimodalGoal);
+      expect(saved.institutionName).toBe("Polícia Federal");
+      expect(saved.minDistanceMeters).toBe(2350);
+      expect(saved.pullupMinReps).toBe(5);
+      expect(saved.pushupMinReps).toBe(30);
+      expect(saved.absMinReps).toBe(35);
+    });
+
     it("lança erro concatenando detalhes de validação da API quando presentes", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,

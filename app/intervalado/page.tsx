@@ -18,6 +18,7 @@ import {
   Compass,
   Target,
   Scissors,
+  Smartphone,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -28,9 +29,12 @@ import { Badge } from "@/components/ui/Badge";
 import { calcIntervalSession } from "@/lib/math/intervals";
 import { calcIntervalCalories } from "@/lib/math/calories";
 import { profileService } from "@/lib/services/profileService";
+import { tafService } from "@/lib/services/tafService";
 import { formatDecimal, formatTime, parseTime } from "@/lib/formatting/time";
 import { historyStorage } from "@/lib/storage/localStorage";
-import { IntervalLimitType, IntervalSession } from "@/types";
+import { IntervalLimitType, IntervalSession, TafGoalConfig } from "@/types";
+import { IntervalSpeedProfileChart } from "@/components/intervalado/IntervalSpeedProfileChart";
+import { TrackWorkoutCardModal } from "@/components/intervalado/TrackWorkoutCardModal";
 
 const INTERVAL_DRAFT_KEY = "pacelab_draft_interval";
 
@@ -103,6 +107,25 @@ export default function IntervaladoPage() {
     }
   }, []);
 
+  // Metas dinâmicas do TAF
+  const [userGoal, setUserGoal] = useState<TafGoalConfig | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    tafService
+      .getGoal()
+      .then((g) => {
+        if (isMounted && g) {
+          setUserGoal(g);
+        }
+      })
+      .catch(() => null);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Erros
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -126,6 +149,7 @@ export default function IntervaladoPage() {
   });
 
   const [savedToHistory, setSavedToHistory] = useState(false);
+  const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
 
   // Peso corporal do atleta para estimativa de gasto calórico
   const [athleteWeightKg, setAthleteWeightKg] = useState<number | null>(null);
@@ -633,14 +657,42 @@ export default function IntervaladoPage() {
                         error={errors.limitDistance}
                         inputMode="decimal"
                       />
-                      <div className="flex gap-2 pb-0.5">
+                      <div className="flex gap-1.5 flex-wrap pb-0.5">
                         <button
                           type="button"
-                          onClick={() => setLimitDistance("2.4")}
+                          onClick={() =>
+                            setLimitDistance(
+                              userGoal?.minDistanceMeters
+                                ? (userGoal.minDistanceMeters / 1000).toFixed(1)
+                                : "2.4"
+                            )
+                          }
                           className="px-2.5 py-1.5 text-xs rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 hover:bg-purple-100/50 text-purple-800 dark:text-purple-200 font-medium transition-colors"
                         >
-                          2,4 km (TAF)
+                          {userGoal?.minDistanceMeters
+                            ? `${(userGoal.minDistanceMeters / 1000)
+                                .toFixed(1)
+                                .replace(".", ",")} km (TAF)`
+                            : "2,4 km (TAF)"}
                         </button>
+                        {userGoal?.targetDistanceMeters &&
+                          userGoal.targetDistanceMeters !==
+                            userGoal.minDistanceMeters && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLimitDistance(
+                                  (userGoal.targetDistanceMeters / 1000).toFixed(1)
+                                )
+                              }
+                              className="px-2.5 py-1.5 text-xs rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-800 hover:bg-blue-100/50 text-blue-800 dark:text-blue-200 font-medium transition-colors"
+                            >
+                              {(userGoal.targetDistanceMeters / 1000)
+                                .toFixed(1)
+                                .replace(".", ",")}{" "}
+                              km (Meta)
+                            </button>
+                          )}
                         <button
                           type="button"
                           onClick={() => setLimitDistance("5.0")}
@@ -665,17 +717,19 @@ export default function IntervaladoPage() {
                         value={limitTime}
                         onChange={(e) => setLimitTime(e.target.value)}
                         rightAddon="minutos"
-                        placeholder="12"
-                        hint="Ex: 12 ou 12:00"
+                        placeholder={String(userGoal?.targetDurationMinutes || 12)}
+                        hint={`Ex: ${userGoal?.targetDurationMinutes || 12} ou ${userGoal?.targetDurationMinutes || 12}:00`}
                         error={errors.limitTime}
                       />
-                      <div className="flex gap-2 pb-0.5">
+                      <div className="flex gap-1.5 flex-wrap pb-0.5">
                         <button
                           type="button"
-                          onClick={() => setLimitTime("12")}
+                          onClick={() =>
+                            setLimitTime(String(userGoal?.targetDurationMinutes || 12))
+                          }
                           className="px-2.5 py-1.5 text-xs rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 hover:bg-purple-100/50 text-purple-800 dark:text-purple-200 font-medium transition-colors"
                         >
-                          12 min (TAF)
+                          {userGoal?.targetDurationMinutes || 12} min (TAF)
                         </button>
                         <button
                           type="button"
@@ -783,6 +837,11 @@ export default function IntervaladoPage() {
                 </table>
               </div>
             </Card>
+          )}
+
+          {/* Gráfico de Perfil de Velocidade em Linha do Tempo */}
+          {sessionResult && sessionResult.stages.length > 0 && (
+            <IntervalSpeedProfileChart stages={sessionResult.stages} />
           )}
         </div>
 
@@ -929,22 +988,34 @@ export default function IntervaladoPage() {
                   </div>
                 )}
 
-                {/* Ação de Salvar no Histórico */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={handleSaveToHistory}
-                  icon={
-                    savedToHistory ? (
-                      <Check className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                      <BookmarkPlus className="w-4 h-4 text-blue-500" />
-                    )
-                  }
-                >
-                  {savedToHistory ? "Sessão Salva no Histórico!" : "Salvar esta Sessão no Histórico"}
-                </Button>
+                {/* Ações de Modo Pista e Salvar no Histórico */}
+                <div className="space-y-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold"
+                    onClick={() => setIsTrackModalOpen(true)}
+                    icon={<Smartphone className="w-4 h-4" />}
+                  >
+                    Modo Pista (Cartão de Treino)
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={handleSaveToHistory}
+                    icon={
+                      savedToHistory ? (
+                        <Check className="w-4 h-4 text-emerald-500" />
+                      ) : (
+                        <BookmarkPlus className="w-4 h-4 text-blue-500" />
+                      )
+                    }
+                  >
+                    {savedToHistory ? "Sessão Salva no Histórico!" : "Salvar esta Sessão no Histórico"}
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="text-center py-10 px-4 text-slate-400 dark:text-slate-500">
@@ -967,6 +1038,15 @@ export default function IntervaladoPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal do Cartão de Treino de Pista */}
+      {sessionResult && (
+        <TrackWorkoutCardModal
+          session={sessionResult}
+          isOpen={isTrackModalOpen}
+          onClose={() => setIsTrackModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

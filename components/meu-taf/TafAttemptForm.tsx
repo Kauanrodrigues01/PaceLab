@@ -14,6 +14,9 @@ import {
 
 interface TafAttemptFormProps {
   targetDistanceMeters?: number;
+  minDistanceMeters?: number;
+  targetDurationMinutes?: number;
+  institutionName?: string | null;
   previousBestAttempt?: TafAttempt | null;
   lastAttemptSameDuration?: TafAttempt | null;
   editingAttempt?: TafAttempt | null;
@@ -35,6 +38,9 @@ const LOCATION_OPTIONS: { value: LocationType; label: string }[] = [
 
 export function TafAttemptForm({
   targetDistanceMeters = 2300,
+  minDistanceMeters = 2400,
+  targetDurationMinutes = 12,
+  institutionName = "Edital Padrão",
   previousBestAttempt,
   lastAttemptSameDuration,
   editingAttempt,
@@ -47,9 +53,9 @@ export function TafAttemptForm({
     const offset = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - offset).toISOString().slice(0, 16);
   });
-  const [minutesInput, setMinutesInput] = useState<string>("12");
+  const [minutesInput, setMinutesInput] = useState<string>(String(targetDurationMinutes));
   const [secondsInput, setSecondsInput] = useState<string>("0");
-  const [distanceMetersInput, setDistanceMetersInput] = useState<string>("2300");
+  const [distanceMetersInput, setDistanceMetersInput] = useState<string>(String(targetDistanceMeters));
   const [locationType, setLocationType] = useState<LocationType>("pista_400m");
   const [notes, setNotes] = useState("");
 
@@ -265,11 +271,15 @@ export function TafAttemptForm({
             {editingAttempt ? "Editar Teste do TAF" : "Registrar Novo Teste de 12 Min"}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Meta oficial da Guarda Municipal de Fortaleza:{" "}
-            <span className="font-semibold text-blue-600 dark:text-blue-400">
-              {targetDistanceMeters} metros
+            {institutionName ? `${institutionName} • ` : ""}
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+              Mínimo: {minDistanceMeters}m
             </span>{" "}
-            em 12 minutos.
+            •{" "}
+            <span className="font-semibold text-blue-600 dark:text-blue-400">
+              Meta: {targetDistanceMeters}m
+            </span>{" "}
+            em {targetDurationMinutes} minutos.
           </p>
         </div>
 
@@ -411,6 +421,7 @@ export function TafAttemptForm({
           {DISTANCE_SHORTCUTS.map((shortcut) => {
             const isSelected = parsedDistanceMeters === shortcut;
             const isTarget = shortcut === targetDistanceMeters;
+            const isMin = shortcut === minDistanceMeters;
             return (
               <button
                 type="button"
@@ -420,11 +431,14 @@ export function TafAttemptForm({
                   isSelected
                     ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30 scale-105"
                     : isTarget
+                    ? "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 hover:bg-blue-100"
+                    : isMin
                     ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100"
                     : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 {shortcut.toLocaleString("pt-BR")} m
+                {isMin && " 🟢"}
                 {isTarget && " 🎯"}
               </button>
             );
