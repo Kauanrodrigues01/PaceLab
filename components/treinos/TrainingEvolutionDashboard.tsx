@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   TrainingSession,
   TimeRangePreset,
+  SessionCountPreset,
+  DashboardFilterMode,
   ActivityType,
   ACTIVITY_LABELS,
 } from "@/types";
@@ -60,19 +62,70 @@ export function TrainingEvolutionDashboard({
   trainings,
 }: TrainingEvolutionDashboardProps) {
   const [isMounted, setIsMounted] = useState(false);
+  const [filterMode, setFilterMode] = useState<DashboardFilterMode>("preset");
   const [timeRange, setTimeRange] = useState<TimeRangePreset>("90d");
+  const [sessionCount, setSessionCount] = useState<SessionCountPreset>(4);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // ─── 1. Filtragem por Período ────────────────────────────────────────────────
+  // ─── 1. Filtragem por Período ou Quantidade de Sessões ──────────────────────
   const filteredTrainings = useMemo(() => {
     if (trainings.length === 0) return [];
 
     const now = new Date();
     const nowTime = now.getTime();
 
+    // Modo 1: Por Quantidade de Sessões Recentes (2, 4 ou 6)
+    if (filterMode === "sessions") {
+      const validSortedDesc = trainings
+        .filter((t) => parseSafeDate(t.sessionDate) !== null)
+        .sort((a, b) => {
+          const da = parseSafeDate(a.sessionDate)!.getTime();
+          const db = parseSafeDate(b.sessionDate)!.getTime();
+          return db - da; // Mais recente para mais antigo
+        });
+
+      const latestN = validSortedDesc.slice(0, sessionCount);
+
+      // Reordena cronologicamente (mais antigo para mais recente) para gráficos temporais
+      return latestN.sort((a, b) => {
+        const da = parseSafeDate(a.sessionDate)!.getTime();
+        const db = parseSafeDate(b.sessionDate)!.getTime();
+        return da - db;
+      });
+    }
+
+    // Modo 2: Período Personalizado (Datas Início e Fim)
+    if (filterMode === "custom") {
+      const startMs = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null;
+      const endMs = endDate ? new Date(`${endDate}T23:59:59.999`).getTime() : null;
+
+      return trainings
+        .filter((t) => {
+          const tDate = parseSafeDate(t.sessionDate);
+          if (!tDate) return false;
+          const tMs = tDate.getTime();
+
+          if (startMs !== null && !isNaN(startMs) && tMs < startMs) {
+            return false;
+          }
+          if (endMs !== null && !isNaN(endMs) && tMs > endMs) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          const da = parseSafeDate(a.sessionDate)?.getTime() ?? 0;
+          const db = parseSafeDate(b.sessionDate)?.getTime() ?? 0;
+          return da - db; // cronológico
+        });
+    }
+
+    // Modo 3: Presets de Tempo Clássicos
     return trainings
       .filter((t) => {
         const tDate = parseSafeDate(t.sessionDate);
@@ -100,7 +153,7 @@ export function TrainingEvolutionDashboard({
         const db = parseSafeDate(b.sessionDate)?.getTime() ?? 0;
         return da - db; // cronológico (mais antigo para mais recente)
       });
-  }, [trainings, timeRange]);
+  }, [trainings, filterMode, timeRange, sessionCount, startDate, endDate]);
 
   // ─── 2. KPIs Agregados do Período ─────────────────────────────────────────────
   const metrics = useMemo(() => {
@@ -504,79 +557,207 @@ export function TrainingEvolutionDashboard({
       data-testid="training-evolution-dashboard"
       className="space-y-6 animate-in fade-in duration-200"
     >
-      {/* ─── Barra Superior de Controle do Filtro Temporal ─── */}
-      <div className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <span className="text-xs font-bold text-white flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-[#B7F34A]" />
-            Análise e Periodização de Treinamento
-          </span>
-          <p className="text-[11px] text-[#8E9BB0] mt-0.5">
-            Métricas de carga, eficiência de pace e distribuição de esforço.
-          </p>
+      {/* ─── Barra Superior de Controle do Filtro Temporal & Avançado ─── */}
+      <div className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div>
+            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-[#B7F34A]" />
+              Análise e Periodização de Treinamento
+            </span>
+            <p className="text-[11px] text-[#8E9BB0] mt-0.5">
+              Métricas de carga, eficiência de pace e distribuição de esforço.
+            </p>
+          </div>
+
+          {/* Seletor de Filtros (Presets, Sessões Recentes e Personalizado) */}
+          <div
+            data-testid="filter-time-range"
+            className="flex items-center p-1 bg-[#0B1020] rounded-2xl border border-[#1E2942] overflow-x-auto max-w-full"
+          >
+            {/* Presets Temporais */}
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode("preset");
+                setTimeRange("7d");
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                filterMode === "preset" && timeRange === "7d"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  : "text-[#8E9BB0] hover:text-white"
+              }`}
+            >
+              7 dias
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode("preset");
+                setTimeRange("30d");
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                filterMode === "preset" && timeRange === "30d"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  : "text-[#8E9BB0] hover:text-white"
+              }`}
+            >
+              30 dias
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode("preset");
+                setTimeRange("90d");
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                filterMode === "preset" && timeRange === "90d"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  : "text-[#8E9BB0] hover:text-white"
+              }`}
+            >
+              90 dias
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode("preset");
+                setTimeRange("year");
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                filterMode === "preset" && timeRange === "year"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  : "text-[#8E9BB0] hover:text-white"
+              }`}
+            >
+              Ano Atual
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode("preset");
+                setTimeRange("all");
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                filterMode === "preset" && timeRange === "all"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  : "text-[#8E9BB0] hover:text-white"
+              }`}
+            >
+              Tudo
+            </button>
+
+            {/* Separador Visual */}
+            <div className="h-4 w-px bg-[#1E2942] mx-1 shrink-0" />
+
+            {/* Filtros por Quantidade de Sessões Recentes */}
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode("sessions");
+                setSessionCount(2);
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                filterMode === "sessions" && sessionCount === 2
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  : "text-[#8E9BB0] hover:text-white"
+              }`}
+            >
+              2 sessões
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode("sessions");
+                setSessionCount(4);
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                filterMode === "sessions" && sessionCount === 4
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  : "text-[#8E9BB0] hover:text-white"
+              }`}
+            >
+              4 sessões
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode("sessions");
+                setSessionCount(6);
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                filterMode === "sessions" && sessionCount === 6
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  : "text-[#8E9BB0] hover:text-white"
+              }`}
+            >
+              6 sessões
+            </button>
+
+            {/* Separador Visual */}
+            <div className="h-4 w-px bg-[#1E2942] mx-1 shrink-0" />
+
+            {/* Filtro por Período Personalizado */}
+            <button
+              type="button"
+              onClick={() => setFilterMode("custom")}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                filterMode === "custom"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  : "text-[#8E9BB0] hover:text-white"
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5 shrink-0" />
+              <span>Personalizado</span>
+            </button>
+          </div>
         </div>
 
-        {/* Seletor de Período */}
-        <div
-          data-testid="filter-time-range"
-          className="inline-flex items-center p-1 bg-[#0B1020] rounded-2xl border border-[#1E2942]"
-        >
-          <button
-            type="button"
-            onClick={() => setTimeRange("7d")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              timeRange === "7d"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
-                : "text-[#8E9BB0] hover:text-white"
-            }`}
+        {/* Painel Retrátil de Data Inicial e Final (quando Personalizado está ativo) */}
+        {filterMode === "custom" && (
+          <div
+            data-testid="filter-custom-date-panel"
+            className="pt-3 border-t border-[#1E2942] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
           >
-            7 dias
-          </button>
-          <button
-            type="button"
-            onClick={() => setTimeRange("30d")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              timeRange === "30d"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
-                : "text-[#8E9BB0] hover:text-white"
-            }`}
-          >
-            30 dias
-          </button>
-          <button
-            type="button"
-            onClick={() => setTimeRange("90d")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              timeRange === "90d"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
-                : "text-[#8E9BB0] hover:text-white"
-            }`}
-          >
-            90 dias
-          </button>
-          <button
-            type="button"
-            onClick={() => setTimeRange("year")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              timeRange === "year"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
-                : "text-[#8E9BB0] hover:text-white"
-            }`}
-          >
-            Ano Atual
-          </button>
-          <button
-            type="button"
-            onClick={() => setTimeRange("all")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              timeRange === "all"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
-                : "text-[#8E9BB0] hover:text-white"
-            }`}
-          >
-            Tudo
-          </button>
-        </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[#8E9BB0] font-semibold">De:</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-[#0B1020] border border-[#1E2942] rounded-xl px-2.5 py-1 text-white text-xs focus:outline-hidden focus:border-[#B7F34A] transition-colors"
+                  data-testid="input-filter-start-date"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[#8E9BB0] font-semibold">Até:</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-[#0B1020] border border-[#1E2942] rounded-xl px-2.5 py-1 text-white text-xs focus:outline-hidden focus:border-[#B7F34A] transition-colors"
+                  data-testid="input-filter-end-date"
+                />
+              </div>
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                  className="text-[11px] text-[#8E9BB0] hover:text-[#B7F34A] underline font-semibold transition-colors"
+                >
+                  Limpar período
+                </button>
+              )}
+            </div>
+            <div className="text-[11px] text-[#8E9BB0]">
+              {filteredTrainings.length} {filteredTrainings.length === 1 ? "sessão filtrada" : "sessões filtradas"}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── Cards de KPIs Avançados do Período ─── */}

@@ -44,4 +44,50 @@ describe("TafApprovalRuler Component", () => {
     expect(screen.getByText(/Zona de Segurança Garantida!/i)).toBeDefined();
     expect(screen.getByText(/\+100m além da sua meta pessoal!/i)).toBeDefined();
   });
+
+  it("deve ativar layout anti-colisão quando o corte e a meta estiverem muito próximos", () => {
+    render(
+      <TafApprovalRuler
+        currentDistance={2410}
+        minDistance={2400}
+        targetDistance={2420}
+        institutionName="PF"
+      />
+    );
+
+    expect(screen.getByTestId("taf-approval-ruler")).toBeDefined();
+    expect(screen.getByText(/Corte \(2400m\)/i)).toBeDefined();
+    expect(screen.getByText(/Meta \(2420m\)/i)).toBeDefined();
+    expect(screen.getByText(/Aprovado no Corte \(\+10m\)/i)).toBeDefined();
+  });
+
+  it("deve renderizar de forma segura quando a distância for 0m (sem simulado)", () => {
+    render(
+      <TafApprovalRuler
+        currentDistance={0}
+        minDistance={2400}
+        targetDistance={2600}
+      />
+    );
+
+    expect(screen.getByTestId("taf-approval-ruler")).toBeDefined();
+    expect(screen.getByText(/Abaixo do Edital \(2400m restantes\)/i)).toBeDefined();
+    // O pin do troféu não deve estar presente quando distância for 0
+    expect(screen.queryByTestId("athlete-pin")).toBeNull();
+  });
+
+  it("deve renderizar corretamente quando a distância superar com folga a meta (ex: 3500m)", () => {
+    render(
+      <TafApprovalRuler
+        currentDistance={3500}
+        minDistance={2400}
+        targetDistance={2800}
+      />
+    );
+
+    expect(screen.getByText(/Zona de Segurança Garantida!/i)).toBeDefined();
+    expect(screen.getByText(/\+700m além da sua meta pessoal!/i)).toBeDefined();
+    expect(screen.getByText(/3\.500 m/i)).toBeDefined();
+  });
 });
+

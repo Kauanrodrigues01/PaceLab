@@ -365,6 +365,8 @@ export interface MonthlyVolume {
 }
 
 export type TimeRangePreset = "7d" | "30d" | "90d" | "year" | "all";
+export type SessionCountPreset = 2 | 4 | 6;
+export type DashboardFilterMode = "preset" | "sessions" | "custom";
 
 export type RpeIntensityZone = "leve" | "moderado" | "intenso" | "maximo";
 

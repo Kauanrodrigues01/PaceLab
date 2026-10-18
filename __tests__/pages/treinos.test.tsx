@@ -202,5 +202,25 @@ describe("TreinosPage (Fase 4 - Diário de Treinos Completo)", () => {
       window.history.replaceState({}, "", "/treinos");
     }
   });
+
+  it("permite interagir com os filtros de sessões e personalizado na aba de gráficos de /treinos", async () => {
+    setupMockTafApi({ trainings: [mockTrainingSession] });
+    const user = userEvent.setup();
+    render(<TreinosPage />);
+
+    // Alterna para aba de análise/gráficos
+    await user.click(screen.getByTestId("tab-graficos"));
+    expect(screen.getByTestId("training-evolution-dashboard")).toBeInTheDocument();
+
+    // Filtro de sessões presente
+    const btn2Sessions = screen.getByRole("button", { name: "2 sessões" });
+    await user.click(btn2Sessions);
+    expect(screen.getByTestId("kpi-total-volume")).toBeInTheDocument();
+
+    // Filtro personalizado presente
+    const btnCustom = screen.getByRole("button", { name: /Personalizado/i });
+    await user.click(btnCustom);
+    expect(screen.getByTestId("filter-custom-date-panel")).toBeInTheDocument();
+  });
 });
 

@@ -141,4 +141,91 @@ describe("TrainingEvolutionDashboard (Fase 4 & 5 - Gráficos Analíticos)", () =
     await user.click(filterAll);
     expect(screen.getByTestId("kpi-total-volume")).toHaveTextContent("20 km");
   });
+
+  it("permite filtrar pelas últimas 2 sessões mais recentes e reordena cronologicamente", async () => {
+    const user = userEvent.setup();
+    render(<TrainingEvolutionDashboard trainings={mockTrainings} />);
+
+    const filter2Sessions = screen.getByRole("button", { name: "2 sessões" });
+    await user.click(filter2Sessions);
+
+    // As 2 sessões mais recentes são 10km e 6km -> Volume total = 16 km, 2 sessões
+    expect(screen.getByTestId("kpi-total-volume")).toHaveTextContent("16 km");
+    expect(screen.getByTestId("kpi-total-volume")).toHaveTextContent("2 sessões");
+  });
+
+  it("permite filtrar pelas últimas 4 e 6 sessões mesmo com quantidade menor disponível", async () => {
+    const user = userEvent.setup();
+    render(<TrainingEvolutionDashboard trainings={mockTrainings} />);
+
+    const filter4Sessions = screen.getByRole("button", { name: "4 sessões" });
+    await user.click(filter4Sessions);
+
+    // mockTrainings possui apenas 3 sessões -> exibe todas as 3 sessões (20 km) sem quebras
+    expect(screen.getByTestId("kpi-total-volume")).toHaveTextContent("20 km");
+    expect(screen.getByTestId("kpi-total-volume")).toHaveTextContent("3 sessões");
+
+    const filter6Sessions = screen.getByRole("button", { name: "6 sessões" });
+    await user.click(filter6Sessions);
+    expect(screen.getByTestId("kpi-total-volume")).toHaveTextContent("20 km");
+    expect(screen.getByTestId("kpi-total-volume")).toHaveTextContent("3 sessões");
+  });
+
+  it("permite abrir o painel de período personalizado e filtrar por intervalo de 2 datas", async () => {
+    const user = userEvent.setup();
+    render(<TrainingEvolutionDashboard trainings={mockTrainings} />);
+
+    // Clica no botão Personalizado
+    const filterCustom = screen.getByRole("button", { name: /Personalizado/i });
+    await user.click(filterCustom);
+
+    // Verifica que o painel de datas abriu
+    expect(screen.getByTestId("filter-custom-date-panel")).toBeInTheDocument();
+    const inputStartDate = screen.getByTestId("input-filter-start-date") as HTMLInputElement;
+    const inputEndDate = screen.getByTestId("input-filter-end-date") as HTMLInputElement;
+
+    // Calcula strings de data para filtrar apenas os últimos 6 dias (trn-1 e trn-2, excluindo trn-3 que tem 10 dias)
+    const startDateStr = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const endDateStr = new Date(Date.now()).toISOString().split("T")[0];
+
+    await user.type(inputStartDate, startDateStr);
+    await user.type(inputEndDate, endDateStr);
+
+    // Volume deve ser 10 + 6 = 16 km (2 sessões filtradas)
+    expect(screen.getByTestId("kpi-total-volume")).toHaveTextContent("16 km");
+    expect(screen.getByText(/2 sessões filtradas/i)).toBeInTheDocument();
+
+    // Botão Limpar período deve estar visível e funcional
+    const clearButton = screen.getByRole("button", { name: /Limpar período/i });
+    await user.click(clearButton);
+
+    expect(inputStartDate.value).toBe("");
+    expect(inputEndDate.value).toBe("");
+    expect(screen.getByTestId("kpi-total-volume")).toHaveTextContent("20 km");
+  });
+
+  it("permite filtrar apenas com data inicial e exibe estado vazio se nenhuma sessão estiver no período", async () => {
+    const user = userEvent.setup();
+    render(<TrainingEvolutionDashboard trainings={mockTrainings} />);
+
+    const filterCustom = screen.getByRole("button", { name: /Personalizado/i });
+    await user.click(filterCustom);
+
+    const inputStartDate = screen.getByTestId("input-filter-start-date") as HTMLInputElement;
+
+    // Filtra apenas a partir de 3 dias atrás (apenas trn-1 que foi há 2 dias)
+    const startDateStr = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    await user.type(inputStartDate, startDateStr);
+
+    expect(screen.getByTestId("kpi-total-volume")).toHaveTextContent("10 km");
+    expect(screen.getByText(/1 sessão filtrada/i)).toBeInTheDocument();
+
+    // Filtra em uma data futura onde não há treinos
+    const futureDateStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    await user.clear(inputStartDate);
+    await user.type(inputStartDate, futureDateStr);
+
+    expect(screen.getByText("Nenhum treino registrado no período selecionado")).toBeInTheDocument();
+  });
 });
+
