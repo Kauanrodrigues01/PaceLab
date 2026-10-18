@@ -25,14 +25,14 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/images/ico.png", type: "image/png" },
       { url: "/favicon.ico", sizes: "any" },
       { url: "/icon.png", type: "image/png" },
+      { url: "/images/ico.png", type: "image/png" },
     ],
     shortcut: "/favicon.ico",
     apple: [
-      { url: "/images/ico.png" },
-      { url: "/apple-icon.png" },
+      { url: "/apple-icon.png", type: "image/png" },
+      { url: "/images/ico.png", type: "image/png" },
     ],
   },
 };
