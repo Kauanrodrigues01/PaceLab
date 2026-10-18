@@ -20,13 +20,13 @@ export interface ButtonProps
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-sm shadow-blue-500/20 focus-visible:ring-blue-500",
+    "bg-lime-400 hover:bg-lime-500 active:bg-lime-600 text-slate-950 font-bold shadow-sm shadow-lime-500/20 focus-visible:ring-lime-400 dark:bg-[#B7F34A] dark:hover:bg-[#A3E332] dark:active:bg-[#8FCE20] dark:text-[#0B1020] dark:shadow-[#B7F34A]/25",
   secondary:
-    "bg-slate-100 hover:bg-slate-200 active:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:active:bg-slate-600 text-slate-900 dark:text-slate-100 focus-visible:ring-slate-400",
+    "bg-slate-100 hover:bg-slate-200 active:bg-slate-300 dark:bg-[#131A2E] dark:hover:bg-[#1E2942] dark:active:bg-[#283556] text-slate-900 dark:text-slate-100 border border-transparent dark:border-[#1E2942] focus-visible:ring-slate-400",
   outline:
-    "border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 active:bg-slate-100 dark:active:bg-slate-800 text-slate-800 dark:text-slate-200 focus-visible:ring-slate-400",
+    "border border-slate-300 dark:border-[#1E2942] hover:bg-slate-50 dark:hover:bg-[#131A2E] active:bg-slate-100 dark:active:bg-[#1E2942] text-slate-800 dark:text-slate-200 focus-visible:ring-[#B7F34A]",
   ghost:
-    "hover:bg-slate-100 active:bg-slate-200 dark:hover:bg-slate-800 dark:active:bg-slate-700 text-slate-700 dark:text-slate-300 focus-visible:ring-slate-400",
+    "hover:bg-slate-100 active:bg-slate-200 dark:hover:bg-[#131A2E] dark:active:bg-[#1E2942] text-slate-700 dark:text-[#8E9BB0] dark:hover:text-[#FFFFFF] focus-visible:ring-[#B7F34A]",
   danger:
     "bg-red-600 hover:bg-red-700 active:bg-red-800 text-white shadow-sm shadow-red-500/20 focus-visible:ring-red-500",
 };

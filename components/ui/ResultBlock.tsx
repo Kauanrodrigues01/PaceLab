@@ -41,13 +41,13 @@ export function ResultBlock({
     <div
       className={`relative rounded-2xl p-4 sm:p-5 transition-all duration-200 ${
         highlight
-          ? "bg-gradient-to-br from-blue-500/10 via-indigo-500/10 to-blue-500/5 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-blue-950/20 border-2 border-blue-500/40 dark:border-blue-500/50 shadow-sm"
-          : "bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800"
+          ? "bg-[#B7F34A]/10 border-2 border-[#B7F34A]/50 shadow-sm"
+          : "bg-[#0B1020] border border-[#1E2942]"
       } ${className}`}
     >
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-          {icon && <span className="text-blue-500">{icon}</span>}
+        <span className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-[#8E9BB0] flex items-center gap-1.5">
+          {icon && <span className="text-[#B7F34A]">{icon}</span>}
           {label}
         </span>
         {copyable && (
@@ -56,10 +56,10 @@ export function ResultBlock({
             onClick={handleCopy}
             title="Copiar resultado"
             aria-label={`Copiar ${label}`}
-            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1 rounded-md hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors"
+            className="text-[#8E9BB0] hover:text-[#FFFFFF] p-1 rounded-md hover:bg-[#1E2942] transition-colors cursor-pointer"
           >
             {copied ? (
-              <Check className="w-3.5 h-3.5 text-emerald-500" />
+              <Check className="w-3.5 h-3.5 text-[#B7F34A]" />
             ) : (
               <Copy className="w-3.5 h-3.5" />
             )}
@@ -71,21 +71,21 @@ export function ResultBlock({
         <span
           className={`font-black tracking-tight leading-none ${
             highlight
-              ? "text-2xl sm:text-4xl text-blue-600 dark:text-blue-400"
-              : "text-xl sm:text-3xl text-slate-900 dark:text-slate-100"
+              ? "text-2xl sm:text-4xl text-[#B7F34A]"
+              : "text-xl sm:text-3xl text-[#FFFFFF]"
           }`}
         >
           {value}
         </span>
         {unit && (
-          <span className="text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400">
+          <span className="text-xs sm:text-sm font-semibold text-[#8E9BB0]">
             {unit}
           </span>
         )}
       </div>
 
       {secondaryText && (
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium">
+        <p className="text-xs text-[#8E9BB0] mt-2 font-medium">
           {secondaryText}
         </p>
       )}

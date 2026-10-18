@@ -115,6 +115,13 @@ export const TafGoalInputSchema = z.object({
     .max(600, "O valor máximo de isometria é 600 segundos")
     .nullable()
     .optional(),
+  pullupDurationSeconds: z.coerce
+    .number()
+    .int("O tempo limite na barra deve ser em segundos")
+    .min(0, "O tempo limite não pode ser negativo")
+    .max(600, "O tempo limite máximo é de 600 segundos")
+    .nullable()
+    .optional(),
 
   // Flexão de Braço
   pushupMinReps: z.coerce

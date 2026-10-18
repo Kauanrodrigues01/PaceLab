@@ -261,22 +261,22 @@ export function TafAttemptForm({
     <form
       onSubmit={handleSubmit}
       data-testid="taf-attempt-form"
-      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-sm transition-all"
+      className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-7 shadow-sm transition-all"
     >
       {/* Cabeçalho do formulário */}
-      <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#1E2942]">
         <div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-amber-500" />
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-[#B7F34A]" />
             {editingAttempt ? "Editar Teste do TAF" : "Registrar Novo Teste de 12 Min"}
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-xs text-[#8E9BB0] mt-0.5">
             {institutionName ? `${institutionName} • ` : ""}
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+            <span className="font-semibold text-emerald-400">
               Mínimo: {minDistanceMeters}m
             </span>{" "}
             •{" "}
-            <span className="font-semibold text-blue-600 dark:text-blue-400">
+            <span className="font-semibold text-[#B7F34A]">
               Meta: {targetDistanceMeters}m
             </span>{" "}
             em {targetDurationMinutes} minutos.
@@ -287,7 +287,7 @@ export function TafAttemptForm({
           <button
             type="button"
             onClick={onCancelEdit}
-            className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="text-xs font-semibold text-[#8E9BB0] hover:text-white flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#1E2942] bg-[#0B1020] hover:bg-[#1E2942] transition-colors"
           >
             <X className="w-3.5 h-3.5" />
             Cancelar Edição
@@ -298,9 +298,9 @@ export function TafAttemptForm({
       {errorMessage && (
         <div
           data-testid="form-error-message"
-          className="mb-4 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-xl text-xs font-medium text-red-700 dark:text-red-300 flex items-center gap-2"
+          className="mb-4 p-3 bg-rose-950/40 border border-rose-900/60 rounded-xl text-xs font-medium text-rose-200 flex items-center gap-2"
         >
-          <AlertCircle className="w-4 h-4 shrink-0" />
+          <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
           <span>{errorMessage}</span>
         </div>
       )}
@@ -309,7 +309,7 @@ export function TafAttemptForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
         {/* Data e Hora */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-xs font-bold text-[#8E9BB0] mb-1.5">
             Data e Horário do Teste
           </label>
           <input
@@ -317,13 +317,13 @@ export function TafAttemptForm({
             value={testDate}
             onChange={(e) => setTestDate(e.target.value)}
             required
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-3 text-sm rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A]"
           />
         </div>
 
         {/* Duração Real */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-xs font-bold text-[#8E9BB0] mb-1.5">
             Duração Real (Minutos e Segundos)
           </label>
           <div className="flex items-center gap-2">
@@ -336,13 +336,13 @@ export function TafAttemptForm({
                   const val = e.target.value.replace(/\D/g, "");
                   setMinutesInput(val);
                 }}
-                className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A]"
               />
-              <span className="absolute right-2.5 top-3 text-xs text-slate-400 font-medium pointer-events-none">
+              <span className="absolute right-2.5 top-3 text-xs text-[#8E9BB0] font-medium pointer-events-none">
                 min
               </span>
             </div>
-            <span className="text-slate-400 font-bold">:</span>
+            <span className="text-[#8E9BB0] font-bold">:</span>
             <div className="flex-1 relative">
               <input
                 type="text"
@@ -354,9 +354,9 @@ export function TafAttemptForm({
                     setSecondsInput(val);
                   }
                 }}
-                className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A]"
               />
-              <span className="absolute right-2.5 top-3 text-xs text-slate-400 font-medium pointer-events-none">
+              <span className="absolute right-2.5 top-3 text-xs text-[#8E9BB0] font-medium pointer-events-none">
                 seg
               </span>
             </div>
@@ -365,14 +365,14 @@ export function TafAttemptForm({
 
         {/* Local / Percurso */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-xs font-bold text-[#8E9BB0] mb-1.5">
             Local do Simulado
           </label>
           <div className="relative">
             <select
               value={locationType}
               onChange={(e) => setLocationType(e.target.value as LocationType)}
-              className="w-full h-11 px-3 pr-8 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-11 px-3 pr-8 text-sm rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A]"
             >
               {LOCATION_OPTIONS.map((loc) => (
                 <option key={loc.value} value={loc.value}>
@@ -387,10 +387,10 @@ export function TafAttemptForm({
       {/* Campo de Distância em Metros com Atalhos de 100 em 100m */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-1.5">
-          <label htmlFor="taf-distance-meters" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+          <label htmlFor="taf-distance-meters" className="text-xs font-bold text-[#8E9BB0]">
             Distância Total Percorrida (Metros)
           </label>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-[#8E9BB0]">
             = {(parsedDistanceMeters / 1000).toFixed(2)} km
           </span>
         </div>
@@ -406,16 +406,16 @@ export function TafAttemptForm({
               setDistanceMetersInput(val);
             }}
             required
-            className="w-full h-12 px-4 text-lg font-black tracking-tight rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-12 px-4 text-lg font-black tracking-tight rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A]"
           />
-          <span className="absolute right-4 top-3 text-sm font-bold text-slate-400">
+          <span className="absolute right-4 top-3 text-sm font-bold text-[#8E9BB0]">
             metros
           </span>
         </div>
 
         {/* Atalhos rápidos de 100 em 100m */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] font-semibold text-slate-500 mr-1">
+          <span className="text-[11px] font-semibold text-[#8E9BB0] mr-1">
             Atalhos rápidos:
           </span>
           {DISTANCE_SHORTCUTS.map((shortcut) => {
@@ -429,12 +429,12 @@ export function TafAttemptForm({
                 onClick={() => setDistanceMetersInput(String(shortcut))}
                 className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all ${
                   isSelected
-                    ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30 scale-105"
+                    ? "bg-[#B7F34A] text-[#0B1020] font-bold shadow-sm shadow-[#B7F34A]/30 scale-105"
                     : isTarget
-                    ? "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 hover:bg-blue-100"
+                    ? "bg-[#B7F34A]/10 text-[#B7F34A] border border-[#B7F34A]/40 hover:bg-[#B7F34A]/20"
                     : isMin
-                    ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                    ? "bg-emerald-950/40 text-emerald-300 border border-emerald-600/40 hover:bg-emerald-950/60"
+                    : "bg-[#0B1020] border border-[#1E2942] text-[#8E9BB0] hover:text-white hover:border-[#8E9BB0]"
                 }`}
               >
                 {shortcut.toLocaleString("pt-BR")} m
@@ -447,56 +447,56 @@ export function TafAttemptForm({
       </div>
 
       {/* Painel de Feedback em Tempo Real (Antes de Salvar) */}
-      <div className="bg-gradient-to-br from-blue-50/80 to-indigo-50/80 dark:from-slate-800/80 dark:to-slate-800/40 border border-blue-100 dark:border-slate-700 rounded-2xl p-4 mb-5">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-2 block">
+      <div className="bg-[#0B1020] border border-[#1E2942] rounded-2xl p-4 mb-5">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[#B7F34A] mb-2 block">
           ⚡ Prévia do Desempenho Calculado
         </span>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-          <div className="bg-white/80 dark:bg-slate-900/60 p-2.5 rounded-xl border border-blue-100/50 dark:border-slate-800">
-            <span className="text-[11px] text-slate-500">Pace Médio</span>
-            <div className="text-base font-black text-blue-600 dark:text-blue-400">
-              {livePaceFormatted} <span className="text-xs font-normal">/km</span>
+          <div className="bg-[#131A2E] p-2.5 rounded-xl border border-[#1E2942]">
+            <span className="text-[11px] text-[#8E9BB0]">Pace Médio</span>
+            <div className="text-base font-black text-[#B7F34A]">
+              {livePaceFormatted} <span className="text-xs font-normal text-[#8E9BB0]">/km</span>
             </div>
           </div>
 
-          <div className="bg-white/80 dark:bg-slate-900/60 p-2.5 rounded-xl border border-blue-100/50 dark:border-slate-800">
-            <span className="text-[11px] text-slate-500">Velocidade</span>
-            <div className="text-base font-black text-slate-800 dark:text-slate-200">
-              {liveSpeedKmh.toFixed(2)} <span className="text-xs font-normal">km/h</span>
+          <div className="bg-[#131A2E] p-2.5 rounded-xl border border-[#1E2942]">
+            <span className="text-[11px] text-[#8E9BB0]">Velocidade</span>
+            <div className="text-base font-black text-white">
+              {liveSpeedKmh.toFixed(2)} <span className="text-xs font-normal text-[#8E9BB0]">km/h</span>
             </div>
           </div>
 
-          <div className="bg-white/80 dark:bg-slate-900/60 p-2.5 rounded-xl border border-blue-100/50 dark:border-slate-800">
-            <span className="text-[11px] text-slate-500">Meta ({targetDistanceMeters}m)</span>
+          <div className="bg-[#131A2E] p-2.5 rounded-xl border border-[#1E2942]">
+            <span className="text-[11px] text-[#8E9BB0]">Meta ({targetDistanceMeters}m)</span>
             <div
               className={`text-base font-black ${
                 isApproved
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-amber-600 dark:text-amber-400"
+                  ? "text-[#B7F34A]"
+                  : "text-amber-400"
               }`}
             >
               {isApproved ? `+${Math.abs(deficitMeters)}m` : `-${deficitMeters}m`}
             </div>
           </div>
 
-          <div className="bg-white/80 dark:bg-slate-900/60 p-2.5 rounded-xl border border-blue-100/50 dark:border-slate-800">
-            <span className="text-[11px] text-slate-500">vs Teste Anterior</span>
-            <div className="text-base font-black text-slate-800 dark:text-slate-200">
+          <div className="bg-[#131A2E] p-2.5 rounded-xl border border-[#1E2942]">
+            <span className="text-[11px] text-[#8E9BB0]">vs Teste Anterior</span>
+            <div className="text-base font-black text-white">
               {liveDeltaPrevious !== null ? (
                 liveDeltaPrevious > 0 ? (
-                  <span className="text-emerald-600 dark:text-emerald-400">
+                  <span className="text-[#B7F34A]">
                     +{liveDeltaPrevious}m
                   </span>
                 ) : liveDeltaPrevious < 0 ? (
-                  <span className="text-red-600 dark:text-red-400">
+                  <span className="text-rose-400">
                     {liveDeltaPrevious}m
                   </span>
                 ) : (
                   <span>= 0m</span>
                 )
               ) : (
-                <span className="text-xs font-normal text-slate-400">--</span>
+                <span className="text-xs font-normal text-[#8E9BB0]">--</span>
               )}
             </div>
           </div>
@@ -504,8 +504,8 @@ export function TafAttemptForm({
 
         {/* Badge Informativo de Recorde Pessoal */}
         {willBeNewRecord && (
-          <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/90 dark:bg-amber-950/80 px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700">
-            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+          <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-amber-300 bg-amber-950/40 px-3 py-1.5 rounded-xl border border-amber-500/30">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
             <span>
               🏆 Este teste será o seu novo <strong>Recorde Pessoal</strong> de 12 minutos!
             </span>
@@ -514,7 +514,7 @@ export function TafAttemptForm({
       </div>
 
       {/* Subform Opcional de Parciais de 400m */}
-      <div className="mb-5 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50/50 dark:bg-slate-800/30">
+      <div className="mb-5 border border-[#1E2942] rounded-2xl p-4 bg-[#0B1020]/40">
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -526,9 +526,9 @@ export function TafAttemptForm({
                   autoGenerateLaps();
                 }
               }}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-[#B7F34A] rounded focus:ring-[#B7F34A] bg-[#0B1020] border-[#1E2942]"
             />
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+            <span className="text-xs font-bold text-white">
               Registrar parciais de voltas (pista de 400m)
             </span>
           </label>
@@ -537,7 +537,7 @@ export function TafAttemptForm({
             <button
               type="button"
               onClick={autoGenerateLaps}
-              className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-xs font-semibold text-[#B7F34A] hover:underline"
             >
               Distribuir tempo igualmente
             </button>
@@ -546,7 +546,7 @@ export function TafAttemptForm({
 
         {enableLaps && (
           <div className="mt-3 space-y-2">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#8E9BB0]">
               Ajuste o tempo em segundos para cada volta de 400m:
             </p>
 
@@ -554,13 +554,13 @@ export function TafAttemptForm({
               {laps.map((lap, idx) => (
                 <div
                   key={lap.lapNumber}
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl text-xs"
+                  className="bg-[#131A2E] border border-[#1E2942] p-2.5 rounded-xl text-xs"
                 >
                   <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">
+                    <span className="font-bold text-white">
                       Volta {lap.lapNumber} ({lap.distanceMeters}m)
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
+                    <span className="text-[10px] text-[#8E9BB0] font-mono">
                       {lap.paceFormatted}/km
                     </span>
                   </div>
@@ -574,9 +574,9 @@ export function TafAttemptForm({
                       onChange={(e) =>
                         handleLapDurationChange(idx, Number(e.target.value))
                       }
-                      className="w-full h-8 px-2 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                      className="w-full h-8 px-2 text-xs font-bold rounded-lg border border-[#1E2942] bg-[#0B1020] text-white"
                     />
-                    <span className="text-[10px] text-slate-400">seg</span>
+                    <span className="text-[10px] text-[#8E9BB0]">seg</span>
                   </div>
                 </div>
               ))}
@@ -584,7 +584,7 @@ export function TafAttemptForm({
 
             {/* Aviso de discrepância entre soma das voltas e tempo total */}
             {Math.abs(lapSumDifference) > 2 && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2 font-medium">
+              <p className="text-[11px] text-amber-400 mt-2 font-medium">
                 ⚠️ A soma das parciais ({formatTime(sumLapSeconds)}) difere do tempo total do
                 teste ({formatTime(totalDurationSeconds)}) em {Math.abs(lapSumDifference)}s.
               </p>
@@ -595,7 +595,7 @@ export function TafAttemptForm({
 
       {/* Notas do Teste */}
       <div className="mb-5">
-        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+        <label className="block text-xs font-bold text-[#8E9BB0] mb-1.5">
           Anotações / Observações (Opcional)
         </label>
         <textarea
@@ -603,7 +603,7 @@ export function TafAttemptForm({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Ex: Pista da UNIFOR, tênis de corrida, vento moderado, sensação de esforço nos últimos 2 minutos."
-          className="w-full p-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          className="w-full p-3 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A] resize-none"
         />
       </div>
 
@@ -612,7 +612,7 @@ export function TafAttemptForm({
         type="submit"
         disabled={isSubmitting}
         data-testid="submit-attempt-btn"
-        className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+        className="w-full h-12 bg-[#B7F34A] hover:bg-[#a3e232] text-[#0B1020] font-black text-sm rounded-xl shadow-md shadow-[#B7F34A]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
       >
         <Plus className="w-4 h-4" />
         {isSubmitting

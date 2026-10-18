@@ -311,16 +311,16 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
     <form
       onSubmit={handleSubmit}
       data-testid="training-form"
-      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-sm transition-all"
+      className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-7 shadow-sm transition-all"
     >
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#1E2942]">
         <div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <Flame className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Flame className="w-5 h-5 text-[#B7F34A]" />
             {editingTraining ? "Editar Sessão de Treino" : "Registrar Novo Treino"}
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-xs text-[#8E9BB0] mt-0.5">
             Cadastre suas corridas, tiros, caminhadas e acompanhe a sua evolução diária.
           </p>
         </div>
@@ -329,7 +329,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
           <button
             type="button"
             onClick={onCancelEdit}
-            className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="text-xs font-semibold text-[#8E9BB0] hover:text-white flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#1E2942] hover:bg-[#1E2942] transition-colors"
           >
             <X className="w-3.5 h-3.5" />
             Cancelar Edição
@@ -340,7 +340,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       {errorMessage && (
         <div
           data-testid="form-error-message"
-          className="mb-4 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-xl text-xs font-medium text-red-700 dark:text-red-300 flex items-center gap-2"
+          className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs font-medium text-rose-400 flex items-center gap-2"
         >
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{errorMessage}</span>
@@ -349,7 +349,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
 
       {/* Seletor Visual de Tipo de Atividade */}
       <div className="mb-5">
-        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+        <label className="block text-xs font-bold text-[#8E9BB0] mb-2">
           Tipo de Atividade
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -363,11 +363,11 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
                 onClick={() => setActivityType(act.type)}
                 className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-xs font-bold transition-all ${
                   isSelected
-                    ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/25 scale-[1.02]"
-                    : "bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    ? "bg-[#B7F34A] text-[#0B1020] border-[#B7F34A] shadow-md shadow-[#B7F34A]/20 scale-[1.02] font-black"
+                    : "bg-[#0B1020] border-[#1E2942] text-[#8E9BB0] hover:text-white hover:border-[#8E9BB0]/40"
                 }`}
               >
-                <Icon className={`w-5 h-5 mb-1.5 ${isSelected ? "text-white" : "text-blue-500"}`} />
+                <Icon className={`w-5 h-5 mb-1.5 ${isSelected ? "text-[#0B1020]" : "text-[#B7F34A]"}`} />
                 <span>{act.label}</span>
               </button>
             );
@@ -379,7 +379,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
         {/* Data e Hora */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-xs font-bold text-[#8E9BB0] mb-1.5">
             Data e Horário
           </label>
           <input
@@ -387,13 +387,13 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
             value={sessionDate}
             onChange={(e) => setSessionDate(e.target.value)}
             required
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-3 text-sm rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] [color-scheme:dark]"
           />
         </div>
 
         {/* Duração (Horas, Minutos e Segundos) */}
         <div className="sm:col-span-1 lg:col-span-2">
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-xs font-bold text-[#8E9BB0] mb-1.5">
             Tempo Total de Treino
           </label>
           <div className="flex items-center gap-2">
@@ -407,13 +407,13 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
                   const val = e.target.value.replace(/\D/g, "");
                   setHoursInput(val);
                 }}
-                className="w-full h-11 px-3 pr-7 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-11 px-3 pr-7 text-sm font-semibold rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
               />
-              <span className="absolute right-2 top-3 text-xs text-slate-400 font-medium pointer-events-none">
+              <span className="absolute right-2 top-3 text-xs text-[#8E9BB0] font-medium pointer-events-none">
                 h
               </span>
             </div>
-            <span className="text-slate-400 font-bold">:</span>
+            <span className="text-[#8E9BB0] font-bold">:</span>
             {/* Minutos */}
             <div className="flex-1 relative">
               <input
@@ -426,13 +426,13 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
                     setMinutesInput(val);
                   }
                 }}
-                className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
               />
-              <span className="absolute right-2 top-3 text-xs text-slate-400 font-medium pointer-events-none">
+              <span className="absolute right-2 top-3 text-xs text-[#8E9BB0] font-medium pointer-events-none">
                 min
               </span>
             </div>
-            <span className="text-slate-400 font-bold">:</span>
+            <span className="text-[#8E9BB0] font-bold">:</span>
             {/* Segundos */}
             <div className="flex-1 relative">
               <input
@@ -445,9 +445,9 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
                     setSecondsInput(val);
                   }
                 }}
-                className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-11 px-3 pr-8 text-sm font-semibold rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
               />
-              <span className="absolute right-2 top-3 text-xs text-slate-400 font-medium pointer-events-none">
+              <span className="absolute right-2 top-3 text-xs text-[#8E9BB0] font-medium pointer-events-none">
                 seg
               </span>
             </div>
@@ -458,10 +458,10 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       {/* Distância em km com atalhos rápidos */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-1.5">
-          <label htmlFor="training-distance-km" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+          <label htmlFor="training-distance-km" className="text-xs font-bold text-[#8E9BB0]">
             Distância Percorrida (Quilômetros)
           </label>
-          <span className="text-xs text-slate-500 font-medium">
+          <span className="text-xs text-[#8E9BB0] font-medium">
             = {Math.round(parsedDistanceKm * 1000)} metros
           </span>
         </div>
@@ -479,16 +479,16 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
               }
             }}
             required
-            className="w-full h-12 px-4 text-lg font-black tracking-tight rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-12 px-4 text-lg font-black tracking-tight rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
           />
-          <span className="absolute right-4 top-3 text-sm font-bold text-slate-400">
+          <span className="absolute right-4 top-3 text-sm font-bold text-[#8E9BB0]">
             km
           </span>
         </div>
 
         {/* Atalhos rápidos de km */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] font-semibold text-slate-500 mr-1">
+          <span className="text-[11px] font-semibold text-[#8E9BB0] mr-1">
             Distâncias comuns:
           </span>
           {DISTANCE_SHORTCUTS_KM.map((shortcut) => {
@@ -500,8 +500,8 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
                 onClick={() => setDistanceInput(String(shortcut))}
                 className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all ${
                   isSelected
-                    ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30 scale-105"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                    ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm shadow-[#B7F34A]/20 scale-105"
+                    : "bg-[#0B1020] border border-[#1E2942] text-[#8E9BB0] hover:text-white hover:border-[#8E9BB0]/40"
                 }`}
               >
                 {shortcut} km
@@ -513,24 +513,24 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       </div>
 
       {/* Escala de Esforço Subjetivo RPE (1 a 10) */}
-      <div className="mb-5 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50/50 dark:bg-slate-800/30">
+      <div className="mb-5 border border-[#1E2942] rounded-2xl p-4 bg-[#0B1020]/60">
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-            <Activity className="w-4 h-4 text-blue-500" />
+          <label className="text-xs font-bold text-white flex items-center gap-1.5">
+            <Activity className="w-4 h-4 text-[#B7F34A]" />
             Escala de Esforço RPE (1 = Muito Leve a 10 = Exaustão Total)
           </label>
           {perceivedEffort !== null && (
             <button
               type="button"
               onClick={() => setPerceivedEffort(null)}
-              className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline"
+              className="text-[11px] text-[#8E9BB0] hover:text-white underline"
             >
               Desmarcar RPE
             </button>
           )}
         </div>
 
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+        <p className="text-[11px] text-[#8E9BB0] mb-3">
           Selecione a percepção de intensidade da sessão para monitorar a carga de fadiga:
         </p>
 
@@ -546,8 +546,8 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
                 title={`${level.label}: ${level.desc}`}
                 className={`h-11 rounded-xl font-black text-sm flex flex-col items-center justify-center transition-all ${
                   isSelected
-                    ? `${level.color} ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900 scale-105 shadow-md`
-                    : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    ? `${level.color} ring-2 ring-[#B7F34A] ring-offset-2 ring-offset-[#0B1020] scale-105 shadow-md`
+                    : "bg-[#131A2E] border border-[#1E2942] text-[#8E9BB0] hover:text-white hover:bg-[#1E2942]"
                 }`}
               >
                 <span>{level.value}</span>
@@ -558,11 +558,11 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
 
         {/* Legenda do RPE Selecionado */}
         {perceivedEffort !== null && (
-          <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-2 flex items-center gap-1.5 bg-white dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
-            <span className="font-bold text-blue-600 dark:text-blue-400">
+          <div className="text-xs font-semibold text-[#8E9BB0] mt-2 flex items-center gap-1.5 bg-[#131A2E] p-2.5 rounded-xl border border-[#1E2942]">
+            <span className="font-bold text-[#B7F34A]">
               RPE {perceivedEffort}:
             </span>
-            <span>
+            <span className="text-white">
               {RPE_LEVELS.find((l) => l.value === perceivedEffort)?.label} —{" "}
               {RPE_LEVELS.find((l) => l.value === perceivedEffort)?.desc}
             </span>
@@ -574,8 +574,8 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
         {/* Peso Corporal Opcional */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1">
-            <Scale className="w-3.5 h-3.5 text-slate-400" />
+          <label className="block text-xs font-bold text-[#8E9BB0] mb-1.5 flex items-center gap-1">
+            <Scale className="w-3.5 h-3.5 text-[#8E9BB0]" />
             Peso Corporal no Dia (kg) — Opcional
           </label>
           <div className="relative">
@@ -585,29 +585,29 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
               placeholder="Ex: 74.5 (deixe em branco se não pesou)"
               value={bodyWeightKg}
               onChange={(e) => setBodyWeightKg(e.target.value)}
-              className="w-full h-11 px-3 pr-10 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-11 px-3 pr-10 text-sm rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
             />
-            <span className="absolute right-3 top-3 text-xs text-slate-400 font-semibold pointer-events-none">
+            <span className="absolute right-3 top-3 text-xs text-[#8E9BB0] font-semibold pointer-events-none">
               kg
             </span>
           </div>
-          <span className="text-[11px] text-slate-400 mt-1 block">
+          <span className="text-[11px] text-[#8E9BB0] mt-1 block">
             Diferencia peso não informado de zero.
           </span>
         </div>
 
         {/* Painel Resumo em Tempo Real */}
-        <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/70 dark:from-slate-800/80 dark:to-slate-800/40 border border-blue-100 dark:border-slate-700 rounded-2xl p-3 flex items-center justify-around text-center">
+        <div className="bg-[#0B1020] border border-[#1E2942] rounded-2xl p-3 flex items-center justify-around text-center">
           <div>
-            <span className="text-[11px] text-slate-500 block">Pace Médio</span>
-            <span className="text-base font-black text-blue-600 dark:text-blue-400">
+            <span className="text-[11px] text-[#8E9BB0] block">Pace Médio</span>
+            <span className="text-base font-black text-[#B7F34A]">
               {livePaceFormatted} <span className="text-xs font-normal">/km</span>
             </span>
           </div>
-          <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
+          <div className="h-8 w-px bg-[#1E2942]" />
           <div>
-            <span className="text-[11px] text-slate-500 block">Velocidade</span>
-            <span className="text-base font-black text-slate-800 dark:text-slate-200">
+            <span className="text-[11px] text-[#8E9BB0] block">Velocidade</span>
+            <span className="text-base font-black text-white">
               {liveSpeedKmh.toFixed(2)} <span className="text-xs font-normal">km/h</span>
             </span>
           </div>
@@ -618,22 +618,22 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       {calorieEstimate ? (
         <div
           data-testid="live-calories-card"
-          className="mb-5 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 dark:from-amber-500/15 dark:via-orange-500/15 dark:to-red-500/15 border border-amber-200 dark:border-amber-900/60 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 transition-all"
+          className="mb-5 bg-[#0B1020] border border-[#B7F34A]/30 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 transition-all"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-sm shrink-0">
-              <Flame className="w-5 h-5 fill-white" />
+            <div className="w-9 h-9 rounded-xl bg-[#B7F34A] flex items-center justify-center text-[#0B1020] shadow-sm shrink-0">
+              <Flame className="w-5 h-5 fill-[#0B1020]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                <span className="text-xs font-bold text-white">
                   Gasto Calórico Estimado
                 </span>
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#B7F34A]/10 text-[#B7F34A] border border-[#B7F34A]/20">
                   MET {calorieEstimate.metValue.toFixed(1)}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] text-[#8E9BB0]">
                 {calorieEstimate.compendiumDescription} • Compêndio 2024
               </p>
             </div>
@@ -641,25 +641,25 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
 
           <div className="flex items-center gap-4 shrink-0">
             <div className="text-right">
-              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">
+              <span className="text-[10px] uppercase tracking-wider text-[#8E9BB0] font-bold block">
                 Ativas (Exercício)
               </span>
               <span
                 data-testid="live-active-calories"
-                className="text-lg font-black text-amber-600 dark:text-amber-400"
+                className="text-lg font-black text-[#B7F34A]"
               >
                 {calorieEstimate.activeCalories}{" "}
                 <span className="text-xs font-normal">kcal</span>
               </span>
             </div>
-            <div className="h-7 w-px bg-slate-200 dark:bg-slate-700" />
+            <div className="h-7 w-px bg-[#1E2942]" />
             <div className="text-right">
-              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">
+              <span className="text-[10px] uppercase tracking-wider text-[#8E9BB0] font-bold block">
                 Totais
               </span>
               <span
                 data-testid="live-total-calories"
-                className="text-sm font-bold text-slate-700 dark:text-slate-300"
+                className="text-sm font-bold text-white"
               >
                 {calorieEstimate.totalCalories}{" "}
                 <span className="text-xs font-normal">kcal</span>
@@ -672,10 +672,10 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
         totalDurationSeconds > 0 && (
           <div
             data-testid="calories-weight-hint"
-            className="mb-5 bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-3 flex items-center justify-between text-xs text-slate-500"
+            className="mb-5 bg-[#0B1020] border border-dashed border-[#1E2942] rounded-2xl p-3 flex items-center justify-between text-xs text-[#8E9BB0]"
           >
             <div className="flex items-center gap-2">
-              <Flame className="w-4 h-4 text-slate-400 shrink-0" />
+              <Flame className="w-4 h-4 text-[#8E9BB0] shrink-0" />
               <span>
                 Preencha seu peso corporal no campo acima para calcular o gasto calórico com base científica (MET).
               </span>
@@ -685,7 +685,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       )}
 
       {/* Subform Opcional de Parciais de Km */}
-      <div className="mb-5 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50/50 dark:bg-slate-800/30">
+      <div className="mb-5 border border-[#1E2942] rounded-2xl p-4 bg-[#0B1020]/60">
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -697,9 +697,9 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
                   autoGenerateSplits();
                 }
               }}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              className="w-4 h-4 accent-[#B7F34A] rounded"
             />
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+            <span className="text-xs font-bold text-white">
               Registrar parciais por quilômetro (splits de km)
             </span>
           </label>
@@ -708,7 +708,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
             <button
               type="button"
               onClick={autoGenerateSplits}
-              className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-xs font-semibold text-[#B7F34A] hover:underline"
             >
               Distribuir igualmente
             </button>
@@ -717,7 +717,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
 
         {enableSplits && (
           <div className="mt-3 space-y-2">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#8E9BB0]">
               Tempo em segundos para cada km fechado:
             </p>
 
@@ -725,13 +725,13 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
               {splits.map((s, idx) => (
                 <div
                   key={s.kilometer}
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl text-xs"
+                  className="bg-[#131A2E] border border-[#1E2942] p-2.5 rounded-xl text-xs"
                 >
                   <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">
+                    <span className="font-bold text-white">
                       Km {s.kilometer}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
+                    <span className="text-[10px] text-[#8E9BB0] font-mono">
                       {s.paceFormatted}
                     </span>
                   </div>
@@ -744,9 +744,9 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
                       onChange={(e) =>
                         handleSplitDurationChange(idx, Number(e.target.value))
                       }
-                      className="w-full h-8 px-2 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                      className="w-full h-8 px-2 text-xs font-bold rounded-lg border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
                     />
-                    <span className="text-[10px] text-slate-400">seg</span>
+                    <span className="text-[10px] text-[#8E9BB0]">seg</span>
                   </div>
                 </div>
               ))}
@@ -757,7 +757,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
 
       {/* Observações Livres */}
       <div className="mb-5">
-        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+        <label className="block text-xs font-bold text-[#8E9BB0] mb-1.5">
           Observações do Treino (Opcional)
         </label>
         <textarea
@@ -765,7 +765,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Ex: Treino progressivo na Beira-Mar, hidratação no km 4, tênis de amortecimento, pernas leves."
-          className="w-full p-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          className="w-full p-3 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] resize-none"
         />
       </div>
 
@@ -774,7 +774,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
         type="submit"
         disabled={isSubmitting}
         data-testid="submit-training-btn"
-        className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+        className="w-full h-12 bg-[#B7F34A] hover:bg-[#a6e03f] text-[#0B1020] font-black text-sm rounded-xl shadow-lg shadow-[#B7F34A]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
       >
         <Plus className="w-4 h-4" />
         {isSubmitting

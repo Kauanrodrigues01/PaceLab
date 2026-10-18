@@ -215,30 +215,30 @@ export default function MetasPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header */}
       <div className="text-center sm:text-left">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-semibold mb-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B7F34A]/10 border border-[#B7F34A]/30 text-[#B7F34A] text-xs font-semibold mb-2">
           <Target className="w-3.5 h-3.5" />
           Planejamento de Provas & Treinos
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-black text-[#FFFFFF] tracking-tight">
           Calculadora de Metas e Parciais (Splits)
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+        <p className="text-sm text-[#8E9BB0] mt-1 max-w-2xl">
           Defina sua distância e ritmo-alvo para gerar a planilha completa de tempos de passagem em cada quilômetro ou parcial de prova.
         </p>
       </div>
 
       {/* Seletor de Método (Pace Alvo vs Tempo Alvo) */}
-      <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-200/70 dark:bg-slate-800/80 rounded-2xl">
+      <div className="grid grid-cols-2 gap-2 p-1.5 bg-[#131A2E] border border-[#1E2942] rounded-2xl">
         <button
           type="button"
           onClick={() => {
             setMethod("pace");
             setErrors({});
           }}
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
             method === "pace"
-              ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-xs font-bold"
+              : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
           }`}
         >
           <Timer className="w-4 h-4" />
@@ -251,10 +251,10 @@ export default function MetasPage() {
             setMethod("time");
             setErrors({});
           }}
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
             method === "time"
-              ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-xs font-bold"
+              : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
           }`}
         >
           <Flag className="w-4 h-4" />
@@ -302,10 +302,10 @@ export default function MetasPage() {
                     <button
                       type="button"
                       onClick={handleApplyTafGoal}
-                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 font-bold border border-amber-400/40 dark:border-amber-700/50 transition-colors"
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-[#B7F34A]/15 hover:bg-[#B7F34A]/25 text-[#B7F34A] font-bold border border-[#B7F34A]/30 transition-colors cursor-pointer"
                       title="Carregar meta oficial do concurso salva no seu perfil"
                     >
-                      <Medal className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <Medal className="w-3.5 h-3.5 text-[#B7F34A] shrink-0" />
                       <span>
                         Edital TAF: {(tafGoal.minDistanceMeters || 2400) / 1000} km em 12min ({tafGoal.institutionName || "Concurso"})
                       </span>
@@ -325,7 +325,7 @@ export default function MetasPage() {
                           });
                         }
                       }}
-                      className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium transition-colors"
+                      className="text-xs px-2.5 py-1 rounded-lg bg-[#0B1020] hover:bg-[#1E2942] text-[#8E9BB0] hover:text-[#FFFFFF] border border-[#1E2942] font-medium transition-colors cursor-pointer"
                     >
                       {sc.label}
                     </button>
@@ -378,54 +378,54 @@ export default function MetasPage() {
 
               {/* Estratégia de Ritmo (Pacing) */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#8E9BB0] mb-1.5">
                   Estratégia de Ritmo (Pacing)
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setPacingStrategy("even")}
-                    className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
+                    className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${
                       pacingStrategy === "even"
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 shadow-xs"
-                        : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                        ? "border-[#B7F34A] bg-[#B7F34A]/10 text-[#B7F34A] shadow-xs font-bold"
+                        : "border-[#1E2942] bg-[#0B1020] text-[#8E9BB0] hover:text-[#FFFFFF] hover:border-[#1E2942]/80"
                     }`}
                   >
                     <div className="font-bold">Constante</div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">Mesmo ritmo</div>
+                    <div className="text-[10px] text-[#8E9BB0] font-normal">Mesmo ritmo</div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setPacingStrategy("negative")}
-                    className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
+                    className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${
                       pacingStrategy === "negative"
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 shadow-xs"
-                        : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                        ? "border-[#B7F34A] bg-[#B7F34A]/10 text-[#B7F34A] shadow-xs font-bold"
+                        : "border-[#1E2942] bg-[#0B1020] text-[#8E9BB0] hover:text-[#FFFFFF] hover:border-[#1E2942]/80"
                     }`}
                   >
                     <div className="font-bold">Split Negativo</div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">2ª metade veloz</div>
+                    <div className="text-[10px] text-[#8E9BB0] font-normal">2ª metade veloz</div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setPacingStrategy("progressive")}
-                    className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
+                    className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${
                       pacingStrategy === "progressive"
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 shadow-xs"
-                        : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                        ? "border-[#B7F34A] bg-[#B7F34A]/10 text-[#B7F34A] shadow-xs font-bold"
+                        : "border-[#1E2942] bg-[#0B1020] text-[#8E9BB0] hover:text-[#FFFFFF] hover:border-[#1E2942]/80"
                     }`}
                   >
                     <div className="font-bold">Progressivo</div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">Acelera por km</div>
+                    <div className="text-[10px] text-[#8E9BB0] font-normal">Acelera por km</div>
                   </button>
                 </div>
               </div>
 
               {/* Intervalo de Parcial (Splits) */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#8E9BB0] mb-1.5">
                   Intervalo da Planilha de Splits
                 </label>
                 <div className="grid grid-cols-3 gap-2">
@@ -434,10 +434,10 @@ export default function MetasPage() {
                       key={opt.value}
                       type="button"
                       onClick={() => setSplitDistanceMeters(opt.value)}
-                      className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                      className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                         splitDistanceMeters === opt.value
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300"
-                          : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                          ? "border-[#B7F34A] bg-[#B7F34A]/10 text-[#B7F34A] font-bold"
+                          : "border-[#1E2942] bg-[#0B1020] text-[#8E9BB0] hover:text-[#FFFFFF]"
                       }`}
                     >
                       {opt.label}
@@ -490,7 +490,7 @@ export default function MetasPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                    <tr className="border-b border-[#1E2942] text-[#8E9BB0]">
                       <th className="py-2.5 font-semibold">Parcial</th>
                       <th className="py-2.5 font-semibold">Distância do Trecho</th>
                       <th className="py-2.5 font-semibold">Distância Acumulada</th>
@@ -499,45 +499,45 @@ export default function MetasPage() {
                       <th className="py-2.5 text-right font-semibold">Tempo Acumulado</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
+                  <tbody className="divide-y divide-[#1E2942] font-mono">
                     {goalResult.splits.map((s) => (
-                      <tr key={s.index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                        <td className="py-2.5 font-bold text-slate-700 dark:text-slate-300 font-sans">
+                      <tr key={s.index} className="hover:bg-[#0B1020]/60">
+                        <td className="py-2.5 font-bold text-[#FFFFFF] font-sans">
                           {s.index === goalResult.splits.length ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                              <Flag className="w-3 h-3" />
+                            <span className="inline-flex items-center gap-1 text-[#B7F34A]">
+                              <Flag className="w-3 h-3 text-[#B7F34A]" />
                               Chegada (#{s.index})
                             </span>
                           ) : (
                             `Split ${s.index}`
                           )}
                         </td>
-                        <td className="py-2.5 text-slate-600 dark:text-slate-400">
+                        <td className="py-2.5 text-[#8E9BB0]">
                           {s.distanceKm >= 1
                             ? `${s.distanceKm.toFixed(2)} km`
                             : `${(s.distanceKm * 1000).toFixed(0)} m`}
                         </td>
-                        <td className="py-2.5 text-slate-800 dark:text-slate-200 font-semibold">
+                        <td className="py-2.5 text-[#FFFFFF] font-semibold">
                           {s.accumulatedDistanceKm.toFixed(2)} km
                         </td>
-                        <td className="py-2.5 text-slate-700 dark:text-slate-300">
+                        <td className="py-2.5 text-[#FFFFFF]">
                           <span>{s.paceFormatted ?? goalResult.paceFormatted}</span>
                           {s.strategyDiffPercent && s.strategyDiffPercent !== 0 ? (
                             <span
                               className={`ml-1.5 text-[10px] px-1 py-0.5 rounded font-mono ${
                                 s.strategyDiffPercent < 0
-                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                                  : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                  ? "bg-[#B7F34A]/20 text-[#B7F34A]"
+                                  : "bg-amber-500/20 text-amber-300"
                               }`}
                             >
                               {s.strategyDiffPercent > 0 ? `+${s.strategyDiffPercent}%` : `${s.strategyDiffPercent}%`}
                             </span>
                           ) : null}
                         </td>
-                        <td className="py-2.5 text-blue-600 dark:text-blue-400 font-bold">
+                        <td className="py-2.5 text-[#B7F34A] font-bold">
                           {s.splitTimeFormatted}
                         </td>
-                        <td className="py-2.5 text-right text-slate-900 dark:text-slate-100 font-black">
+                        <td className="py-2.5 text-right text-[#FFFFFF] font-black">
                           {s.accumulatedTimeFormatted}
                         </td>
                       </tr>
@@ -600,9 +600,9 @@ export default function MetasPage() {
                   onClick={handleSaveToHistory}
                   icon={
                     savedToHistory ? (
-                      <Check className="w-4 h-4 text-emerald-500" />
+                      <Check className="w-4 h-4 text-[#B7F34A]" />
                     ) : (
-                      <BookmarkPlus className="w-4 h-4 text-blue-500" />
+                      <BookmarkPlus className="w-4 h-4 text-[#B7F34A]" />
                     )
                   }
                 >
@@ -610,21 +610,21 @@ export default function MetasPage() {
                 </Button>
               </div>
             ) : (
-              <div className="text-center py-10 px-4 text-slate-400 dark:text-slate-500">
-                <Target className="w-10 h-10 mx-auto mb-2.5 opacity-40" />
-                <p className="text-sm font-medium">Informe a distância e o ritmo</p>
-                <p className="text-xs mt-1">Os cálculos estratégicos aparecerão aqui.</p>
+              <div className="text-center py-10 px-4 text-[#8E9BB0]">
+                <Target className="w-10 h-10 mx-auto mb-2.5 opacity-40 text-[#B7F34A]" />
+                <p className="text-sm font-medium text-[#FFFFFF]">Informe a distância e o ritmo</p>
+                <p className="text-xs mt-1 text-[#8E9BB0]">Os cálculos estratégicos aparecerão aqui.</p>
               </div>
             )}
           </Card>
 
           {/* Dica de Estratégia de Prova */}
-          <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-950/60 bg-blue-50/50 dark:bg-blue-950/20 text-xs text-blue-900 dark:text-blue-200">
-            <p className="font-bold flex items-center gap-1.5 mb-1">
-              <Compass className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <div className="p-4 rounded-xl border border-[#1E2942] bg-[#131A2E] text-xs text-[#8E9BB0]">
+            <p className="font-bold flex items-center gap-1.5 mb-1 text-[#B7F34A]">
+              <Compass className="w-4 h-4 text-[#B7F34A]" />
               Dica: Estratégia de Ritmo Constante
             </p>
-            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+            <p className="text-[#8E9BB0] leading-relaxed">
               Em corridas de média e longa distância (de 5 km a maratonas), manter o ritmo homogêneo sem oscilações bruscas nos primeiros quilômetros economiza glicogênio muscular e previne a fadiga precoce.
             </p>
           </div>

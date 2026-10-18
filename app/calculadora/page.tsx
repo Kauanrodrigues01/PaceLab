@@ -533,14 +533,14 @@ export default function CalculadoraPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header Central do Hub de Calculadoras */}
       <div className="mb-2 text-center sm:text-left">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-semibold mb-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B7F34A]/10 border border-[#B7F34A]/30 text-[#B7F34A] text-xs font-semibold mb-2">
           <Layers className="w-3.5 h-3.5" />
           Hub Central de Calculadoras
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-black text-[#FFFFFF] tracking-tight">
           Cálculos de Corrida e Ritmo
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+        <p className="text-sm text-[#8E9BB0] mt-1 max-w-2xl">
           Todas as ferramentas de ritmo, TAF, metas de prova e treino intervalado reunidas em um único lugar.
         </p>
       </div>
@@ -548,7 +548,7 @@ export default function CalculadoraPage() {
       {/* Navegação Superior de Abas do Hub */}
       <div
         data-testid="hub-tabs-container"
-        className="flex items-center gap-1.5 p-1.5 bg-slate-200/80 dark:bg-slate-800/90 rounded-2xl overflow-x-auto scrollbar-none"
+        className="flex items-center gap-1.5 p-1.5 bg-[#131A2E] border border-[#1E2942] rounded-2xl overflow-x-auto scrollbar-none"
       >
         {HUB_TABS.map((tab) => {
           const Icon = tab.icon;
@@ -558,10 +558,10 @@ export default function CalculadoraPage() {
               key={tab.id}
               type="button"
               onClick={() => handleHubTabChange(tab.id as HubTab)}
-              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 cursor-pointer ${
                 isActive
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm font-black"
+                  : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#1E2942]"
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -575,17 +575,17 @@ export default function CalculadoraPage() {
       {activeHubTab === "pace" && (
         <div className="space-y-6">
           {/* Seletor de Modo da Calculadora de Pace */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 p-1.5 bg-slate-200/70 dark:bg-slate-800/80 rounded-2xl">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 p-1.5 bg-[#131A2E] border border-[#1E2942] rounded-2xl">
             <button
               type="button"
               onClick={() => {
                 setMode("distance-time");
                 setErrors({});
               }}
-              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 mode === "distance-time"
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-sm font-bold"
+                  : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
               }`}
             >
               <Gauge className="w-4 h-4" />
@@ -598,10 +598,10 @@ export default function CalculadoraPage() {
                 setMode("pace-speed");
                 setErrors({});
               }}
-              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 isPaceSpeedMode
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-sm font-bold"
+                  : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
               }`}
             >
               <ArrowRightLeft className="w-4 h-4" />
@@ -614,10 +614,10 @@ export default function CalculadoraPage() {
                 setMode("time-needed");
                 setErrors({});
               }}
-              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 mode === "time-needed"
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-sm font-bold"
+                  : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
               }`}
             >
               <Timer className="w-4 h-4" />
@@ -630,10 +630,10 @@ export default function CalculadoraPage() {
                 setMode("distance-covered");
                 setErrors({});
               }}
-              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 mode === "distance-covered"
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-sm font-bold"
+                  : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
               }`}
             >
               <Milestone className="w-4 h-4" />
@@ -692,10 +692,10 @@ export default function CalculadoraPage() {
                               setDistanceInput((minM / 1000).toString());
                               clearError("distance");
                             }}
-                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 font-bold border border-amber-400/40 dark:border-amber-700/50 transition-colors"
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-[#B7F34A]/15 hover:bg-[#B7F34A]/25 text-[#B7F34A] font-bold border border-[#B7F34A]/30 transition-colors cursor-pointer"
                             title="Carregar distância da meta oficial do edital"
                           >
-                            <Medal className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <Medal className="w-3 h-3 text-[#B7F34A] shrink-0" />
                             <span>{(tafGoal.minDistanceMeters || 2400) / 1000}k TAF</span>
                           </button>
                         )}
@@ -707,7 +707,7 @@ export default function CalculadoraPage() {
                               setDistanceInput(sc.value);
                               clearError("distance");
                             }}
-                            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium transition-colors"
+                            className="text-xs px-2.5 py-1 rounded-lg bg-[#0B1020] hover:bg-[#1E2942] text-[#8E9BB0] hover:text-[#FFFFFF] font-medium border border-[#1E2942] transition-colors cursor-pointer"
                           >
                             {sc.label}
                           </button>
@@ -827,14 +827,14 @@ export default function CalculadoraPage() {
                     </div>
 
                     {/* Alternar entre Pace ou Velocidade */}
-                    <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                    <div className="flex gap-2 p-1 bg-[#0B1020] border border-[#1E2942] rounded-xl">
                       <button
                         type="button"
                         onClick={() => setTimeCalcMethod("pace")}
-                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                           timeCalcMethod === "pace"
-                            ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                            : "text-slate-500"
+                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-xs font-bold"
+                            : "text-[#8E9BB0] hover:text-[#FFFFFF]"
                         }`}
                       >
                         Usar Pace (min/km)
@@ -842,10 +842,10 @@ export default function CalculadoraPage() {
                       <button
                         type="button"
                         onClick={() => setTimeCalcMethod("speed")}
-                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                           timeCalcMethod === "speed"
-                            ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                            : "text-slate-500"
+                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-xs font-bold"
+                            : "text-[#8E9BB0] hover:text-[#FFFFFF]"
                         }`}
                       >
                         Usar Velocidade (km/h)
@@ -909,14 +909,14 @@ export default function CalculadoraPage() {
                       placeholder="20:00"
                     />
 
-                    <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                    <div className="flex gap-2 p-1 bg-[#0B1020] border border-[#1E2942] rounded-xl">
                       <button
                         type="button"
                         onClick={() => setDistCalcMethod("speed")}
-                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                           distCalcMethod === "speed"
-                            ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                            : "text-slate-500"
+                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-xs font-bold"
+                            : "text-[#8E9BB0] hover:text-[#FFFFFF]"
                         }`}
                       >
                         Usar Velocidade (km/h)
@@ -924,10 +924,10 @@ export default function CalculadoraPage() {
                       <button
                         type="button"
                         onClick={() => setDistCalcMethod("pace")}
-                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                           distCalcMethod === "pace"
-                            ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                            : "text-slate-500"
+                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-xs font-bold"
+                            : "text-[#8E9BB0] hover:text-[#FFFFFF]"
                         }`}
                       >
                         Usar Pace (min/km)
@@ -1035,20 +1035,20 @@ export default function CalculadoraPage() {
 
                     {/* Visualizador Colapsável de Parciais km a km (Splits) */}
                     {Number(distanceInput.replace(",", ".")) > 0 && (
-                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <div className="pt-2 border-t border-[#1E2942]">
                         <button
                           type="button"
                           onClick={() => setShowSplits((prev) => !prev)}
-                          className="flex items-center justify-between w-full py-2 px-3 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-xl transition-colors"
+                          className="flex items-center justify-between w-full py-2 px-3 text-xs font-semibold text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020] rounded-xl transition-colors cursor-pointer"
                         >
                           <span className="flex items-center gap-1.5">
-                            <ListOrdered className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            <ListOrdered className="w-3.5 h-3.5 text-[#B7F34A]" />
                             <span>Parciais km a km (Splits)</span>
                           </span>
                           {showSplits ? (
-                            <ChevronUp className="w-4 h-4 text-slate-400" />
+                            <ChevronUp className="w-4 h-4 text-[#8E9BB0]" />
                           ) : (
-                            <ChevronDown className="w-4 h-4 text-slate-400" />
+                            <ChevronDown className="w-4 h-4 text-[#8E9BB0]" />
                           )}
                         </button>
 
@@ -1063,19 +1063,19 @@ export default function CalculadoraPage() {
                                   splitDistanceMeters: 1000,
                                 }).splits;
                                 return (
-                                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-xl text-xs font-mono">
+                                  <div className="max-h-48 overflow-y-auto divide-y divide-[#1E2942] border border-[#1E2942] rounded-xl text-xs font-mono">
                                     {splits.map((s) => (
                                       <div
                                         key={s.index}
-                                        className="flex items-center justify-between px-3 py-1.5 bg-slate-50/50 dark:bg-slate-900/40"
+                                        className="flex items-center justify-between px-3 py-1.5 bg-[#0B1020]"
                                       >
-                                        <span className="text-slate-600 dark:text-slate-400 font-sans">
+                                        <span className="text-[#8E9BB0] font-sans">
                                           km {s.index} ({s.distanceKm.toFixed(1)}k)
                                         </span>
-                                        <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                        <span className="font-semibold text-[#B7F34A]">
                                           {s.splitTimeFormatted}
                                         </span>
-                                        <span className="text-slate-500 dark:text-slate-500 font-sans">
+                                        <span className="text-[#8E9BB0] font-sans">
                                           Acum: {s.accumulatedTimeFormatted}
                                         </span>
                                       </div>
@@ -1183,20 +1183,20 @@ export default function CalculadoraPage() {
                   (isPaceSpeedMode && !paceSpeedResult) ||
                   (mode === "time-needed" && !timeResult) ||
                   (mode === "distance-covered" && !distResult)) && (
-                  <div className="text-center py-10 px-4 text-slate-400 dark:text-slate-500">
-                    <Calculator className="w-10 h-10 mx-auto mb-2.5 opacity-40" />
-                    <p className="text-sm font-medium">Preencha os campos e clique em Calcular</p>
-                    <p className="text-xs mt-1">Os resultados detalhados aparecerão aqui.</p>
+                  <div className="text-center py-10 px-4 text-[#8E9BB0]">
+                    <Calculator className="w-10 h-10 mx-auto mb-2.5 opacity-40 text-[#B7F34A]" />
+                    <p className="text-sm font-medium text-[#FFFFFF]">Preencha os campos e clique em Calcular</p>
+                    <p className="text-xs mt-1 text-[#8E9BB0]">Os resultados detalhados aparecerão aqui.</p>
                   </div>
                 )}
               </Card>
 
               {/* Dica / Info Card */}
-              <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-950/60 bg-blue-50/50 dark:bg-blue-950/20 text-xs text-blue-900 dark:text-blue-200">
-                <p className="font-bold flex items-center gap-1.5 mb-1">
+              <div className="p-4 rounded-xl border border-[#1E2942] bg-[#131A2E] text-xs text-[#8E9BB0]">
+                <p className="font-bold flex items-center gap-1.5 mb-1 text-[#B7F34A]">
                   💡 Dica de Treino
                 </p>
-                <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                <p className="text-[#8E9BB0] leading-relaxed">
                   Use a tabela de referência rápida abaixo para configurar a velocidade na esteira elétrica ou monitorar o tempo de cada volta de 400m em pista de atletismo.
                 </p>
               </div>

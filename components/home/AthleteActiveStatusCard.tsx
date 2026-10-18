@@ -99,23 +99,23 @@ export function AthleteActiveStatusCard() {
   return (
     <div
       data-testid="athlete-active-status-card"
-      className="relative overflow-hidden rounded-3xl bg-linear-to-br from-slate-900/90 via-slate-900/70 to-blue-950/40 border border-slate-700/60 p-6 sm:p-7 backdrop-blur-xl shadow-xl transition-all duration-300"
+      className="relative overflow-hidden rounded-3xl bg-[#131A2E] border border-[#1E2942] p-6 sm:p-7 shadow-xl transition-all duration-300"
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400">
+          <div className="p-2 rounded-xl bg-[#B7F34A]/10 border border-[#B7F34A]/30 text-[#B7F34A]">
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <h3 className="text-base font-bold text-[#FFFFFF] flex items-center gap-2">
               Painel do Atleta
               {goal?.institutionName && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-[#B7F34A]/15 text-[#B7F34A] border border-[#B7F34A]/30 font-semibold">
                   {goal.institutionName}
                 </span>
               )}
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-[#8E9BB0]">
               Resumo integrado do seu desempenho e metas em tempo real
             </p>
           </div>
@@ -123,7 +123,7 @@ export function AthleteActiveStatusCard() {
 
         <Link
           href="/meu-taf"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors group"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#B7F34A] hover:text-[#a3db3f] transition-colors group"
         >
           <span>Acompanhar evolução</span>
           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -132,20 +132,20 @@ export function AthleteActiveStatusCard() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 sm:gap-4">
         {/* Card 1: Último Simulado / TAF */}
-        <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/50 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+        <div className="p-4 rounded-2xl bg-[#0B1020] border border-[#1E2942] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-[#8E9BB0] mb-2">
             <span className="font-medium">Último Simulado</span>
-            <Trophy className="w-4 h-4 text-amber-400" />
+            <Trophy className="w-4 h-4 text-[#B7F34A]" />
           </div>
           {latestAttempt ? (
             <div>
-              <div className="text-lg sm:text-xl font-black text-white">
+              <div className="text-lg sm:text-xl font-black text-[#FFFFFF]">
                 {latestAttempt.distanceMeters.toLocaleString("pt-BR")}{" "}
-                <span className="text-xs font-normal text-slate-400">m</span>
+                <span className="text-xs font-normal text-[#8E9BB0]">m</span>
               </div>
               <div className="flex items-center gap-1 mt-1">
                 {isApproved ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#B7F34A]">
                     <ShieldCheck className="w-3 h-3" /> Apto Edital
                   </span>
                 ) : (
@@ -154,7 +154,7 @@ export function AthleteActiveStatusCard() {
                   </span>
                 )}
                 {personalBest && personalBest > latestAttempt.distanceMeters && (
-                  <span className="text-[10px] text-slate-400 ml-auto">
+                  <span className="text-[10px] text-[#8E9BB0] ml-auto">
                     PB: {personalBest}m
                   </span>
                 )}
@@ -162,10 +162,10 @@ export function AthleteActiveStatusCard() {
             </div>
           ) : (
             <div>
-              <div className="text-sm font-bold text-slate-300">Sem simulados</div>
+              <div className="text-sm font-bold text-[#8E9BB0]">Sem simulados</div>
               <Link
                 href="/meu-taf"
-                className="text-[11px] text-blue-400 hover:underline mt-1 inline-block"
+                className="text-[11px] text-[#B7F34A] hover:underline mt-1 inline-block"
               >
                 Fazer 1º Simulado →
               </Link>
@@ -174,27 +174,27 @@ export function AthleteActiveStatusCard() {
         </div>
 
         {/* Card 2: Peso Corporal Atual */}
-        <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/50 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+        <div className="p-4 rounded-2xl bg-[#0B1020] border border-[#1E2942] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-[#8E9BB0] mb-2">
             <span className="font-medium">Peso Corporal</span>
-            <Scale className="w-4 h-4 text-emerald-400" />
+            <Scale className="w-4 h-4 text-[#B7F34A]" />
           </div>
           {profile?.currentWeightKg ? (
             <div>
-              <div className="text-lg sm:text-xl font-black text-white">
+              <div className="text-lg sm:text-xl font-black text-[#FFFFFF]">
                 {profile.currentWeightKg}{" "}
-                <span className="text-xs font-normal text-slate-400">kg</span>
+                <span className="text-xs font-normal text-[#8E9BB0]">kg</span>
               </div>
-              <div className="text-[11px] text-emerald-400 font-medium mt-1">
+              <div className="text-[11px] text-[#B7F34A] font-medium mt-1">
                 Monitorado no perfil
               </div>
             </div>
           ) : (
             <div>
-              <div className="text-sm font-bold text-slate-300">Não informado</div>
+              <div className="text-sm font-bold text-[#8E9BB0]">Não informado</div>
               <Link
                 href="/perfil"
-                className="text-[11px] text-blue-400 hover:underline mt-1 inline-block"
+                className="text-[11px] text-[#B7F34A] hover:underline mt-1 inline-block"
               >
                 Registrar no Perfil →
               </Link>
@@ -203,23 +203,23 @@ export function AthleteActiveStatusCard() {
         </div>
 
         {/* Card 3: Calorias (Últimos 7 dias) */}
-        <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/50 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+        <div className="p-4 rounded-2xl bg-[#0B1020] border border-[#1E2942] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-[#8E9BB0] mb-2">
             <span className="font-medium">Gasto 7 Dias</span>
             <Flame className="w-4 h-4 text-rose-400" />
           </div>
           <div>
-            <div className="text-lg sm:text-xl font-black text-white">
+            <div className="text-lg sm:text-xl font-black text-[#FFFFFF]">
               {recentCalories > 0 ? (
                 <>
                   {recentCalories.toLocaleString("pt-BR")}{" "}
-                  <span className="text-xs font-normal text-slate-400">kcal</span>
+                  <span className="text-xs font-normal text-[#8E9BB0]">kcal</span>
                 </>
               ) : (
-                <span className="text-sm font-bold text-slate-300">0 kcal</span>
+                <span className="text-sm font-bold text-[#8E9BB0]">0 kcal</span>
               )}
             </div>
-            <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+            <div className="text-[11px] text-[#8E9BB0] mt-1 flex items-center gap-1">
               <TrendingUp className="w-3 h-3 text-rose-400" />
               <span>{recentTrainingsCount} {recentTrainingsCount === 1 ? "sessão" : "sessões"}</span>
             </div>
@@ -227,26 +227,26 @@ export function AthleteActiveStatusCard() {
         </div>
 
         {/* Card 4: Contagem Regressiva para a Prova */}
-        <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/50 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+        <div className="p-4 rounded-2xl bg-[#0B1020] border border-[#1E2942] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-[#8E9BB0] mb-2">
             <span className="font-medium">Data do TAF</span>
-            <Calendar className="w-4 h-4 text-purple-400" />
+            <Calendar className="w-4 h-4 text-[#B7F34A]" />
           </div>
           {daysToExam !== null ? (
             <div>
-              <div className="text-lg sm:text-xl font-black text-white">
+              <div className="text-lg sm:text-xl font-black text-[#FFFFFF]">
                 {daysToExam > 0 ? (
                   <>
                     {daysToExam}{" "}
-                    <span className="text-xs font-normal text-slate-400">dias</span>
+                    <span className="text-xs font-normal text-[#8E9BB0]">dias</span>
                   </>
                 ) : daysToExam === 0 ? (
-                  <span className="text-sm font-black text-amber-400">É hoje!</span>
+                  <span className="text-sm font-black text-[#B7F34A]">É hoje!</span>
                 ) : (
-                  <span className="text-xs font-medium text-slate-400">Realizada</span>
+                  <span className="text-xs font-medium text-[#8E9BB0]">Realizada</span>
                 )}
               </div>
-              <div className="text-[11px] text-purple-300 font-medium mt-1 truncate">
+              <div className="text-[11px] text-[#8E9BB0] font-medium mt-1 truncate">
                 {goal?.targetExamDate
                   ? new Date(goal.targetExamDate).toLocaleDateString("pt-BR")
                   : "Definida"}
@@ -254,10 +254,10 @@ export function AthleteActiveStatusCard() {
             </div>
           ) : (
             <div>
-              <div className="text-sm font-bold text-slate-300">Sem data</div>
+              <div className="text-sm font-bold text-[#8E9BB0]">Sem data</div>
               <Link
                 href="/perfil"
-                className="text-[11px] text-blue-400 hover:underline mt-1 inline-block"
+                className="text-[11px] text-[#B7F34A] hover:underline mt-1 inline-block"
               >
                 Definir data do edital →
               </Link>

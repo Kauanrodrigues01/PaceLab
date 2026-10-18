@@ -42,6 +42,6 @@ describe("PaceSpeedTable Component", () => {
     render(<PaceSpeedTable currentPaceSeconds={300} />); // 300s = 5:00
 
     const row = screen.getByTestId("pace-row-5-00");
-    expect(row).toHaveClass("bg-blue-50");
+    expect(row).toHaveClass("bg-[#B7F34A]/20");
   });
 });

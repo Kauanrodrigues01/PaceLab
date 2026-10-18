@@ -23,5 +23,8 @@ describe("Badge Component", () => {
 
     rerender(<Badge variant="danger">Erro</Badge>);
     expect(screen.getByText("Erro")).toHaveClass("bg-red-50");
+
+    rerender(<Badge variant="lime">Ritmo</Badge>);
+    expect(screen.getByText("Ritmo")).toHaveClass("bg-lime-50");
   });
 });

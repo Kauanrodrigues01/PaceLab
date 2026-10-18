@@ -285,16 +285,16 @@ export default function TreinosPage() {
       )}
 
       {/* Header da Página */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1E2942] pb-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-semibold mb-2">
-            <Activity className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0B1020] border border-[#1E2942] text-[#B7F34A] text-xs font-semibold mb-2">
+            <Activity className="w-3.5 h-3.5 text-[#B7F34A]" />
             Diário de Treinos • Consistência & Volume
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             Diário de Treinos & Consistência
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
+          <p className="text-sm text-[#8E9BB0] mt-1 max-w-xl">
             Acompanhe a sua rotina semanal de treinos, volume de quilômetros, pace médio e escala de esforço percebido (RPE).
           </p>
         </div>
@@ -316,16 +316,16 @@ export default function TreinosPage() {
 
           <Link
             href="/calculadora"
-            className="inline-flex items-center justify-center font-medium transition-all duration-150 select-none active:scale-[0.98] border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 active:bg-slate-100 dark:active:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs px-3 py-2 rounded-xl gap-1.5 cursor-pointer shadow-2xs"
+            className="inline-flex items-center justify-center font-medium transition-all duration-150 select-none active:scale-[0.98] border border-[#1E2942] bg-[#0B1020] hover:bg-[#1E2942] text-white text-xs px-3 py-2 rounded-xl gap-1.5 cursor-pointer shadow-2xs"
           >
-            <Calculator className="w-3.5 h-3.5" />
+            <Calculator className="w-3.5 h-3.5 text-[#B7F34A]" />
             <span>Calculadoras</span>
           </Link>
           <Link
             href="/meu-taf"
-            className="inline-flex items-center justify-center font-medium transition-all duration-150 select-none active:scale-[0.98] border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 active:bg-slate-100 dark:active:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs px-3 py-2 rounded-xl gap-1.5 cursor-pointer shadow-2xs"
+            className="inline-flex items-center justify-center font-medium transition-all duration-150 select-none active:scale-[0.98] border border-[#1E2942] bg-[#0B1020] hover:bg-[#1E2942] text-white text-xs px-3 py-2 rounded-xl gap-1.5 cursor-pointer shadow-2xs"
           >
-            <Trophy className="w-3.5 h-3.5 text-amber-500" />
+            <Trophy className="w-3.5 h-3.5 text-amber-400" />
             <span>Meu TAF</span>
           </Link>
         </div>
@@ -333,7 +333,7 @@ export default function TreinosPage() {
 
       {/* Seletor de Abas da Página */}
       <div
-        className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3"
+        className="flex items-center gap-2 border-b border-[#1E2942] pb-3"
         role="tablist"
       >
         <button
@@ -344,8 +344,8 @@ export default function TreinosPage() {
           onClick={() => handleTabChange("diario")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all ${
             activeTab === "diario"
-              ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
-              : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              ? "bg-[#B7F34A] text-[#0B1020] shadow-md shadow-[#B7F34A]/25"
+              : "bg-[#131A2E] border border-[#1E2942] text-[#8E9BB0] hover:text-white"
           }`}
         >
           <Activity className="w-4 h-4" />
@@ -353,8 +353,8 @@ export default function TreinosPage() {
           <span
             className={`text-[10px] px-1.5 py-0.5 rounded-full ${
               activeTab === "diario"
-                ? "bg-white/20 text-white"
-                : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                ? "bg-[#0B1020]/20 text-[#0B1020]"
+                : "bg-[#0B1020] text-[#8E9BB0]"
             }`}
           >
             {trainings.length}
@@ -369,8 +369,8 @@ export default function TreinosPage() {
           onClick={() => handleTabChange("graficos")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all ${
             activeTab === "graficos"
-              ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
-              : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              ? "bg-[#B7F34A] text-[#0B1020] shadow-md shadow-[#B7F34A]/25"
+              : "bg-[#131A2E] border border-[#1E2942] text-[#8E9BB0] hover:text-white"
           }`}
         >
           <TrendingUp className="w-4 h-4" />
@@ -378,8 +378,8 @@ export default function TreinosPage() {
           <span
             className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
               activeTab === "graficos"
-                ? "bg-white/20 text-white"
-                : "bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300"
+                ? "bg-[#0B1020]/20 text-[#0B1020]"
+                : "bg-[#0B1020] text-[#8E9BB0]"
             }`}
           >
             Análise
@@ -397,9 +397,9 @@ export default function TreinosPage() {
         <>
           {/* Alerta de erro de conexão */}
           {errorMessage && (
-            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-200 text-xs sm:text-sm flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-900/60 text-amber-200 text-xs sm:text-sm flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
                 <span>{errorMessage}</span>
               </div>
               <button
@@ -417,22 +417,22 @@ export default function TreinosPage() {
             {/* 1. Volume Semanal */}
             <div
               data-testid="kpi-weekly-volume"
-              className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
             >
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                <Activity className="w-3.5 h-3.5 text-blue-500" />
+              <div className="flex items-center gap-2 text-xs font-semibold text-[#8E9BB0] mb-1">
+                <Activity className="w-3.5 h-3.5 text-[#B7F34A]" />
                 <span>Volume Semanal</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
-                {stats.weekCurrentKm} <span className="text-xs font-normal text-slate-400">km</span>
+              <div className="text-xl sm:text-2xl font-black text-white">
+                {stats.weekCurrentKm} <span className="text-xs font-normal text-[#8E9BB0]">km</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+              <p className="text-[11px] text-[#8E9BB0] mt-1 flex items-center gap-1">
                 {stats.weekDiffKm >= 0 ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                  <span className="text-[#B7F34A] font-semibold">
                     +{stats.weekDiffKm} km
                   </span>
                 ) : (
-                  <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                  <span className="text-amber-400 font-semibold">
                     {stats.weekDiffKm} km
                   </span>
                 )}{" "}
@@ -443,77 +443,77 @@ export default function TreinosPage() {
             {/* 2. Volume Mensal */}
             <div
               data-testid="kpi-monthly-volume"
-              className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
             >
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+              <div className="flex items-center gap-2 text-xs font-semibold text-[#8E9BB0] mb-1">
+                <TrendingUp className="w-3.5 h-3.5 text-[#B7F34A]" />
                 <span>Volume Mensal</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
-                {stats.monthKm} <span className="text-xs font-normal text-slate-400">km</span>
+              <div className="text-xl sm:text-2xl font-black text-white">
+                {stats.monthKm} <span className="text-xs font-normal text-[#8E9BB0]">km</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Últimos 30 dias</p>
+              <p className="text-[11px] text-[#8E9BB0] mt-1">Últimos 30 dias</p>
             </div>
 
             {/* 3. Gasto Calórico Semanal (Fase 5) */}
             <div
               data-testid="kpi-weekly-calories"
-              className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
             >
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                <Flame className="w-3.5 h-3.5 text-amber-500" />
+              <div className="flex items-center gap-2 text-xs font-semibold text-[#8E9BB0] mb-1">
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
                 <span>Calorias Semanais</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400">
+              <div className="text-xl sm:text-2xl font-black text-amber-400">
                 {stats.weekActiveCalories}{" "}
-                <span className="text-xs font-normal text-slate-400">kcal</span>
+                <span className="text-xs font-normal text-[#8E9BB0]">kcal</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+              <p className="text-[11px] text-[#8E9BB0] mt-1 flex items-center gap-1">
                 {stats.weekDiffCalories >= 0 ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                  <span className="text-[#B7F34A] font-semibold">
                     +{stats.weekDiffCalories} kcal
                   </span>
                 ) : (
-                  <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                  <span className="text-amber-400 font-semibold">
                     {stats.weekDiffCalories} kcal
                   </span>
                 )}{" "}
                 vs anterior
               </p>
-              <div className="text-[10px] text-slate-400 mt-1 border-t border-slate-100 dark:border-slate-800/80 pt-1">
-                Hoje: <span className="font-semibold text-slate-600 dark:text-slate-300">{stats.todayActiveCalories}</span> • Mês: <span className="font-semibold text-slate-600 dark:text-slate-300">{stats.monthActiveCalories}</span>
+              <div className="text-[10px] text-[#8E9BB0] mt-1 border-t border-[#1E2942] pt-1">
+                Hoje: <span className="font-semibold text-white">{stats.todayActiveCalories}</span> • Mês: <span className="font-semibold text-white">{stats.monthActiveCalories}</span>
               </div>
             </div>
 
             {/* 4. Pace Médio da Semana */}
             <div
               data-testid="kpi-avg-pace"
-              className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
             >
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                <Clock className="w-3.5 h-3.5 text-blue-500" />
+              <div className="flex items-center gap-2 text-xs font-semibold text-[#8E9BB0] mb-1">
+                <Clock className="w-3.5 h-3.5 text-[#B7F34A]" />
                 <span>Pace Médio</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
-                {stats.avgPaceFormatted} <span className="text-xs font-normal text-slate-400">/km</span>
+              <div className="text-xl sm:text-2xl font-black text-white">
+                {stats.avgPaceFormatted} <span className="text-xs font-normal text-[#8E9BB0]">/km</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Nesta semana</p>
+              <p className="text-[11px] text-[#8E9BB0] mt-1">Nesta semana</p>
             </div>
 
             {/* 5. Média de Esforço (RPE) */}
             <div
               data-testid="kpi-avg-rpe"
-              className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs col-span-2 lg:col-span-1"
+              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs col-span-2 lg:col-span-1"
             >
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                <HeartPulse className="w-3.5 h-3.5 text-rose-500" />
+              <div className="flex items-center gap-2 text-xs font-semibold text-[#8E9BB0] mb-1">
+                <HeartPulse className="w-3.5 h-3.5 text-rose-400" />
                 <span>Esforço (RPE)</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
+              <div className="text-xl sm:text-2xl font-black text-white">
                 {stats.avgRpe ? `${stats.avgRpe}` : "--"}{" "}
-                <span className="text-xs font-normal text-slate-400">/ 10</span>
+                <span className="text-xs font-normal text-[#8E9BB0]">/ 10</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="text-[11px] text-[#8E9BB0] mt-1">
                 {stats.avgRpe && stats.avgRpe >= 8
                   ? "Carga intensa (Atenção)"
                   : stats.avgRpe
@@ -537,9 +537,9 @@ export default function TreinosPage() {
           {/* Lista e Timeline de Treinos */}
           <div className="pt-2">
             {isLoading ? (
-              <div className="py-16 text-center text-slate-400 dark:text-slate-500 space-y-3 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8">
-                <Flame className="w-8 h-8 mx-auto animate-pulse text-blue-500" />
-                <p className="text-sm font-semibold">Carregando seu histórico de treinos...</p>
+              <div className="py-16 text-center text-[#8E9BB0] space-y-3 bg-[#131A2E] rounded-3xl border border-[#1E2942] p-8">
+                <Flame className="w-8 h-8 mx-auto animate-pulse text-[#B7F34A]" />
+                <p className="text-sm font-semibold text-white">Carregando seu histórico de treinos...</p>
               </div>
             ) : (
               <TrainingList

@@ -505,13 +505,13 @@ export function TrainingEvolutionDashboard({
       className="space-y-6 animate-in fade-in duration-200"
     >
       {/* ─── Barra Superior de Controle do Filtro Temporal ─── */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-[#B7F34A]" />
             Análise e Periodização de Treinamento
           </span>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-[11px] text-[#8E9BB0] mt-0.5">
             Métricas de carga, eficiência de pace e distribuição de esforço.
           </p>
         </div>
@@ -519,15 +519,15 @@ export function TrainingEvolutionDashboard({
         {/* Seletor de Período */}
         <div
           data-testid="filter-time-range"
-          className="inline-flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80"
+          className="inline-flex items-center p-1 bg-[#0B1020] rounded-2xl border border-[#1E2942]"
         >
           <button
             type="button"
             onClick={() => setTimeRange("7d")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               timeRange === "7d"
-                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                : "text-[#8E9BB0] hover:text-white"
             }`}
           >
             7 dias
@@ -537,8 +537,8 @@ export function TrainingEvolutionDashboard({
             onClick={() => setTimeRange("30d")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               timeRange === "30d"
-                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                : "text-[#8E9BB0] hover:text-white"
             }`}
           >
             30 dias
@@ -548,8 +548,8 @@ export function TrainingEvolutionDashboard({
             onClick={() => setTimeRange("90d")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               timeRange === "90d"
-                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                : "text-[#8E9BB0] hover:text-white"
             }`}
           >
             90 dias
@@ -559,8 +559,8 @@ export function TrainingEvolutionDashboard({
             onClick={() => setTimeRange("year")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               timeRange === "year"
-                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                : "text-[#8E9BB0] hover:text-white"
             }`}
           >
             Ano Atual
@@ -570,8 +570,8 @@ export function TrainingEvolutionDashboard({
             onClick={() => setTimeRange("all")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               timeRange === "all"
-                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                : "text-[#8E9BB0] hover:text-white"
             }`}
           >
             Tudo
@@ -584,16 +584,16 @@ export function TrainingEvolutionDashboard({
         {/* 1. Volume Total */}
         <div
           data-testid="kpi-total-volume"
-          className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
         >
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            <Activity className="w-3.5 h-3.5 text-blue-500" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
+            <Activity className="w-3.5 h-3.5 text-[#B7F34A]" />
             <span>Volume Total</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
-            {metrics.totalKm} <span className="text-xs font-normal text-slate-400">km</span>
+          <div className="text-xl sm:text-2xl font-black text-white">
+            {metrics.totalKm} <span className="text-xs font-normal text-[#8E9BB0]">km</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">
+          <p className="text-[11px] text-[#8E9BB0] mt-0.5">
             {metrics.totalSessions} {metrics.totalSessions === 1 ? "sessão" : "sessões"}
           </p>
         </div>
@@ -601,32 +601,32 @@ export function TrainingEvolutionDashboard({
         {/* 2. Tempo em Movimento */}
         <div
           data-testid="kpi-total-time"
-          className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
         >
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            <Clock className="w-3.5 h-3.5 text-emerald-500" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
+            <Clock className="w-3.5 h-3.5 text-[#B7F34A]" />
             <span>Tempo Total</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
+          <div className="text-xl sm:text-2xl font-black text-white">
             {formattedTotalTime}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Em movimento</p>
+          <p className="text-[11px] text-[#8E9BB0] mt-0.5">Em movimento</p>
         </div>
 
         {/* 3. Gasto Calórico Ativo (Fase 5) */}
         <div
           data-testid="kpi-total-calories"
-          className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
         >
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            <Flame className="w-3.5 h-3.5 text-amber-500" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
+            <Flame className="w-3.5 h-3.5 text-[#B7F34A]" />
             <span>Gasto Calórico</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400">
+          <div className="text-xl sm:text-2xl font-black text-[#B7F34A]">
             {metrics.totalActiveCalories}{" "}
-            <span className="text-xs font-normal text-slate-400">kcal</span>
+            <span className="text-xs font-normal text-[#8E9BB0]">kcal</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">
+          <p className="text-[11px] text-[#8E9BB0] mt-0.5">
             {metrics.totalCalories > 0
               ? `${metrics.totalCalories} kcal totais`
               : "Calorias ativas"}
@@ -636,47 +636,47 @@ export function TrainingEvolutionDashboard({
         {/* 4. Pace Médio Ponderado */}
         <div
           data-testid="kpi-avg-pace"
-          className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
         >
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            <Zap className="w-3.5 h-3.5 text-indigo-500" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
+            <Zap className="w-3.5 h-3.5 text-[#B7F34A]" />
             <span>Pace Médio</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
-            {metrics.avgPaceFormatted} <span className="text-xs font-normal text-slate-400">/km</span>
+          <div className="text-xl sm:text-2xl font-black text-white">
+            {metrics.avgPaceFormatted} <span className="text-xs font-normal text-[#8E9BB0]">/km</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Ponderado por volume</p>
+          <p className="text-[11px] text-[#8E9BB0] mt-0.5">Ponderado por volume</p>
         </div>
 
         {/* 5. Carga de Treino (TRIMP) */}
         <div
           data-testid="kpi-training-load"
-          className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
         >
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            <HeartPulse className="w-3.5 h-3.5 text-purple-500" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
+            <HeartPulse className="w-3.5 h-3.5 text-purple-400" />
             <span>Carga Total</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
+          <div className="text-xl sm:text-2xl font-black text-white">
             {metrics.totalTrainingLoad}{" "}
-            <span className="text-xs font-normal text-slate-400">pts</span>
+            <span className="text-xs font-normal text-[#8E9BB0]">pts</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">TRIMP (Duração × RPE)</p>
+          <p className="text-[11px] text-[#8E9BB0] mt-0.5">TRIMP (Duração × RPE)</p>
         </div>
 
         {/* 6. Maior Longão */}
         <div
           data-testid="kpi-longest-run"
-          className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
         >
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-            <Award className="w-3.5 h-3.5 text-rose-500" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
+            <Award className="w-3.5 h-3.5 text-rose-400" />
             <span>Maior Sessão</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
-            {metrics.longestRunKm} <span className="text-xs font-normal text-slate-400">km</span>
+          <div className="text-xl sm:text-2xl font-black text-white">
+            {metrics.longestRunKm} <span className="text-xs font-normal text-[#8E9BB0]">km</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Longão do período</p>
+          <p className="text-[11px] text-[#8E9BB0] mt-0.5">Longão do período</p>
         </div>
       </div>
 
@@ -685,12 +685,12 @@ export function TrainingEvolutionDashboard({
 
       {/* ─── Estado Vazio se não houver dados no período ─── */}
       {filteredTrainings.length === 0 ? (
-        <div className="p-8 sm:p-12 text-center bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl space-y-3">
-          <Activity className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto" />
-          <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+        <div className="p-8 sm:p-12 text-center bg-[#131A2E] border border-dashed border-[#1E2942] rounded-3xl space-y-3">
+          <Activity className="w-10 h-10 text-[#8E9BB0]/40 mx-auto" />
+          <h4 className="text-sm font-bold text-white">
             Nenhum treino registrado no período selecionado
           </h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+          <p className="text-xs text-[#8E9BB0] max-w-sm mx-auto">
             Alterne o filtro temporal acima ou cadastre novos treinos no diário para visualizar
             os gráficos analíticos de evolução e carga.
           </p>
@@ -702,15 +702,15 @@ export function TrainingEvolutionDashboard({
             {/* Gráfico 1: Volume Semanal Acumulado (km) */}
             <div
               data-testid="chart-weekly-volume"
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm"
+              className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-6 shadow-sm"
             >
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-blue-500" />
+                  <h4 className="font-bold text-sm sm:text-base text-white flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-[#B7F34A]" />
                     Volume Semanal Acumulado (km)
                   </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-xs text-[#8E9BB0] mt-0.5">
                     Quilometragem somada por semana do calendário (Segunda a Domingo).
                   </p>
                 </div>
@@ -723,25 +723,25 @@ export function TrainingEvolutionDashboard({
                       data={weeklyChartData}
                       margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                      <XAxis dataKey="weekLabel" tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                      <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" unit="km" />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#1E2942" />
+                      <XAxis dataKey="weekLabel" tick={{ fontSize: 10 }} stroke="#8E9BB0" />
+                      <YAxis tick={{ fontSize: 11 }} stroke="#8E9BB0" unit="km" />
                       <Tooltip
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div className="bg-slate-900 text-white text-xs p-3 rounded-xl shadow-xl border border-slate-800 space-y-1">
-                                <span className="font-bold text-slate-300 block">
+                              <div className="bg-[#0B1020] text-white text-xs p-3 rounded-xl shadow-xl border border-[#1E2942] space-y-1">
+                                <span className="font-bold text-[#8E9BB0] block">
                                   Semana de {data.weekLabel}
                                 </span>
-                                <div className="text-sm font-black text-blue-400">
+                                <div className="text-sm font-black text-[#B7F34A]">
                                   {data.distanceKm} km rodados
                                 </div>
-                                <div className="text-slate-400 text-[11px]">
+                                <div className="text-[#8E9BB0] text-[11px]">
                                   {data.sessionsCount} sessões • {data.durationFormatted}
                                 </div>
-                                <div className="text-slate-400 text-[11px]">
+                                <div className="text-[#8E9BB0] text-[11px]">
                                   Pace médio: {data.avgPaceFormatted} /km
                                 </div>
                               </div>
@@ -750,27 +750,27 @@ export function TrainingEvolutionDashboard({
                           return null;
                         }}
                       />
-                      <Bar dataKey="distanceKm" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="distanceKm" fill="#B7F34A" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-64 w-full animate-pulse bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+                <div className="h-64 w-full animate-pulse bg-[#0B1020] rounded-2xl" />
               )}
             </div>
 
             {/* Gráfico 2: Curva de Evolução do Pace */}
             <div
               data-testid="chart-pace-evolution"
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm"
+              className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-6 shadow-sm"
             >
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-indigo-500" />
+                  <h4 className="font-bold text-sm sm:text-base text-white flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-[#B7F34A]" />
                     Evolução do Pace por Sessão
                   </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-xs text-[#8E9BB0] mt-0.5">
                     Ritmo médio (min/km) ao longo do tempo. Valores menores = maior velocidade.
                   </p>
                 </div>
@@ -783,26 +783,26 @@ export function TrainingEvolutionDashboard({
                       data={paceChartData}
                       margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                      <XAxis dataKey="dateLabel" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#1E2942" />
+                      <XAxis dataKey="dateLabel" tick={{ fontSize: 10 }} stroke="#8E9BB0" />
                       <YAxis
                         tickFormatter={(sec: number) => formatPace(sec)}
                         tick={{ fontSize: 11 }}
-                        stroke="#94a3b8"
+                        stroke="#8E9BB0"
                       />
                       <Tooltip
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div className="bg-slate-900 text-white text-xs p-3 rounded-xl shadow-xl border border-slate-800 space-y-1">
-                                <span className="font-bold text-slate-300 block">
+                              <div className="bg-[#0B1020] text-white text-xs p-3 rounded-xl shadow-xl border border-[#1E2942] space-y-1">
+                                <span className="font-bold text-[#8E9BB0] block">
                                   {data.dateLabel} • {data.activityLabel}
                                 </span>
-                                <div className="text-sm font-black text-indigo-400">
+                                <div className="text-sm font-black text-[#B7F34A]">
                                   Pace: {data.paceFormatted} /km
                                 </div>
-                                <div className="text-slate-400 text-[11px]">
+                                <div className="text-[#8E9BB0] text-[11px]">
                                   Distância: {data.distanceKm} km
                                 </div>
                               </div>
@@ -814,16 +814,16 @@ export function TrainingEvolutionDashboard({
                       <Line
                         type="monotone"
                         dataKey="paceSeconds"
-                        stroke="#6366f1"
+                        stroke="#B7F34A"
                         strokeWidth={2.5}
-                        dot={{ r: 3.5, fill: "#6366f1", strokeWidth: 1.5, stroke: "#fff" }}
+                        dot={{ r: 3.5, fill: "#B7F34A", strokeWidth: 1.5, stroke: "#0B1020" }}
                         activeDot={{ r: 6 }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-64 w-full animate-pulse bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+                <div className="h-64 w-full animate-pulse bg-[#0B1020] rounded-2xl" />
               )}
             </div>
           </div>
@@ -833,14 +833,14 @@ export function TrainingEvolutionDashboard({
             {/* Gráfico 3: Carga de Treino & Monitor de Fadiga (TRIMP) */}
             <div
               data-testid="chart-training-load"
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm lg:col-span-1"
+              className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-6 shadow-sm lg:col-span-1"
             >
               <div className="mb-4">
-                <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <HeartPulse className="w-4 h-4 text-purple-500" />
+                <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                  <HeartPulse className="w-4 h-4 text-purple-400" />
                   Carga de Treinamento (TRIMP)
                 </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs text-[#8E9BB0] mt-0.5">
                   Estresse acumulado por semana (minutos × RPE).
                 </p>
               </div>
@@ -854,26 +854,26 @@ export function TrainingEvolutionDashboard({
                     >
                       <defs>
                         <linearGradient id="colorLoad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.0} />
+                          <stop offset="5%" stopColor="#a855f7" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#a855f7" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                      <XAxis dataKey="weekLabel" tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                      <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#1E2942" />
+                      <XAxis dataKey="weekLabel" tick={{ fontSize: 10 }} stroke="#8E9BB0" />
+                      <YAxis tick={{ fontSize: 10 }} stroke="#8E9BB0" />
                       <Tooltip
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div className="bg-slate-900 text-white text-xs p-2.5 rounded-xl shadow-xl border border-slate-800">
-                                <span className="text-slate-400 block mb-0.5">
+                              <div className="bg-[#0B1020] text-white text-xs p-2.5 rounded-xl shadow-xl border border-[#1E2942]">
+                                <span className="text-[#8E9BB0] block mb-0.5">
                                   Semana {data.weekLabel}
                                 </span>
                                 <div className="text-sm font-bold text-purple-400">
                                   {data.loadScore} pontos de carga
                                 </div>
-                                <span className="text-[10px] text-slate-400">
+                                <span className="text-[10px] text-[#8E9BB0]">
                                   {data.sessionsCount} sessões no período
                                 </span>
                               </div>
@@ -885,7 +885,7 @@ export function TrainingEvolutionDashboard({
                       <Area
                         type="monotone"
                         dataKey="loadScore"
-                        stroke="#8b5cf6"
+                        stroke="#a855f7"
                         strokeWidth={2}
                         fillOpacity={1}
                         fill="url(#colorLoad)"
@@ -894,21 +894,21 @@ export function TrainingEvolutionDashboard({
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-56 w-full animate-pulse bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+                <div className="h-56 w-full animate-pulse bg-[#0B1020] rounded-2xl" />
               )}
             </div>
 
             {/* Gráfico 4: Distribuição de Esforço RPE (Polarização) */}
             <div
               data-testid="chart-rpe-distribution"
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm lg:col-span-1"
+              className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-6 shadow-sm lg:col-span-1"
             >
               <div className="mb-4">
-                <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#B7F34A]" />
                   Pirâmide de Intensidade (RPE)
                 </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs text-[#8E9BB0] mt-0.5">
                   Distribuição de sessões nas zonas aeróbia e anaeróbia.
                 </p>
               </div>
@@ -917,17 +917,17 @@ export function TrainingEvolutionDashboard({
                 {rpeDistributionData.map((item) => (
                   <div key={item.zone} className="space-y-1">
                     <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-slate-700 dark:text-slate-300">
-                        {item.zone} <span className="text-slate-400 text-[10px]">({item.range})</span>
+                      <span className="text-[#8E9BB0]">
+                        {item.zone} <span className="text-[#8E9BB0]/70 text-[10px]">({item.range})</span>
                       </span>
-                      <span className="text-slate-900 dark:text-slate-100 font-bold">
+                      <span className="text-white font-bold">
                         {item.percent}%{" "}
-                        <span className="text-slate-400 font-normal text-[10px]">
+                        <span className="text-[#8E9BB0] font-normal text-[10px]">
                           ({item.count})
                         </span>
                       </span>
                     </div>
-                    <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-2 w-full bg-[#0B1020] rounded-full overflow-hidden border border-[#1E2942]">
                       <div
                         className="h-full rounded-full transition-all duration-300"
                         style={{
@@ -939,8 +939,8 @@ export function TrainingEvolutionDashboard({
                   </div>
                 ))}
 
-                <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-start gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
-                  <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                <div className="mt-3 pt-3 border-t border-[#1E2942] flex items-start gap-1.5 text-[10px] text-[#8E9BB0]">
+                  <Info className="w-3.5 h-3.5 text-[#B7F34A] shrink-0 mt-0.5" />
                   <span>
                     💡 <strong>Regra 80/20:</strong> Idealmente, ~80% do volume deve ser Leve/Moderado
                     (RPE 1-6) e ~20% em intensidade alta (RPE 7-10).
@@ -952,20 +952,20 @@ export function TrainingEvolutionDashboard({
             {/* Gráfico 5: Composição por Modalidade (Donut) */}
             <div
               data-testid="chart-activity-distribution"
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm lg:col-span-1"
+              className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-6 shadow-sm lg:col-span-1"
             >
               <div className="mb-4">
-                <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Flame className="w-4 h-4 text-amber-500" />
+                <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-[#B7F34A]" />
                   Volume por Modalidade
                 </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs text-[#8E9BB0] mt-0.5">
                   Divisão de quilômetros por tipo de locomoção.
                 </p>
               </div>
 
               {activityDistributionData.length === 0 ? (
-                <div className="h-56 flex items-center justify-center text-xs text-slate-400">
+                <div className="h-56 flex items-center justify-center text-xs text-[#8E9BB0]">
                   Sem dados no período
                 </div>
               ) : isMounted ? (
@@ -990,11 +990,11 @@ export function TrainingEvolutionDashboard({
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div className="bg-slate-900 text-white text-xs p-2.5 rounded-xl shadow-xl border border-slate-800">
-                                <span className="font-bold text-slate-300 block mb-0.5">
+                              <div className="bg-[#0B1020] text-white text-xs p-2.5 rounded-xl shadow-xl border border-[#1E2942]">
+                                <span className="font-bold text-[#8E9BB0] block mb-0.5">
                                   {data.name}
                                 </span>
-                                <div className="text-sm font-black text-amber-400">
+                                <div className="text-sm font-black text-[#B7F34A]">
                                   {data.value} km ({data.percent}%)
                                 </div>
                               </div>
@@ -1007,11 +1007,11 @@ export function TrainingEvolutionDashboard({
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-44 w-full animate-pulse bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+                <div className="h-44 w-full animate-pulse bg-[#0B1020] rounded-2xl" />
               )}
 
               {/* Legenda do Donut */}
-              <div className="grid grid-cols-1 gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="grid grid-cols-1 gap-1.5 pt-2 border-t border-[#1E2942]">
                 {activityDistributionData.map((item) => (
                   <div key={item.name} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
@@ -1019,12 +1019,12 @@ export function TrainingEvolutionDashboard({
                         className="w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: item.color }}
                       />
-                      <span className="text-slate-700 dark:text-slate-300 font-medium">
+                      <span className="text-[#8E9BB0] font-medium">
                         {item.name}
                       </span>
                     </div>
-                    <span className="font-bold text-slate-900 dark:text-slate-100">
-                      {item.value} km <span className="text-slate-400 text-[10px]">({item.percent}%)</span>
+                    <span className="font-bold text-white">
+                      {item.value} km <span className="text-[#8E9BB0] text-[10px]">({item.percent}%)</span>
                     </span>
                   </div>
                 ))}
@@ -1037,15 +1037,15 @@ export function TrainingEvolutionDashboard({
             {/* Gráfico 6: Gasto Calórico Semanal Acumulado (kcal) */}
             <div
               data-testid="chart-weekly-calories"
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm"
+              className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-6 shadow-sm"
             >
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Flame className="w-4 h-4 text-amber-500" />
+                  <h4 className="font-bold text-sm sm:text-base text-white flex items-center gap-2">
+                    <Flame className="w-4 h-4 text-amber-400" />
                     Gasto Calórico Semanal Acumulado (kcal)
                   </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-xs text-[#8E9BB0] mt-0.5">
                     Calorias ativas queimadas durante as sessões de cada semana (Compêndio 2024).
                   </p>
                 </div>
@@ -1058,22 +1058,22 @@ export function TrainingEvolutionDashboard({
                       data={weeklyCaloriesChartData}
                       margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                      <XAxis dataKey="weekLabel" tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                      <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" unit=" kcal" />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#1E2942" />
+                      <XAxis dataKey="weekLabel" tick={{ fontSize: 10 }} stroke="#8E9BB0" />
+                      <YAxis tick={{ fontSize: 11 }} stroke="#8E9BB0" unit=" kcal" />
                       <Tooltip
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div className="bg-slate-900 text-white text-xs p-3 rounded-xl shadow-xl border border-slate-800 space-y-1">
-                                <span className="font-bold text-slate-300 block">
+                              <div className="bg-[#0B1020] text-white text-xs p-3 rounded-xl shadow-xl border border-[#1E2942] space-y-1">
+                                <span className="font-bold text-[#8E9BB0] block">
                                   Semana de {data.weekLabel}
                                 </span>
                                 <div className="text-sm font-black text-amber-400">
                                   {data.activeCalories} kcal ativas
                                 </div>
-                                <div className="text-slate-400 text-[11px]">
+                                <div className="text-[#8E9BB0] text-[11px]">
                                   {data.totalCalories} kcal totais • {data.sessionsCount} sessões
                                 </div>
                               </div>
@@ -1087,27 +1087,27 @@ export function TrainingEvolutionDashboard({
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-64 w-full animate-pulse bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+                <div className="h-64 w-full animate-pulse bg-[#0B1020] rounded-2xl" />
               )}
             </div>
 
             {/* Gráfico 7: Distribuição de Calorias por Modalidade */}
             <div
               data-testid="chart-activity-calories"
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm"
+              className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-6 shadow-sm"
             >
               <div className="mb-4">
-                <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Flame className="w-4 h-4 text-orange-500" />
+                <h4 className="font-bold text-sm sm:text-base text-white flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-orange-400" />
                   Calorias por Modalidade
                 </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs text-[#8E9BB0] mt-0.5">
                   Proporção de energia gasta em corrida contínua, tiros e caminhada.
                 </p>
               </div>
 
               {activityCaloriesData.length === 0 ? (
-                <div className="h-56 flex items-center justify-center text-xs text-slate-400">
+                <div className="h-56 flex items-center justify-center text-xs text-[#8E9BB0]">
                   Sem dados calóricos no período
                 </div>
               ) : isMounted ? (
@@ -1132,8 +1132,8 @@ export function TrainingEvolutionDashboard({
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                              <div className="bg-slate-900 text-white text-xs p-2.5 rounded-xl shadow-xl border border-slate-800">
-                                <span className="font-bold text-slate-300 block mb-0.5">
+                              <div className="bg-[#0B1020] text-white text-xs p-2.5 rounded-xl shadow-xl border border-[#1E2942]">
+                                <span className="font-bold text-[#8E9BB0] block mb-0.5">
                                   {data.name}
                                 </span>
                                 <div className="text-sm font-black text-amber-400">
@@ -1149,11 +1149,11 @@ export function TrainingEvolutionDashboard({
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-44 w-full animate-pulse bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+                <div className="h-44 w-full animate-pulse bg-[#0B1020] rounded-2xl" />
               )}
 
               {/* Legenda do Donut de Calorias */}
-              <div className="grid grid-cols-1 gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="grid grid-cols-1 gap-1.5 pt-2 border-t border-[#1E2942]">
                 {activityCaloriesData.map((item) => (
                   <div key={item.name} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
@@ -1161,13 +1161,13 @@ export function TrainingEvolutionDashboard({
                         className="w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: item.color }}
                       />
-                      <span className="text-slate-700 dark:text-slate-300 font-medium">
+                      <span className="text-[#8E9BB0] font-medium">
                         {item.name}
                       </span>
                     </div>
-                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                    <span className="font-bold text-white">
                       {item.value} kcal{" "}
-                      <span className="text-slate-400 text-[10px]">({item.percent}%)</span>
+                      <span className="text-[#8E9BB0] text-[10px]">({item.percent}%)</span>
                     </span>
                   </div>
                 ))}

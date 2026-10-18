@@ -19,10 +19,13 @@ describe("TafGoalConfigCard Component", () => {
       pullupType: "dinamica",
       pullupMinReps: 4,
       pullupTargetReps: 6,
+      pullupDurationSeconds: 60,
       pushupMinReps: 25,
       pushupTargetReps: 35,
+      pushupDurationSeconds: 60,
       absMinReps: 35,
       absTargetReps: 45,
+      absDurationSeconds: 60,
     });
 
     render(<TafGoalConfigCard />);
@@ -90,5 +93,130 @@ describe("TafGoalConfigCard Component", () => {
     fireEvent.change(select, { target: { value: "isometria" } });
 
     expect(screen.getByText(/Mínimo \(s\)/i)).toBeInTheDocument();
+  });
+
+  it("permite marcar e desmarcar tempo de execução opcional para barra dinâmica", async () => {
+    vi.spyOn(tafService, "getGoal").mockResolvedValueOnce({
+      ...DEFAULT_GOAL,
+      pullupType: "dinamica",
+      pullupDurationSeconds: null,
+    });
+
+    const saveGoalMock = vi.spyOn(tafService, "saveGoal").mockImplementation(async (g) => g);
+
+    render(<TafGoalConfigCard />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Metas do TAF & Edital/i)).toBeInTheDocument();
+    });
+
+    const pullupCheckbox = screen.getByRole("checkbox", {
+      name: /Definir tempo máximo para barra/i,
+    });
+    expect(pullupCheckbox).not.toBeChecked();
+    expect(screen.getAllByText(/Sem limite de tempo \(tempo livre\)/i).length).toBeGreaterThanOrEqual(1);
+
+    // Marca o tempo
+    fireEvent.click(pullupCheckbox);
+    expect(pullupCheckbox).toBeChecked();
+
+    // Atalho de 30s
+    const btn30s = screen.getAllByRole("button", { name: "30s" })[0];
+    fireEvent.click(btn30s);
+
+    // Salvar
+    const submitBtn = screen.getByRole("button", {
+      name: /Salvar Metas do Edital/i,
+    });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(saveGoalMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pullupDurationSeconds: 30,
+        })
+      );
+    });
+  });
+
+  it("envia null nos campos de tempo quando as opções estiverem desmarcadas", async () => {
+    vi.spyOn(tafService, "getGoal").mockResolvedValueOnce({
+      ...DEFAULT_GOAL,
+      pullupType: "dinamica",
+      pullupDurationSeconds: 60,
+      pushupDurationSeconds: 60,
+      absDurationSeconds: 60,
+    });
+
+    const saveGoalMock = vi.spyOn(tafService, "saveGoal").mockImplementation(async (g) => g);
+
+    render(<TafGoalConfigCard />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Metas do TAF & Edital/i)).toBeInTheDocument();
+    });
+
+    const pullupCheckbox = screen.getByRole("checkbox", {
+      name: /Definir tempo máximo para barra/i,
+    });
+    const pushupCheckbox = screen.getByRole("checkbox", {
+      name: /Definir tempo máximo para flexão/i,
+    });
+    const absCheckbox = screen.getByRole("checkbox", {
+      name: /Definir tempo máximo para abdominal/i,
+    });
+
+    expect(pullupCheckbox).toBeChecked();
+    expect(pushupCheckbox).toBeChecked();
+    expect(absCheckbox).toBeChecked();
+
+    // Desmarca todos
+    fireEvent.click(pullupCheckbox);
+    fireEvent.click(pushupCheckbox);
+    fireEvent.click(absCheckbox);
+
+    expect(pullupCheckbox).not.toBeChecked();
+    expect(pushupCheckbox).not.toBeChecked();
+    expect(absCheckbox).not.toBeChecked();
+
+    const submitBtn = screen.getByRole("button", {
+      name: /Salvar Metas do Edital/i,
+    });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(saveGoalMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pullupDurationSeconds: null,
+          pushupDurationSeconds: null,
+          absDurationSeconds: null,
+        })
+      );
+    });
+  });
+
+  it("aplica presets oficiais de concursos corretamente", async () => {
+    vi.spyOn(tafService, "getGoal").mockResolvedValueOnce(DEFAULT_GOAL);
+
+    render(<TafGoalConfigCard />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Metas do TAF & Edital/i)).toBeInTheDocument();
+    });
+
+    // Clica no preset PM-SP
+    const pmspBtn = screen.getByRole("button", { name: /PM-SP/i });
+    fireEvent.click(pmspBtn);
+
+    expect(screen.getByDisplayValue(/Polícia Militar SP/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2400")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2600")).toBeInTheDocument();
+
+    // Clica no preset PF
+    const pfBtn = screen.getByRole("button", { name: /^PF$/i });
+    fireEvent.click(pfBtn);
+
+    expect(screen.getByDisplayValue(/Polícia Federal \(PF\)/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2350")).toBeInTheDocument();
   });
 });

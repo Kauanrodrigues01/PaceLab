@@ -6,13 +6,13 @@ import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
   Calculator,
-  Activity,
   Calendar,
   Trophy,
   Scale,
   FileCode,
 } from "lucide-react";
 import { WeeklyWeightModal } from "@/components/profile/WeeklyWeightModal";
+import { BrandLogo } from "@/components/layout/BrandLogo";
 
 const navItems = [
   { href: "/calculadora", label: "Calculadoras", icon: Calculator },
@@ -25,19 +25,15 @@ export function Navbar() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md transition-colors">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-200 dark:border-[#1E2942] bg-white/80 dark:bg-[#0B1020]/90 backdrop-blur-md transition-colors">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         {/* Brand */}
         <Link
           href="/"
-          className="flex items-center gap-2.5 font-black text-lg sm:text-xl text-slate-900 dark:text-slate-100 hover:opacity-90 transition-opacity"
+          className="hover:opacity-90 transition-opacity"
+          aria-label="PaceLab Início"
         >
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/30">
-            <Activity className="w-5 h-5" />
-          </div>
-          <span className="tracking-tight">
-            Pace<span className="text-blue-600 dark:text-blue-400">Lab</span>
-          </span>
+          <BrandLogo size="md" />
         </Link>
 
         {/* Desktop Navigation */}
@@ -56,11 +52,11 @@ export function Navbar() {
                   href={item.href}
                   className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm transition-all ${
                     isActive
-                      ? "bg-blue-600 text-white shadow-sm shadow-blue-500/25 font-bold"
-                      : "bg-blue-50/80 dark:bg-blue-950/50 border border-blue-200/60 dark:border-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 font-bold"
+                      ? "bg-lime-400 dark:bg-[#B7F34A] text-slate-950 dark:text-[#0B1020] shadow-sm shadow-lime-500/25 font-bold"
+                      : "bg-lime-500/10 dark:bg-[#B7F34A]/10 border border-lime-500/30 dark:border-[#B7F34A]/25 text-lime-800 dark:text-[#B7F34A] hover:bg-lime-500/20 dark:hover:bg-[#B7F34A]/20 font-bold"
                   }`}
                 >
-                  <Icon className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                  <Icon className="w-4 h-4 text-amber-500 dark:text-[#B7F34A]" />
                   {item.label}
                 </Link>
               );
@@ -72,8 +68,8 @@ export function Navbar() {
                 href={item.href}
                 className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold"
-                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    ? "bg-slate-100 dark:bg-[#131A2E] text-slate-900 dark:text-[#FFFFFF] border border-transparent dark:border-[#1E2942] font-semibold"
+                    : "text-slate-600 dark:text-[#8E9BB0] hover:bg-slate-100 dark:hover:bg-[#131A2E] hover:text-slate-900 dark:hover:text-[#FFFFFF]"
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -89,7 +85,7 @@ export function Navbar() {
             href="/docs"
             title="Documentação da API (Swagger)"
             aria-label="Documentação da API (Swagger)"
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-2 rounded-xl text-slate-600 dark:text-[#8E9BB0] hover:text-lime-600 dark:hover:text-[#B7F34A] hover:bg-slate-100 dark:hover:bg-[#131A2E] transition-colors"
           >
             <FileCode className="w-5 h-5" />
           </Link>

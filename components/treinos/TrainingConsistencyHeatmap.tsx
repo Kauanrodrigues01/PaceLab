@@ -128,10 +128,10 @@ export function TrainingConsistencyHeatmap({
   }, [trainingByDay, weeksCount]);
 
   const getCellColor = (km: number) => {
-    if (km === 0) return "bg-slate-100 dark:bg-slate-800 text-transparent";
-    if (km < 4) return "bg-blue-300 dark:bg-blue-800/80 text-white";
-    if (km < 8) return "bg-blue-500 dark:bg-blue-600 text-white";
-    return "bg-indigo-600 dark:bg-indigo-500 text-white";
+    if (km === 0) return "bg-[#0B1020] border border-[#1E2942] text-transparent";
+    if (km < 4) return "bg-[#B7F34A]/30 text-white";
+    if (km < 8) return "bg-[#B7F34A]/70 text-[#0B1020]";
+    return "bg-[#B7F34A] text-[#0B1020] font-black shadow-xs shadow-[#B7F34A]/20";
   };
 
   const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -139,19 +139,19 @@ export function TrainingConsistencyHeatmap({
   return (
     <div
       data-testid="training-consistency-heatmap"
-      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4"
+      className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-6 shadow-sm space-y-4"
     >
       {/* Topo com Título e Streaks */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
             <Flame className="w-5 h-5 fill-amber-500/20" />
           </div>
           <div>
-            <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <h4 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
               Consistência de Treinos (Últimas {weeksCount} Semanas)
             </h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-[#8E9BB0]">
               Distribuição semanal da sua rotina e dias rodados.
             </p>
           </div>
@@ -159,13 +159,13 @@ export function TrainingConsistencyHeatmap({
 
         {/* Badges de Sequência e Volume */}
         <div className="flex items-center gap-2 flex-wrap text-xs">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-amber-800 dark:text-amber-300 font-bold">
-            <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-950/40 border border-amber-900/60 text-amber-300 font-bold">
+            <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
             <span>Streak: {currentStreak} {currentStreak === 1 ? "dia" : "dias"}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 text-blue-800 dark:text-blue-300 font-bold">
-            <Trophy className="w-4 h-4 text-blue-500" />
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#B7F34A]/10 border border-[#B7F34A]/20 text-[#B7F34A] font-bold">
+            <Trophy className="w-4 h-4 text-[#B7F34A]" />
             <span>Recorde: {maxStreak} dias</span>
           </div>
         </div>
@@ -175,7 +175,7 @@ export function TrainingConsistencyHeatmap({
       <div className="overflow-x-auto pb-2 scrollbar-none">
         <div className="inline-flex gap-1.5 min-w-full">
           {/* Coluna com rótulos dos dias da semana */}
-          <div className="flex flex-col gap-1.5 pr-2 pt-0.5 text-[10px] text-slate-400 select-none font-medium">
+          <div className="flex flex-col gap-1.5 pr-2 pt-0.5 text-[10px] text-[#8E9BB0] select-none font-medium">
             {dayLabels.map((lbl, idx) => (
               <div key={lbl} className="h-4 sm:h-5 flex items-center justify-end leading-none">
                 {idx % 2 === 1 ? lbl : ""}
@@ -213,17 +213,17 @@ export function TrainingConsistencyHeatmap({
       </div>
 
       {/* Legenda de Intensidade */}
-      <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+      <div className="pt-2 border-t border-[#1E2942] flex flex-wrap items-center justify-between gap-3 text-xs text-[#8E9BB0]">
         <div className="flex items-center gap-1.5 text-[11px]">
           <span>Menos</span>
-          <div className="w-3.5 h-3.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
-          <div className="w-3.5 h-3.5 rounded bg-blue-300 dark:bg-blue-800/80" />
-          <div className="w-3.5 h-3.5 rounded bg-blue-500 dark:bg-blue-600" />
-          <div className="w-3.5 h-3.5 rounded bg-indigo-600 dark:bg-indigo-500" />
+          <div className="w-3.5 h-3.5 rounded bg-[#0B1020] border border-[#1E2942]" />
+          <div className="w-3.5 h-3.5 rounded bg-[#B7F34A]/30" />
+          <div className="w-3.5 h-3.5 rounded bg-[#B7F34A]/70" />
+          <div className="w-3.5 h-3.5 rounded bg-[#B7F34A]" />
           <span>Mais km</span>
         </div>
 
-        <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+        <div className="flex items-center gap-3 text-[11px] font-semibold text-[#8E9BB0]">
           <span>{totalDaysTrained} dias com treino</span>
           <span>•</span>
           <span>{totalKmPeriod} km percorridos</span>

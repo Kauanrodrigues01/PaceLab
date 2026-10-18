@@ -252,16 +252,16 @@ export default function MeuTafPage() {
       )}
 
       {/* Hero Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 text-white p-6 sm:p-8 rounded-3xl shadow-lg relative overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#131A2E] border border-[#1E2942] text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/15 backdrop-blur-md text-blue-100 mb-3 border border-white/20">
-            <Trophy className="w-3.5 h-3.5 text-amber-300" />
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#0B1020] text-[#B7F34A] mb-3 border border-[#1E2942]">
+            <Trophy className="w-3.5 h-3.5 text-[#B7F34A]" />
             {goal.institutionName || "Edital Oficial"} — TAF 12 Min
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-2 text-white">
             Meu TAF
           </h1>
-          <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed">
+          <p className="text-xs sm:text-sm text-[#8E9BB0] leading-relaxed">
             Painel oficial dos simulados de 12 minutos. Acompanhe a evolução da distância percorrida,
             recordes pessoais e índice de aprovação da meta do edital.
           </p>
@@ -273,8 +273,8 @@ export default function MeuTafPage() {
             data-testid="db-status-badge"
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold backdrop-blur-md border ${
               dbStatus.connected
-                ? "bg-emerald-500/20 text-emerald-200 border-emerald-400/30"
-                : "bg-rose-500/20 text-rose-200 border-rose-400/30"
+                ? "bg-[#B7F34A]/10 text-[#B7F34A] border-[#B7F34A]/30"
+                : "bg-rose-500/20 text-rose-300 border-rose-500/30"
             }`}
           >
             <Database className="w-3.5 h-3.5" />
@@ -288,39 +288,39 @@ export default function MeuTafPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <Link
               href="/treinos"
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-white/15 hover:bg-white/25 text-white backdrop-blur-md transition-colors border border-white/20"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-[#0B1020] hover:bg-[#1E2942] text-white transition-colors border border-[#1E2942]"
             >
-              <Activity className="w-3 h-3 text-blue-300" />
+              <Activity className="w-3 h-3 text-[#B7F34A]" />
               <span>Diário de Treinos</span>
             </Link>
-            <span className="text-[11px] text-blue-200/80 font-medium">
+            <span className="text-[11px] text-[#8E9BB0] font-medium">
               Meta: {targetDistance.toLocaleString("pt-BR")} m
             </span>
           </div>
         </div>
 
         {/* Grafismo decorativo de fundo */}
-        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-[#B7F34A]/5 rounded-full blur-3xl pointer-events-none" />
       </div>
 
       {/* Seletor Multimodal do TAF (Prontidão para Barra, Flexão, Abdominal) */}
       <div
         data-testid="taf-multimodal-selector"
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs"
+        className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-4 sm:p-5 shadow-xs"
       >
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-              <Dumbbell className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+              <Dumbbell className="w-3.5 h-3.5 text-[#B7F34A]" />
               Modalidades do TAF do Concurso
             </span>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[11px] text-[#8E9BB0] mt-0.5">
               Simulações de prova física para avaliação da banca examinadora.
             </p>
           </div>
           <Link
             href="/treinos"
-            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+            className="text-xs font-bold text-[#B7F34A] hover:underline flex items-center gap-1"
           >
             <Activity className="w-3.5 h-3.5" />
             <span>Acessar Diário de Treinos Semanais →</span>
@@ -331,13 +331,13 @@ export default function MeuTafPage() {
           {/* Modalidade 1: Corrida 12 Minutos (Ativa) */}
           <button
             type="button"
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-transform"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-[#B7F34A] text-[#0B1020] font-bold text-xs shadow-md shadow-[#B7F34A]/20 transition-transform"
           >
             <div className="flex items-center gap-1.5 mb-1">
-              <Trophy className="w-4 h-4 text-amber-300" />
+              <Trophy className="w-4 h-4 text-[#0B1020]" />
               <span>Corrida 12 Min</span>
             </div>
-            <span className="text-[10px] font-medium opacity-90">Módulo Ativo</span>
+            <span className="text-[10px] font-semibold opacity-90">Módulo Ativo</span>
           </button>
 
           {/* Modalidade 2: Barra Fixa (Em breve) */}
@@ -345,10 +345,10 @@ export default function MeuTafPage() {
             type="button"
             disabled
             title="Módulo de Barra Fixa em preparação"
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 font-semibold text-xs border border-dashed border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-75"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-[#0B1020]/40 text-[#8E9BB0]/60 font-semibold text-xs border border-dashed border-[#1E2942] cursor-not-allowed opacity-75"
           >
             <span className="mb-1">Barra Fixa</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#1E2942] text-[#8E9BB0]">
               Em breve
             </span>
           </button>
@@ -358,10 +358,10 @@ export default function MeuTafPage() {
             type="button"
             disabled
             title="Módulo de Flexão de Braço em preparação"
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 font-semibold text-xs border border-dashed border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-75"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-[#0B1020]/40 text-[#8E9BB0]/60 font-semibold text-xs border border-dashed border-[#1E2942] cursor-not-allowed opacity-75"
           >
             <span className="mb-1">Flexão de Braço</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#1E2942] text-[#8E9BB0]">
               Em breve
             </span>
           </button>
@@ -371,10 +371,10 @@ export default function MeuTafPage() {
             type="button"
             disabled
             title="Módulo de Abdominal em preparação"
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 font-semibold text-xs border border-dashed border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-75"
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-[#0B1020]/40 text-[#8E9BB0]/60 font-semibold text-xs border border-dashed border-[#1E2942] cursor-not-allowed opacity-75"
           >
             <span className="mb-1">Abdominal Remador</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#1E2942] text-[#8E9BB0]">
               Em breve
             </span>
           </button>
@@ -385,10 +385,10 @@ export default function MeuTafPage() {
       {loadError && (
         <div
           data-testid="db-load-error-banner"
-          className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-800 dark:text-rose-200 text-xs font-medium"
+          className="bg-rose-950/40 border border-rose-900/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-200 text-xs font-medium"
         >
           <div className="flex items-center gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
             <span>{loadError}</span>
           </div>
           <button
@@ -404,21 +404,21 @@ export default function MeuTafPage() {
       {/* Grid de KPIs do Topo */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* KPI 1: Recorde Pessoal 12 Min */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-sm relative overflow-hidden">
+        <div className="bg-[#131A2E] border border-[#1E2942] p-4 sm:p-5 rounded-2xl shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-[#8E9BB0]">
               Recorde 12 Min
             </span>
-            <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-[#1E2942] text-amber-400 flex items-center justify-center">
               <Trophy className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
+          <div className="text-xl sm:text-2xl font-black text-white">
             {personalRecord12m
               ? `${personalRecord12m.distanceMeters.toLocaleString("pt-BR")} m`
               : "--"}
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-[11px] text-[#8E9BB0] mt-1">
             {personalRecord12m
               ? `Pace ${personalRecord12m.paceFormatted || "--"}/km (${
                   typeof personalRecord12m.speedKmh === "number"
@@ -432,16 +432,16 @@ export default function MeuTafPage() {
         </div>
 
         {/* KPI 2: Status da Meta */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-sm relative overflow-hidden">
+        <div className="bg-[#131A2E] border border-[#1E2942] p-4 sm:p-5 rounded-2xl shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-[#8E9BB0]">
               Meta ({targetDistance}m)
             </span>
             <div
               className={`w-7 h-7 rounded-lg flex items-center justify-center ${
                 isTargetAchieved
-                  ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600"
-                  : "bg-blue-100 dark:bg-blue-950/80 text-blue-600"
+                  ? "bg-[#B7F34A]/10 text-[#B7F34A]"
+                  : "bg-[#1E2942] text-[#B7F34A]"
               }`}
             >
               <Target className="w-4 h-4" />
@@ -450,8 +450,8 @@ export default function MeuTafPage() {
           <div
             className={`text-xl sm:text-2xl font-black ${
               isTargetAchieved
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-amber-600 dark:text-amber-400"
+                ? "text-[#B7F34A]"
+                : "text-amber-400"
             }`}
           >
             {isTargetAchieved
@@ -460,27 +460,27 @@ export default function MeuTafPage() {
               ? `Faltam ${deficitFromRecord} m`
               : `Alvo: ${targetDistance} m`}
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-[11px] text-[#8E9BB0] mt-1">
             Exige pace ≤ 5:13/km (11.5 km/h)
           </p>
         </div>
 
         {/* KPI 3: Último Teste */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-sm relative overflow-hidden">
+        <div className="bg-[#131A2E] border border-[#1E2942] p-4 sm:p-5 rounded-2xl shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-[#8E9BB0]">
               Último Teste 12m
             </span>
-            <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-[#1E2942] text-[#B7F34A] flex items-center justify-center">
               <Zap className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
+          <div className="text-xl sm:text-2xl font-black text-white">
             {latest12mAttempt
               ? `${latest12mAttempt.distanceMeters.toLocaleString("pt-BR")} m`
               : "--"}
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-[11px] text-[#8E9BB0] mt-1">
             {latest12mAttempt
               ? new Date(latest12mAttempt.testDate).toLocaleDateString("pt-BR")
               : "Sem registros"}
@@ -488,19 +488,19 @@ export default function MeuTafPage() {
         </div>
 
         {/* KPI 4: Total de Simulados */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-sm relative overflow-hidden">
+        <div className="bg-[#131A2E] border border-[#1E2942] p-4 sm:p-5 rounded-2xl shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-[#8E9BB0]">
               Simulados Feitos
             </span>
-            <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-[#1E2942] text-[#8E9BB0] flex items-center justify-center">
               <Calendar className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
+          <div className="text-xl sm:text-2xl font-black text-white">
             {attempts.length}
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-[11px] text-[#8E9BB0] mt-1">
             {attempts.length === 1
               ? "1 teste registrado"
               : `${attempts.length} testes no histórico`}
@@ -510,20 +510,20 @@ export default function MeuTafPage() {
 
       {/* Indicador de Carregamento Inicial do Supabase */}
       {isLoading && (
-        <div data-testid="loading-indicator" className="flex items-center justify-center gap-2 py-1 text-xs text-blue-600 dark:text-blue-400 font-medium animate-pulse">
-          <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div data-testid="loading-indicator" className="flex items-center justify-center gap-2 py-1 text-xs text-[#B7F34A] font-medium animate-pulse">
+          <div className="w-3.5 h-3.5 border-2 border-[#B7F34A] border-t-transparent rounded-full animate-spin" />
           <span>Carregando dados do Supabase...</span>
         </div>
       )}
 
       {/* Navegação por Abas do Hub Meu TAF */}
-      <div className="flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-1 scrollbar-none">
+      <div className="flex items-center gap-1.5 border-b border-[#1E2942] overflow-x-auto pb-1 scrollbar-none">
         <button
           onClick={() => setActiveTab("testes")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
             activeTab === "testes"
-              ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              ? "bg-[#B7F34A] text-[#0B1020] shadow-sm shadow-[#B7F34A]/30"
+              : "text-[#8E9BB0] hover:text-white hover:bg-[#131A2E]"
           }`}
         >
           <Trophy className="w-4 h-4" />
@@ -534,8 +534,8 @@ export default function MeuTafPage() {
           onClick={() => setActiveTab("graficos")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
             activeTab === "graficos"
-              ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              ? "bg-[#B7F34A] text-[#0B1020] shadow-sm shadow-[#B7F34A]/30"
+              : "text-[#8E9BB0] hover:text-white hover:bg-[#131A2E]"
           }`}
         >
           <LineChart className="w-4 h-4" />
@@ -546,8 +546,8 @@ export default function MeuTafPage() {
           onClick={() => setActiveTab("comparador")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
             activeTab === "comparador"
-              ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              ? "bg-[#B7F34A] text-[#0B1020] shadow-sm shadow-[#B7F34A]/30"
+              : "text-[#8E9BB0] hover:text-white hover:bg-[#131A2E]"
           }`}
         >
           <GitCompare className="w-4 h-4" />
@@ -558,8 +558,8 @@ export default function MeuTafPage() {
           onClick={() => setActiveTab("config")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
             activeTab === "config"
-              ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              ? "bg-[#B7F34A] text-[#0B1020] shadow-sm shadow-[#B7F34A]/30"
+              : "text-[#8E9BB0] hover:text-white hover:bg-[#131A2E]"
           }`}
         >
           <Settings className="w-4 h-4" />

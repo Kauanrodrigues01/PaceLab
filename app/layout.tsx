@@ -23,6 +23,18 @@ export const metadata: Metadata = {
     description: "Calculadoras gratuitas para corredores: pace, TAF, metas e muito mais.",
     type: "website",
   },
+  icons: {
+    icon: [
+      { url: "/images/ico.png", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [
+      { url: "/images/ico.png" },
+      { url: "/apple-icon.png" },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -33,7 +45,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body
-        className={`${inter.variable} font-sans antialiased min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col`}
+        className={`${inter.variable} font-sans antialiased min-h-screen bg-slate-50 dark:bg-[#0B1020] text-slate-900 dark:text-[#FFFFFF] flex flex-col`}
       >
         <ThemeProvider>
           <Navbar />

@@ -422,14 +422,14 @@ export default function IntervaladoPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header */}
       <div className="text-center sm:text-left">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-semibold mb-2">
-          <Flame className="w-3.5 h-3.5 text-amber-500" />
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B7F34A]/10 border border-[#B7F34A]/20 text-[#B7F34A] text-xs font-semibold mb-2">
+          <Flame className="w-3.5 h-3.5 text-[#B7F34A]" />
           Treinamento de Alta Intensidade (HIIT / Tiros)
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
           Simulador de Corrida Intervalada
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+        <p className="text-sm text-[#8E9BB0] mt-1 max-w-2xl">
           Projete suas sessões de tiros na esteira ou pista: calcule tempo total, volume de quilometragem e o ritmo médio real ponderado.
         </p>
       </div>
@@ -444,7 +444,7 @@ export default function IntervaladoPage() {
               <button
                 type="button"
                 onClick={handleLoadExample}
-                className="inline-flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-semibold px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs text-[#B7F34A] hover:text-white font-semibold px-2 py-1 rounded-lg bg-[#B7F34A]/10 hover:bg-[#B7F34A]/20 border border-[#B7F34A]/20 transition-colors"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 Carregar Exemplo
@@ -453,9 +453,9 @@ export default function IntervaladoPage() {
           >
             <form onSubmit={handleCalculate} className="space-y-4">
               {/* 1. Aquecimento */}
-              <div className="p-3.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 space-y-2">
-                <span className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5 uppercase tracking-wider">
-                  <HeartPulse className="w-3.5 h-3.5 text-amber-600" />
+              <div className="p-3.5 rounded-xl bg-[#0B1020]/60 border border-[#1E2942] space-y-2">
+                <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
+                  <HeartPulse className="w-3.5 h-3.5 text-amber-400" />
                   1. Aquecimento Inicial
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -482,9 +482,9 @@ export default function IntervaladoPage() {
               </div>
 
               {/* 2. Tiros de Corrida (Alta Intensidade) */}
-              <div className="p-3.5 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 space-y-2">
-                <span className="text-xs font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5 uppercase tracking-wider">
-                  <Zap className="w-3.5 h-3.5 text-rose-600" />
+              <div className="p-3.5 rounded-xl bg-[#B7F34A]/5 border border-[#B7F34A]/20 space-y-2">
+                <span className="text-xs font-bold text-[#B7F34A] flex items-center gap-1.5 uppercase tracking-wider">
+                  <Zap className="w-3.5 h-3.5 text-[#B7F34A]" />
                   2. Tiro de Corrida (Fase Forte)
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -512,9 +512,9 @@ export default function IntervaladoPage() {
               </div>
 
               {/* 3. Recuperação / Caminhada */}
-              <div className="p-3.5 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 space-y-2">
-                <span className="text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5 uppercase tracking-wider">
-                  <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
+              <div className="p-3.5 rounded-xl bg-[#0B1020]/60 border border-[#1E2942] space-y-2">
+                <span className="text-xs font-bold text-[#8E9BB0] flex items-center gap-1.5 uppercase tracking-wider">
+                  <RotateCcw className="w-3.5 h-3.5 text-[#8E9BB0]" />
                   3. Recuperação (Fase Fraca / Caminhada)
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -542,10 +542,10 @@ export default function IntervaladoPage() {
               </div>
 
               {/* 4. Número de Séries / Repetições */}
-              <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="p-3.5 rounded-xl bg-[#0B1020]/60 border border-[#1E2942] space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
-                    <Repeat className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5 uppercase tracking-wider">
+                    <Repeat className="w-3.5 h-3.5 text-[#B7F34A]" />
                     4. Número de Repetições (Séries de Tiros)
                   </span>
                 </div>
@@ -562,9 +562,9 @@ export default function IntervaladoPage() {
               </div>
 
               {/* 5. Desaquecimento */}
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
-                  <Milestone className="w-3.5 h-3.5 text-slate-500" />
+              <div className="p-3.5 rounded-xl bg-[#0B1020]/60 border border-[#1E2942] space-y-2">
+                <span className="text-xs font-bold text-[#8E9BB0] flex items-center gap-1.5 uppercase tracking-wider">
+                  <Milestone className="w-3.5 h-3.5 text-[#8E9BB0]" />
                   5. Desaquecimento / Volta à Calma
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -591,13 +591,13 @@ export default function IntervaladoPage() {
               </div>
 
               {/* 6. Limite da Sessão (Opcional) */}
-              <div className="p-3.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 space-y-3">
+              <div className="p-3.5 rounded-xl bg-[#0B1020]/80 border border-[#1E2942] space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5 uppercase tracking-wider">
-                    <Target className="w-3.5 h-3.5 text-purple-600" />
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5 uppercase tracking-wider">
+                    <Target className="w-3.5 h-3.5 text-[#B7F34A]" />
                     6. Limite da Sessão (Opcional)
                   </span>
-                  <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">
+                  <span className="text-[11px] text-[#B7F34A] font-medium">
                     {limitType === "none"
                       ? "Sem trava"
                       : limitType === "distance"
@@ -607,14 +607,14 @@ export default function IntervaladoPage() {
                 </div>
 
                 {/* Seletor do tipo de limite */}
-                <div className="grid grid-cols-3 gap-1.5 p-1 bg-purple-100/60 dark:bg-purple-900/30 rounded-lg">
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#131A2E] rounded-xl border border-[#1E2942]">
                   <button
                     type="button"
                     onClick={() => setLimitType("none")}
-                    className={`py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
                       limitType === "none"
-                        ? "bg-white dark:bg-slate-800 text-purple-950 dark:text-purple-100 shadow-sm"
-                        : "text-purple-700 dark:text-purple-300 hover:text-purple-900"
+                        ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm"
+                        : "text-[#8E9BB0] hover:text-white"
                     }`}
                   >
                     Sem Limite
@@ -622,10 +622,10 @@ export default function IntervaladoPage() {
                   <button
                     type="button"
                     onClick={() => setLimitType("distance")}
-                    className={`py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
                       limitType === "distance"
-                        ? "bg-white dark:bg-slate-800 text-purple-950 dark:text-purple-100 shadow-sm"
-                        : "text-purple-700 dark:text-purple-300 hover:text-purple-900"
+                        ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm"
+                        : "text-[#8E9BB0] hover:text-white"
                     }`}
                   >
                     Por Distância
@@ -633,10 +633,10 @@ export default function IntervaladoPage() {
                   <button
                     type="button"
                     onClick={() => setLimitType("time")}
-                    className={`py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
                       limitType === "time"
-                        ? "bg-white dark:bg-slate-800 text-purple-950 dark:text-purple-100 shadow-sm"
-                        : "text-purple-700 dark:text-purple-300 hover:text-purple-900"
+                        ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm"
+                        : "text-[#8E9BB0] hover:text-white"
                     }`}
                   >
                     Por Tempo
@@ -667,7 +667,7 @@ export default function IntervaladoPage() {
                                 : "2.4"
                             )
                           }
-                          className="px-2.5 py-1.5 text-xs rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 hover:bg-purple-100/50 text-purple-800 dark:text-purple-200 font-medium transition-colors"
+                          className="px-2.5 py-1.5 text-xs rounded-lg border border-[#1E2942] bg-[#131A2E] hover:bg-[#1E2942] text-white font-medium transition-colors"
                         >
                           {userGoal?.minDistanceMeters
                             ? `${(userGoal.minDistanceMeters / 1000)
@@ -685,7 +685,7 @@ export default function IntervaladoPage() {
                                   (userGoal.targetDistanceMeters / 1000).toFixed(1)
                                 )
                               }
-                              className="px-2.5 py-1.5 text-xs rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-800 hover:bg-blue-100/50 text-blue-800 dark:text-blue-200 font-medium transition-colors"
+                              className="px-2.5 py-1.5 text-xs rounded-lg border border-[#1E2942] bg-[#131A2E] hover:bg-[#1E2942] text-[#B7F34A] font-medium transition-colors"
                             >
                               {(userGoal.targetDistanceMeters / 1000)
                                 .toFixed(1)
@@ -696,13 +696,13 @@ export default function IntervaladoPage() {
                         <button
                           type="button"
                           onClick={() => setLimitDistance("5.0")}
-                          className="px-2.5 py-1.5 text-xs rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 hover:bg-purple-100/50 text-purple-800 dark:text-purple-200 font-medium transition-colors"
+                          className="px-2.5 py-1.5 text-xs rounded-lg border border-[#1E2942] bg-[#131A2E] hover:bg-[#1E2942] text-white font-medium transition-colors"
                         >
                           5,0 km
                         </button>
                       </div>
                     </div>
-                    <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                    <p className="text-[11px] text-[#8E9BB0]">
                       Caso a última etapa exceda o limite, ela será cortada no tempo exato para cravar a distância. Se o tiro forte anterior já atingir a meta, a recuperação seguinte é removida.
                     </p>
                   </div>
@@ -727,20 +727,20 @@ export default function IntervaladoPage() {
                           onClick={() =>
                             setLimitTime(String(userGoal?.targetDurationMinutes || 12))
                           }
-                          className="px-2.5 py-1.5 text-xs rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 hover:bg-purple-100/50 text-purple-800 dark:text-purple-200 font-medium transition-colors"
+                          className="px-2.5 py-1.5 text-xs rounded-lg border border-[#1E2942] bg-[#131A2E] hover:bg-[#1E2942] text-white font-medium transition-colors"
                         >
                           {userGoal?.targetDurationMinutes || 12} min (TAF)
                         </button>
                         <button
                           type="button"
                           onClick={() => setLimitTime("20")}
-                          className="px-2.5 py-1.5 text-xs rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800 hover:bg-purple-100/50 text-purple-800 dark:text-purple-200 font-medium transition-colors"
+                          className="px-2.5 py-1.5 text-xs rounded-lg border border-[#1E2942] bg-[#131A2E] hover:bg-[#1E2942] text-white font-medium transition-colors"
                         >
                           20 min
                         </button>
                       </div>
                     </div>
-                    <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                    <p className="text-[11px] text-[#8E9BB0]">
                       O treino será encerrado no minuto/segundo exato configurado, cortando a etapa ativa proporcionalmente.
                     </p>
                   </div>
@@ -748,7 +748,7 @@ export default function IntervaladoPage() {
               </div>
 
               {errors.form && (
-                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{errors.form}</span>
                 </div>
@@ -786,7 +786,7 @@ export default function IntervaladoPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                    <tr className="border-b border-[#1E2942] text-[#8E9BB0]">
                       <th className="py-2.5 font-semibold">#</th>
                       <th className="py-2.5 font-semibold">Etapa</th>
                       <th className="py-2.5 font-semibold">Duração</th>
@@ -796,12 +796,12 @@ export default function IntervaladoPage() {
                       <th className="py-2.5 text-right font-semibold">Calorias</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
+                  <tbody className="divide-y divide-[#1E2942]/60 font-mono">
                     {sessionResult.stages.map((s) => {
                       const seg = calorieResult?.segments.find((g) => g.stageIndex === s.index);
                       return (
-                        <tr key={s.index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                          <td className="py-2.5 text-slate-400 font-sans font-bold">
+                        <tr key={s.index} className="hover:bg-[#1E2942]/20">
+                          <td className="py-2.5 text-[#8E9BB0] font-sans font-bold">
                             {s.index}
                           </td>
                           <td className="py-2.5 font-sans">
@@ -815,19 +815,19 @@ export default function IntervaladoPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-2.5 text-slate-800 dark:text-slate-200 font-semibold">
+                          <td className="py-2.5 text-white font-semibold">
                             {formatTime(s.durationSeconds)}
                           </td>
-                          <td className="py-2.5 text-slate-600 dark:text-slate-400">
+                          <td className="py-2.5 text-[#8E9BB0]">
                             {formatDecimal(s.speedKmh, 1)} km/h
                           </td>
-                          <td className="py-2.5 text-blue-600 dark:text-blue-400 font-bold">
+                          <td className="py-2.5 text-[#B7F34A] font-bold">
                             {s.paceFormatted}
                           </td>
-                          <td className="py-2.5 text-right text-slate-900 dark:text-slate-100 font-black">
+                          <td className="py-2.5 text-right text-white font-black">
                             {formatDecimal(s.distanceKm, 2)} km
                           </td>
-                          <td className="py-2.5 text-right text-amber-600 dark:text-amber-400 font-bold">
+                          <td className="py-2.5 text-right text-amber-400 font-bold">
                             {seg ? `${seg.activeCalories} kcal` : "--"}
                           </td>
                         </tr>
@@ -863,14 +863,14 @@ export default function IntervaladoPage() {
               <div className="space-y-4">
                 {/* Banner de Limite Aplicado */}
                 {sessionResult.limitInfo && sessionResult.limitInfo.type !== "none" && (
-                  <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900 text-purple-900 dark:text-purple-200 text-xs space-y-1">
-                    <div className="font-bold flex items-center gap-1.5">
-                      <Scissors className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <div className="p-3 rounded-xl bg-[#0B1020]/80 border border-[#1E2942] text-white text-xs space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-[#B7F34A]">
+                      <Scissors className="w-4 h-4 text-[#B7F34A]" />
                       {sessionResult.limitInfo.type === "distance"
                         ? `Limite de Distância: ${sessionResult.limitInfo.targetValue} km`
                         : `Limite de Tempo: ${formatTime(sessionResult.limitInfo.targetValue)}`}
                     </div>
-                    <p className="text-purple-700 dark:text-purple-300 text-[11px] leading-relaxed">
+                    <p className="text-[#8E9BB0] text-[11px] leading-relaxed">
                       {sessionResult.limitInfo.truncatedStageIndex
                         ? `A etapa #${sessionResult.limitInfo.truncatedStageIndex} foi cortada proporcionalmente para cravar a meta.`
                         : "Meta alcançada na última etapa executada."}
@@ -909,28 +909,28 @@ export default function IntervaladoPage() {
 
                 {/* Grid: Pace Médio & Velocidade Média */}
                 <div className="grid grid-cols-2 gap-2.5">
-                  <div className="p-3 rounded-xl border border-blue-100 dark:border-blue-950/60 bg-blue-50/50 dark:bg-blue-950/20">
-                    <div className="text-[11px] font-bold text-blue-700 dark:text-blue-300 mb-1 flex items-center gap-1">
-                      <Timer className="w-3.5 h-3.5" />
+                  <div className="p-3 rounded-xl border border-[#1E2942] bg-[#0B1020]/60">
+                    <div className="text-[11px] font-bold text-[#8E9BB0] mb-1 flex items-center gap-1">
+                      <Timer className="w-3.5 h-3.5 text-[#B7F34A]" />
                       Pace Médio Geral
                     </div>
-                    <div className="text-xl font-black text-blue-900 dark:text-blue-100 font-mono">
+                    <div className="text-xl font-black text-[#B7F34A] font-mono">
                       {sessionResult.averagePaceFormatted}
                     </div>
-                    <div className="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5">
+                    <div className="text-[10px] text-[#8E9BB0] mt-0.5">
                       min/km
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
-                    <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
-                      <Gauge className="w-3.5 h-3.5" />
+                  <div className="p-3 rounded-xl border border-[#1E2942] bg-[#0B1020]/60">
+                    <div className="text-[11px] font-bold text-[#8E9BB0] mb-1 flex items-center gap-1">
+                      <Gauge className="w-3.5 h-3.5 text-white" />
                       Velocidade Média
                     </div>
-                    <div className="text-xl font-black text-slate-900 dark:text-slate-100 font-mono">
+                    <div className="text-xl font-black text-white font-mono">
                       {formatDecimal(sessionResult.averageSpeedKmh, 2)}
                     </div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    <div className="text-[10px] text-[#8E9BB0] mt-0.5">
                       km/h
                     </div>
                   </div>
@@ -940,39 +940,39 @@ export default function IntervaladoPage() {
                 {calorieResult && (
                   <div
                     data-testid="interval-calories-card"
-                    className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 dark:from-amber-500/15 dark:via-orange-500/15 dark:to-red-500/15 space-y-2.5"
+                    className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-2.5"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-200">
-                        <Flame className="w-4 h-4 text-amber-600 dark:text-amber-400 fill-amber-500" />
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+                        <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
                         <span>Gasto Calórico Estimado</span>
                       </div>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
                         MET Médio {calorieResult.metValue.toFixed(1)}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-center">
-                      <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/80 border border-amber-200/50 dark:border-amber-900/40">
-                        <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                      <div className="p-2.5 rounded-lg bg-[#0B1020]/80 border border-[#1E2942]">
+                        <span className="text-[10px] uppercase font-bold text-[#8E9BB0] block">
                           Ativas (Exercício)
                         </span>
                         <span
                           data-testid="interval-active-calories"
-                          className="text-lg font-black text-amber-600 dark:text-amber-400"
+                          className="text-lg font-black text-amber-400"
                         >
                           {calorieResult.activeCalories}{" "}
                           <span className="text-xs font-normal">kcal</span>
                         </span>
                       </div>
 
-                      <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/80 border border-amber-200/50 dark:border-amber-900/40">
-                        <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                      <div className="p-2.5 rounded-lg bg-[#0B1020]/80 border border-[#1E2942]">
+                        <span className="text-[10px] uppercase font-bold text-[#8E9BB0] block">
                           Totais
                         </span>
                         <span
                           data-testid="interval-total-calories"
-                          className="text-lg font-black text-slate-800 dark:text-slate-200"
+                          className="text-lg font-black text-white"
                         >
                           {calorieResult.totalCalories}{" "}
                           <span className="text-xs font-normal">kcal</span>
@@ -980,7 +980,7 @@ export default function IntervaladoPage() {
                       </div>
                     </div>
 
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center">
+                    <p className="text-[10px] text-[#8E9BB0] text-center">
                       {athleteWeightKg
                         ? `Cálculo com seu peso corporal cadastrado (${athleteWeightKg} kg)`
                         : "Baseado no peso padrão (70 kg) • Atualize em seu Perfil"}
@@ -993,7 +993,7 @@ export default function IntervaladoPage() {
                   <Button
                     variant="primary"
                     size="sm"
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold"
+                    className="w-full"
                     onClick={() => setIsTrackModalOpen(true)}
                     icon={<Smartphone className="w-4 h-4" />}
                   >
@@ -1007,9 +1007,9 @@ export default function IntervaladoPage() {
                     onClick={handleSaveToHistory}
                     icon={
                       savedToHistory ? (
-                        <Check className="w-4 h-4 text-emerald-500" />
+                        <Check className="w-4 h-4 text-[#B7F34A]" />
                       ) : (
-                        <BookmarkPlus className="w-4 h-4 text-blue-500" />
+                        <BookmarkPlus className="w-4 h-4 text-[#B7F34A]" />
                       )
                     }
                   >
@@ -1018,21 +1018,21 @@ export default function IntervaladoPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-10 px-4 text-slate-400 dark:text-slate-500">
-                <Flame className="w-10 h-10 mx-auto mb-2.5 opacity-40" />
-                <p className="text-sm font-medium">Configure as séries e clique em Simular</p>
-                <p className="text-xs mt-1">O resumo e os ritmos médios aparecerão aqui.</p>
+              <div className="text-center py-10 px-4 text-[#8E9BB0]">
+                <Flame className="w-10 h-10 mx-auto mb-2.5 opacity-40 text-[#B7F34A]" />
+                <p className="text-sm font-medium text-white">Configure as séries e clique em Simular</p>
+                <p className="text-xs mt-1 text-[#8E9BB0]">O resumo e os ritmos médios aparecerão aqui.</p>
               </div>
             )}
           </Card>
 
           {/* Dica sobre Intervalados */}
-          <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-950/60 bg-blue-50/50 dark:bg-blue-950/20 text-xs text-blue-900 dark:text-blue-200">
-            <p className="font-bold flex items-center gap-1.5 mb-1">
-              <Compass className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <div className="p-4 rounded-xl border border-[#1E2942] bg-[#131A2E] text-xs text-white">
+            <p className="font-bold flex items-center gap-1.5 mb-1 text-white">
+              <Compass className="w-4 h-4 text-[#B7F34A]" />
               Por que treinar intervalado?
             </p>
-            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+            <p className="text-[#8E9BB0] leading-relaxed">
               O treino intervalado (tiros com recuperação controlada) eleva seu VO2 máx, melhora a tolerância ao lactato e permite correr em velocidades mais altas por períodos cumulativos maiores do que um treino contínuo.
             </p>
           </div>

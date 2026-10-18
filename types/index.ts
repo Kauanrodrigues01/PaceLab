@@ -308,6 +308,7 @@ export interface TafGoalConfig {
   pullupTargetReps?: number | null;
   pullupMinSeconds?: number | null;
   pullupTargetSeconds?: number | null;
+  pullupDurationSeconds?: number | null;
 
   // Flexão de Braço
   pushupMinReps?: number | null;

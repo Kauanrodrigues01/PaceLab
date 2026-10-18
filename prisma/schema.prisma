@@ -46,6 +46,7 @@ model TafGoal {
   pullupTargetReps      Int?      @default(5) @map("pullup_target_reps")
   pullupMinSeconds      Int?      @map("pullup_min_seconds")
   pullupTargetSeconds   Int?      @map("pullup_target_seconds")
+  pullupDurationSeconds Int?      @map("pullup_duration_seconds")
 
   // Flexão de Braço
   pushupMinReps         Int?      @default(20) @map("pushup_min_reps")

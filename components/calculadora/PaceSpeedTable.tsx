@@ -46,33 +46,33 @@ export function PaceSpeedTable({
   return (
     <div
       data-testid="pace-speed-table-container"
-      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-xs space-y-4"
+      className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-7 shadow-xs space-y-4"
     >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1E2942] pb-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 mb-1">
+          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#B7F34A] mb-1">
             <Zap className="w-3.5 h-3.5" />
             Guia de Consulta Rápida (Esteira & Pista)
           </div>
-          <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
+          <h3 className="text-base sm:text-lg font-bold text-[#FFFFFF]">
             Tabela de Correspondência Pace ↔ Velocidade
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-xs text-[#8E9BB0] mt-0.5">
             Ritmos de 30 em 30 segundos com parciais de volta (400m) e metas oficiais de concursos. Clique para preencher.
           </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#B7F34A]/15 text-[#B7F34A] border border-[#B7F34A]/30">
             <Trophy className="w-3 h-3" />
             Metas do TAF
           </span>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-800">
+      <div className="overflow-x-auto rounded-2xl border border-[#1E2942]">
         <table className="w-full text-left text-xs sm:text-sm">
-          <thead className="bg-slate-50/80 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700/80">
+          <thead className="bg-[#0B1020] text-[#8E9BB0] font-semibold border-b border-[#1E2942]">
             <tr>
               <th className="py-3 px-3.5 sm:px-4">Pace (min/km)</th>
               <th className="py-3 px-3.5 sm:px-4">Velocidade (km/h)</th>
@@ -80,7 +80,7 @@ export function PaceSpeedTable({
               <th className="py-3 px-3.5 sm:px-4 hidden sm:table-cell">Zona / Utilidade</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          <tbody className="divide-y divide-[#1E2942]">
             {PACE_SPEED_REFERENCE_TABLE.map((row) => {
               const active = isRowActive(row);
 
@@ -91,36 +91,36 @@ export function PaceSpeedTable({
                   onClick={() => onSelectPace?.(row.paceFormatted, row.speedKmh)}
                   className={`cursor-pointer transition-colors ${
                     active
-                      ? "bg-blue-50 dark:bg-blue-950/40 text-blue-950 dark:text-blue-100 font-semibold"
+                      ? "bg-[#B7F34A]/20 text-[#B7F34A] font-bold"
                       : row.isTafTarget
-                      ? "bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-950/40"
-                      : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      ? "bg-[#B7F34A]/10 hover:bg-[#B7F34A]/15 text-[#FFFFFF]"
+                      : "text-[#8E9BB0] hover:bg-[#0B1020] hover:text-[#FFFFFF]"
                   }`}
                 >
                   {/* Pace */}
                   <td className="py-2.5 sm:py-3 px-3.5 sm:px-4">
                     <div className="flex items-center gap-2">
                       {active ? (
-                        <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0" />
+                        <span className="w-2 h-2 rounded-full bg-[#B7F34A] shrink-0" />
                       ) : (
                         <span className="w-2 h-2 rounded-full bg-transparent shrink-0" />
                       )}
-                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                      <span className="font-bold text-[#FFFFFF]">
                         {row.paceFormatted}
                       </span>
-                      <span className="text-[10px] text-slate-400">/km</span>
+                      <span className="text-[10px] text-[#8E9BB0]">/km</span>
                     </div>
                   </td>
 
                   {/* Velocidade */}
-                  <td className="py-2.5 sm:py-3 px-3.5 sm:px-4 font-mono font-medium text-slate-800 dark:text-slate-200">
+                  <td className="py-2.5 sm:py-3 px-3.5 sm:px-4 font-mono font-medium text-[#FFFFFF]">
                     {row.speedKmh.toFixed(1)} km/h
                   </td>
 
                   {/* Volta de 400m */}
-                  <td className="py-2.5 sm:py-3 px-3.5 sm:px-4 text-slate-700 dark:text-slate-300">
+                  <td className="py-2.5 sm:py-3 px-3.5 sm:px-4 text-[#8E9BB0]">
                     <span className="inline-flex items-center gap-1 font-mono">
-                      <Timer className="w-3 h-3 text-slate-400" />
+                      <Timer className="w-3 h-3 text-[#8E9BB0]" />
                       {row.lap400mFormatted}
                     </span>
                   </td>
@@ -128,12 +128,12 @@ export function PaceSpeedTable({
                   {/* Zona / Tag */}
                   <td className="py-2.5 sm:py-3 px-3.5 sm:px-4 hidden sm:table-cell">
                     {row.isTafTarget ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25">
-                        <Trophy className="w-3 h-3 text-amber-500" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#B7F34A]/15 text-[#B7F34A] border border-[#B7F34A]/30">
+                        <Trophy className="w-3 h-3 text-[#B7F34A]" />
                         {row.tag}
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                      <span className="text-xs text-[#8E9BB0]">
                         {row.tag}
                       </span>
                     )}

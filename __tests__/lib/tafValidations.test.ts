@@ -62,6 +62,7 @@ describe("Validações Zod do TAF (Fase 1 - Eixo B)", () => {
         pullupType: "dinamica",
         pullupMinReps: 4,
         pullupTargetReps: 7,
+        pullupDurationSeconds: 60,
         pushupMinReps: 25,
         pushupTargetReps: 35,
         pushupDurationSeconds: 60,
@@ -74,8 +75,11 @@ describe("Validações Zod do TAF (Fase 1 - Eixo B)", () => {
       expect(parsed.minDistanceMeters).toBe(2400);
       expect(parsed.pullupType).toBe("dinamica");
       expect(parsed.pullupMinReps).toBe(4);
+      expect(parsed.pullupDurationSeconds).toBe(60);
       expect(parsed.pushupMinReps).toBe(25);
+      expect(parsed.pushupDurationSeconds).toBe(60);
       expect(parsed.absMinReps).toBe(35);
+      expect(parsed.absDurationSeconds).toBe(60);
     });
 
     it("rejeita modalidade de barra inválida", () => {
@@ -89,6 +93,22 @@ describe("Validações Zod do TAF (Fase 1 - Eixo B)", () => {
       expect(TafGoalInputSchema.safeParse({ pullupMinReps: -1 }).success).toBe(false);
       expect(TafGoalInputSchema.safeParse({ pushupMinReps: -5 }).success).toBe(false);
       expect(TafGoalInputSchema.safeParse({ absMinReps: -10 }).success).toBe(false);
+    });
+
+    it("aceita null ou valores válidos de duração e rejeita tempos negativos em barra, flexão e abdominal", () => {
+      const nullDurations = TafGoalInputSchema.parse({
+        pullupDurationSeconds: null,
+        pushupDurationSeconds: null,
+        absDurationSeconds: null,
+      });
+      expect(nullDurations.pullupDurationSeconds).toBeNull();
+      expect(nullDurations.pushupDurationSeconds).toBeNull();
+      expect(nullDurations.absDurationSeconds).toBeNull();
+
+      expect(TafGoalInputSchema.safeParse({ pullupDurationSeconds: -10 }).success).toBe(false);
+      expect(TafGoalInputSchema.safeParse({ pushupDurationSeconds: -1 }).success).toBe(false);
+      expect(TafGoalInputSchema.safeParse({ absDurationSeconds: -5 }).success).toBe(false);
+      expect(TafGoalInputSchema.safeParse({ pullupDurationSeconds: 650 }).success).toBe(false);
     });
   });
 

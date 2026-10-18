@@ -88,6 +88,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
       pullupTargetReps: 5,
       pullupMinSeconds: null,
       pullupTargetSeconds: null,
+      pullupDurationSeconds: null,
       pushupMinReps: 20,
       pushupTargetReps: 30,
       pushupDurationSeconds: null,
@@ -159,6 +160,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
         pullupTargetReps: 6,
         pullupMinSeconds: null,
         pullupTargetSeconds: null,
+        pullupDurationSeconds: 60,
         pushupMinReps: 25,
         pushupTargetReps: 35,
         pushupDurationSeconds: 60,
@@ -179,6 +181,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
           pullupType: "dinamica",
           pullupMinReps: 4,
           pullupTargetReps: 6,
+          pullupDurationSeconds: 60,
           pushupMinReps: 25,
           pushupTargetReps: 35,
           pushupDurationSeconds: 60,
@@ -197,7 +200,9 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
       expect(data.data.minDistanceMeters).toBe(2400);
       expect(data.data.targetDistanceMeters).toBe(2600);
       expect(data.data.pullupMinReps).toBe(4);
+      expect(data.data.pullupDurationSeconds).toBe(60);
       expect(data.data.pushupMinReps).toBe(25);
+      expect(data.data.absMinReps).toBe(35);
       expect(data.data.absMinReps).toBe(35);
     });
 

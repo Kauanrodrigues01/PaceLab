@@ -15,6 +15,7 @@ export const DEFAULT_GOAL: TafGoalConfig = {
   pullupTargetReps: 5,
   pullupMinSeconds: null,
   pullupTargetSeconds: null,
+  pullupDurationSeconds: null,
   pushupMinReps: 20,
   pushupTargetReps: 30,
   pushupDurationSeconds: null,

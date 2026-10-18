@@ -247,26 +247,26 @@ export default function TafPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header */}
       <div className="text-center sm:text-left">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-semibold mb-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B7F34A]/10 border border-[#B7F34A]/30 text-[#B7F34A] text-xs font-semibold mb-2">
           <Medal className="w-3.5 h-3.5" />
           Preparação para Concursos e Avaliações Físicas
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-black text-[#FFFFFF] tracking-tight">
           Calculadora de TAF (Teste de Aptidão Física)
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+        <p className="text-sm text-[#8E9BB0] mt-1 max-w-2xl">
           Descubra o ritmo exato (pace e velocidade), os tempos por volta na pista de 400 metros e monitore seu índice de aprovação.
         </p>
       </div>
 
       {/* Aviso Legal / Técnico Obrigatório */}
-      <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 text-xs sm:text-sm flex items-start gap-3">
-        <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+      <div className="p-4 rounded-2xl bg-[#131A2E] border border-amber-500/30 text-[#8E9BB0] text-xs sm:text-sm flex items-start gap-3">
+        <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <p className="font-semibold text-amber-950 dark:text-amber-100">
+          <p className="font-semibold text-amber-300">
             Aviso Importante e Termo de Referência
           </p>
-          <p className="text-amber-800 dark:text-amber-300/90 leading-relaxed">
+          <p className="text-[#8E9BB0] leading-relaxed">
             Estes valores são parâmetros de cálculo matemáticos para auxílio em treinamentos e <strong>não garantem aprovação</strong> em nenhum concurso público, teste militar ou avaliação física. Sempre consulte as regras específicas do edital oficial do seu certame.
           </p>
         </div>
@@ -274,17 +274,17 @@ export default function TafPage() {
 
       {/* Banner de Edital Cadastrado */}
       {goal && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-blue-950/40 border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="p-4 rounded-2xl bg-[#131A2E] border border-[#1E2942] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-blue-600 text-white shrink-0">
-              <Trophy className="w-4 h-4" />
+            <div className="p-2 rounded-xl bg-[#B7F34A] text-[#0B1020] shrink-0">
+              <Trophy className="w-4 h-4 text-[#0B1020]" />
             </div>
             <div>
-              <p className="font-bold text-slate-900 dark:text-slate-100">
-                Seu Edital Cadastrado: <span className="text-blue-600 dark:text-blue-400">{goal.institutionName || "Edital Padrão"}</span>
+              <p className="font-bold text-[#FFFFFF]">
+                Seu Edital Cadastrado: <span className="text-[#B7F34A]">{goal.institutionName || "Edital Padrão"}</span>
               </p>
-              <p className="text-slate-600 dark:text-slate-400 mt-0.5">
-                Mínimo: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{goal.minDistanceMeters || 2400}m</span> • Meta: <span className="font-semibold text-blue-600 dark:text-blue-400">{goal.targetDistanceMeters}m</span> em {goal.targetDurationMinutes} min
+              <p className="text-[#8E9BB0] mt-0.5">
+                Mínimo: <span className="font-semibold text-[#B7F34A]">{goal.minDistanceMeters || 2400}m</span> • Meta: <span className="font-semibold text-[#FFFFFF]">{goal.targetDistanceMeters}m</span> em {goal.targetDurationMinutes} min
               </p>
             </div>
           </div>
@@ -304,7 +304,7 @@ export default function TafPage() {
                   // Fallback silencioso
                 }
               }}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition-colors whitespace-nowrap"
+              className="px-3 py-1.5 rounded-lg bg-[#0B1020] hover:bg-[#1E2942] border border-[#1E2942] text-[#8E9BB0] hover:text-[#FFFFFF] font-semibold text-xs transition-colors whitespace-nowrap cursor-pointer"
             >
               Aplicar Mínimo ({goal.minDistanceMeters || 2400}m)
             </button>
@@ -322,7 +322,7 @@ export default function TafPage() {
                   // Fallback silencioso
                 }
               }}
-              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-colors whitespace-nowrap"
+              className="px-3 py-1.5 rounded-lg bg-[#B7F34A] hover:bg-[#a3db3f] text-[#0B1020] font-black text-xs shadow-xs transition-colors whitespace-nowrap cursor-pointer"
             >
               Aplicar Meta ({goal.targetDistanceMeters}m)
             </button>
@@ -331,17 +331,17 @@ export default function TafPage() {
       )}
 
       {/* Seletor de Modo (Subtabs) */}
-      <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-200/70 dark:bg-slate-800/80 rounded-2xl">
+      <div className="grid grid-cols-2 gap-2 p-1.5 bg-[#131A2E] border border-[#1E2942] rounded-2xl">
         <button
           type="button"
           onClick={() => {
             setMode("fixed-time");
             setErrors({});
           }}
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
             mode === "fixed-time"
-              ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-xs font-bold"
+              : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
           }`}
         >
           <Timer className="w-4 h-4" />
@@ -354,10 +354,10 @@ export default function TafPage() {
             setMode("fixed-distance");
             setErrors({});
           }}
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
             mode === "fixed-distance"
-              ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-xs font-bold"
+              : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
           }`}
         >
           <Milestone className="w-4 h-4" />
@@ -403,10 +403,10 @@ export default function TafPage() {
                         <button
                           type="button"
                           onClick={() => setTargetMetersInput((goal.minDistanceMeters ?? 2400).toString())}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 font-bold border border-amber-400/40 dark:border-amber-700/50 transition-colors inline-flex items-center gap-1"
+                          className="text-[10px] px-2 py-0.5 rounded-md bg-[#B7F34A]/15 hover:bg-[#B7F34A]/25 text-[#B7F34A] font-bold border border-[#B7F34A]/30 transition-colors inline-flex items-center gap-1 cursor-pointer"
                           title="Carregar meta oficial do edital salva no perfil"
                         >
-                          <Medal className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                          <Medal className="w-3 h-3 text-[#B7F34A] shrink-0" />
                           <span>Edital: {goal.minDistanceMeters ?? 2400}m</span>
                         </button>
                       )}
@@ -415,7 +415,7 @@ export default function TafPage() {
                           key={sc.value}
                           type="button"
                           onClick={() => setTargetMetersInput(sc.value)}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium transition-colors"
+                          className="text-[10px] px-2 py-0.5 rounded-md bg-[#0B1020] hover:bg-[#1E2942] text-[#8E9BB0] hover:text-[#FFFFFF] border border-[#1E2942] font-medium transition-colors cursor-pointer"
                         >
                           {sc.label}
                         </button>
@@ -443,7 +443,7 @@ export default function TafPage() {
                           key={sc.value}
                           type="button"
                           onClick={() => setSplitMetersInput(sc.value)}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium transition-colors"
+                          className="text-[10px] px-2 py-0.5 rounded-md bg-[#0B1020] hover:bg-[#1E2942] text-[#8E9BB0] hover:text-[#FFFFFF] border border-[#1E2942] font-medium transition-colors cursor-pointer"
                         >
                           {sc.label}
                         </button>
@@ -504,7 +504,7 @@ export default function TafPage() {
                         key={sc.value}
                         type="button"
                         onClick={() => setFixedDistInput(sc.value)}
-                        className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium transition-colors"
+                        className="text-[10px] px-2 py-0.5 rounded-md bg-[#0B1020] hover:bg-[#1E2942] text-[#8E9BB0] hover:text-[#FFFFFF] border border-[#1E2942] font-medium transition-colors cursor-pointer"
                       >
                         {sc.label}
                       </button>
@@ -551,7 +551,7 @@ export default function TafPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                    <tr className="border-b border-[#1E2942] text-[#8E9BB0]">
                       <th className="py-2.5 font-semibold">Volta</th>
                       <th className="py-2.5 font-semibold">Trecho</th>
                       <th className="py-2.5 font-semibold">Acumulado</th>
@@ -561,25 +561,25 @@ export default function TafPage() {
                       <th className="py-2.5 text-right font-semibold">% Meta</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
+                  <tbody className="divide-y divide-[#1E2942] font-mono">
                     {tafResult.splits.map((s) => (
-                      <tr key={s.lap} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                        <td className="py-2.5 font-bold text-slate-700 dark:text-slate-300 font-sans">
+                      <tr key={s.lap} className="hover:bg-[#0B1020]/60">
+                        <td className="py-2.5 font-bold text-[#FFFFFF] font-sans">
                           Volta {s.lap}
                         </td>
-                        <td className="py-2.5 text-slate-600 dark:text-slate-400">
+                        <td className="py-2.5 text-[#8E9BB0]">
                           {(s.distanceKm * 1000).toFixed(0)}m
                         </td>
-                        <td className="py-2.5 text-slate-800 dark:text-slate-200 font-semibold">
+                        <td className="py-2.5 text-[#FFFFFF] font-semibold">
                           {(s.accumulatedDistanceKm * 1000).toFixed(0)}m
                         </td>
-                        <td className="py-2.5 text-blue-600 dark:text-blue-400 font-bold">
+                        <td className="py-2.5 text-[#B7F34A] font-bold">
                           {s.lapTimeFormatted}
                         </td>
-                        <td className="py-2.5 text-slate-900 dark:text-slate-100 font-bold">
+                        <td className="py-2.5 text-[#FFFFFF] font-bold">
                           {s.accumulatedTimeFormatted}
                         </td>
-                        <td className="py-2.5 text-slate-600 dark:text-slate-400 font-sans text-[11px]">
+                        <td className="py-2.5 text-[#8E9BB0] font-sans text-[11px]">
                           {s.lap === 1
                             ? "🎯 Saída controlada (evite largar forte demais)"
                             : s.lap === tafResult.splits.length
@@ -588,7 +588,7 @@ export default function TafPage() {
                             ? "💪 Ajuste de ritmo e foco mental"
                             : "🏃 Manutenção de cadência"}
                         </td>
-                        <td className="py-2.5 text-right text-slate-500 dark:text-slate-400 font-sans text-[11px]">
+                        <td className="py-2.5 text-right text-[#8E9BB0] font-sans text-[11px]">
                           {s.progressPercent.toFixed(0)}%
                         </td>
                       </tr>
@@ -636,40 +636,40 @@ export default function TafPage() {
                   <div
                     className={`p-4 rounded-xl border ${
                       tafResult.progressPercent >= 100
-                        ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900"
-                        : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900"
+                        ? "bg-[#B7F34A]/10 border-[#B7F34A]/30"
+                        : "bg-amber-500/10 border-amber-500/30"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#FFFFFF] flex items-center gap-1.5">
                         {tafResult.progressPercent >= 100 ? (
                           <>
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                            <CheckCircle2 className="w-4 h-4 text-[#B7F34A]" />
                             Status: Apto na Meta
                           </>
                         ) : (
                           <>
-                            <XCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                            <XCircle className="w-4 h-4 text-amber-400" />
                             Status: Abaixo da Meta
                           </>
                         )}
                       </span>
-                      <Badge variant={tafResult.progressPercent >= 100 ? "success" : "warning"}>
+                      <Badge variant={tafResult.progressPercent >= 100 ? "lime" : "warning"}>
                         {tafResult.progressPercent.toFixed(1)}% Atingido
                       </Badge>
                     </div>
 
                     {/* Barra de Progresso */}
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden mb-2">
+                    <div className="w-full bg-[#0B1020] border border-[#1E2942] h-2.5 rounded-full overflow-hidden mb-2">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${
-                          tafResult.progressPercent >= 100 ? "bg-emerald-500" : "bg-amber-500"
+                          tafResult.progressPercent >= 100 ? "bg-[#B7F34A]" : "bg-amber-400"
                         }`}
                         style={{ width: `${Math.min(100, tafResult.progressPercent)}%` }}
                       />
                     </div>
 
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                    <p className="text-xs text-[#8E9BB0]">
                       {tafResult.progressPercent >= 100
                         ? `Parabéns! Sua distância atual (${currentMetersInput}m) atinge ou supera a meta do edital.`
                         : `Faltam ${(
@@ -700,17 +700,17 @@ export default function TafPage() {
 
                 {/* Tempo por Volta de 400m */}
                 {tafResult.splits[0] && (
-                  <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 flex items-center justify-between">
+                  <div className="p-3.5 rounded-xl bg-[#0B1020] border border-[#1E2942] flex items-center justify-between">
                     <div>
-                      <span className="text-xs font-semibold text-blue-950 dark:text-blue-200 flex items-center gap-1.5">
-                        <Footprints className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span className="text-xs font-semibold text-[#FFFFFF] flex items-center gap-1.5">
+                        <Footprints className="w-4 h-4 text-[#B7F34A]" />
                         Tempo por Volta ({splitMetersInput}m)
                       </span>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      <p className="text-[11px] text-[#8E9BB0] mt-0.5">
                         Mantenha esse tempo em cada parcial
                       </p>
                     </div>
-                    <span className="text-lg font-black font-mono text-blue-600 dark:text-blue-400">
+                    <span className="text-lg font-black font-mono text-[#B7F34A]">
                       {tafResult.splits[0].lapTimeFormatted}
                     </span>
                   </div>
@@ -724,9 +724,9 @@ export default function TafPage() {
                   onClick={handleSaveToHistory}
                   icon={
                     savedToHistory ? (
-                      <Check className="w-4 h-4 text-emerald-500" />
+                      <Check className="w-4 h-4 text-[#B7F34A]" />
                     ) : (
-                      <BookmarkPlus className="w-4 h-4 text-blue-500" />
+                      <BookmarkPlus className="w-4 h-4 text-[#B7F34A]" />
                     )
                   }
                 >
@@ -773,9 +773,9 @@ export default function TafPage() {
                   onClick={handleSaveToHistory}
                   icon={
                     savedToHistory ? (
-                      <Check className="w-4 h-4 text-emerald-500" />
+                      <Check className="w-4 h-4 text-[#B7F34A]" />
                     ) : (
-                      <BookmarkPlus className="w-4 h-4 text-blue-500" />
+                      <BookmarkPlus className="w-4 h-4 text-[#B7F34A]" />
                     )
                   }
                 >
@@ -786,12 +786,12 @@ export default function TafPage() {
           )}
 
           {/* Dica de Treinamento */}
-          <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-950/60 bg-blue-50/50 dark:bg-blue-950/20 text-xs text-blue-900 dark:text-blue-200">
-            <p className="font-bold flex items-center gap-1.5 mb-1">
-              <Compass className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <div className="p-4 rounded-xl border border-[#1E2942] bg-[#131A2E] text-xs text-[#8E9BB0]">
+            <p className="font-bold flex items-center gap-1.5 mb-1 text-[#B7F34A]">
+              <Compass className="w-4 h-4 text-[#B7F34A]" />
               Dica Tática para o TAF
             </p>
-            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+            <p className="text-[#8E9BB0] leading-relaxed">
               Em provas de pista de atletismo oficial (400 metros), evite largar muito forte na primeira volta. Monitorar a passagem em cada volta de 400m ajuda a manter o ritmo constante e economizar energia para a volta final.
             </p>
           </div>

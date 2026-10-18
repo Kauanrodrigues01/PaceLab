@@ -157,24 +157,52 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 
 ---
 
+### Eixo B.5: Correção do Gráfico de Intervalados, Metas com Tempo Opcional, Assets de Marca e Nova Paleta Oficial PaceLab — ✅ Concluído e Validado
+
+> **Status:** Concluído em 18/10/2026. Documentação completa e plano executado em [docs/plans/executed/10_plan_correcoes_ux_metas_tempo_novo_design_system.md](../plans/executed/10_plan_correcoes_ux_metas_tempo_novo_design_system.md).
+
+#### 18. Calibração e Correção do Gráfico de Perfil de Velocidade em `/intervalado` (✅ Implementado)
+- **Status:** Correção na geração temporal do componente `IntervalSpeedProfileChart.tsx`, eliminando pontos consecutivos com timestamps duplicados que geravam anomalias na interpolação do Recharts. Aplicação das cores oficiais: Tiros em **Verde-Lima (`#B7F34A`)** e Recuperação/Aquecimento em **Cinza-Azulado (`#8E9BB0`)** sobre fundo `#0B1020`, com tooltip flutuante detalhando pace formatado, velocidade em km/h e estágio da série.
+- **Testes:** Suíte dedicada em `__tests__/components/IntervalSpeedProfileChart.test.tsx` e integração em `__tests__/pages/intervalado.test.tsx`.
+
+#### 19. Metas de Exercícios com Tempo Máximo Opcional / Livre (✅ Implementado)
+- **Status:** Suporte a editais de concursos com ou sem limite de tempo para Barra Fixa Dinâmica, Flexão de Braço e Abdominal Remador.
+- **Banco de Dados & Schema Prisma:** Adicionadas colunas `pullupDurationSeconds Int?`, `pushupDurationSeconds Int?` e `absDurationSeconds Int?` no modelo `TafGoal` (`null` = tempo livre / sem limite).
+- **Validação Zod & APIs:** Schemas e rotas REST `/api/taf/goals` atualizados com aceitação de duração opcional e testes em `__tests__/api/taf-routes.test.ts` e `__tests__/lib/tafValidations.test.ts`.
+- **Interface e Meu TAF:** Controles de alternância (*"Definir tempo máximo"* / *"Tempo livre"*) em `TafGoalConfigCard.tsx` no Perfil e exibição contextual no card `TafComplementaryExercisesCard.tsx` no Meu TAF.
+
+#### 20. Assets de Marca e Nova Paleta Oficial PaceLab (*Dark Performance Athletics*) (✅ Implementado)
+- **Status:** Integração dos assets oficiais de marca em `public/images/logo.png`, `public/images/ico.png` e `app/icon.png` através do componente `BrandLogo.tsx`.
+- **Paleta Oficial Consolidada:**
+  - Azul-Marinho Profundo (`#0B1020`): Fundo principal da aplicação;
+  - Superfície Elevada (`#131A2E`): Fundo dos cartões e tabelas;
+  - Bordas Sutis (`#1E2942`): Linhas de separação e contornos;
+  - Verde-Lima Elétrico (`#B7F34A`): Destaques, botões primários, badges e acentos esportivos;
+  - Branco Puro (`#FFFFFF`): Títulos e métricas de alto contraste;
+  - Cinza-Azulado (`#8E9BB0`): Textos secundários, legendas e placeholders.
+- **Migração Visual 100% Abrangente:** Configuração em `tailwind.config.ts`, `app/globals.css`, componentes base de UI (`Button`, `Card`, `Badge`, `Input`, `ResultBlock`), navegação global (`Navbar`, `BottomNav`, `Footer`), todas as 9 páginas do sistema e todos os gráficos Recharts (Perfil, Meu TAF, Intervalado, Diário de Treinos e Heatmap).
+- **Testes & Portão de Qualidade:** 467/467 testes aprovados em 57 arquivos, 0 erros no TypeScript, 0 alertas no ESLint e build de produção Next.js 14 gerado com 100% de sucesso.
+
+---
+
 ### Eixo C: Recursos de Produto para o Atleta na Pista
 
-#### 18. Transformação em PWA Completo (Progressive Web App)
+#### 21. Transformação em PWA Completo (Progressive Web App)
 - **Solução proposta:** Configurar `manifest.json`, ícones nativos e service worker para cache estático da interface:
   - Botão *"Instalar PaceLab"* na tela inicial do Android e iOS.
   - Execução em tela cheia (standalone) sem barra de navegação do browser.
 
-#### 19. Wake Lock API (Manter Tela Ativa na Pista)
+#### 22. Wake Lock API (Manter Tela Ativa na Pista)
 - **Solução proposta:** Integrar a API nativa `navigator.wakeLock.request("screen")` durante a navegação no módulo Meu TAF ou durante cronometragem, impedindo que a tela do celular bloqueie no meio do treino.
 
-#### 20. Cronômetro Interativo com Bip Sonoro de Parciais de Volta (400m)
+#### 23. Cronômetro Interativo com Bip Sonoro de Parciais de Volta (400m)
 - **Solução proposta:** Adicionar cronômetro nativo na aba de simulados que emite sinal sonoro a cada volta de 400m projetada, orientando o atleta auditivamente sobre estar à frente ou atrás do ritmo da aprovação.
 
 ---
 
 ### Eixo D: Relatórios, Estimativas e Compartilhamento
 
-#### 21. Exportação de Laudo Técnico do TAF em PDF
+#### 24. Exportação de Laudo Técnico do TAF em PDF
 - **Solução proposta:** Gerar laudo formatado para impressão ou envio via WhatsApp contendo:
   - Evolução gráfica dos 12 minutos.
   - Projeção de aprovação segundo o edital da Guarda Municipal.
@@ -184,13 +212,14 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 
 ### Eixo E: Qualidade de Engenharia & CI/CD
 
-#### 22. Pipeline de CI no GitHub Actions
+#### 25. Pipeline de CI no GitHub Actions
 - **Solução proposta:** Workflow automatizado disparado em todo push/pull request:
   - Validação de tipos (`npx tsc --noEmit`).
   - Linter (`npx eslint`).
   - Execução dos testes automatizados (`npm test`).
   - Verificação de build de produção (`npm run build`).
 
-#### 23. Seed Script do Prisma para Desenvolvimento Local
+#### 26. Seed Script do Prisma para Desenvolvimento Local
 - **Solução proposta:** Criar `prisma/seed.ts` com dados representativos de teste para popular o banco local com 1 comando (`npx prisma db seed`).
+
 

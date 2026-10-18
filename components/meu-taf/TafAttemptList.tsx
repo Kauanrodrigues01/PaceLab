@@ -52,23 +52,23 @@ export function TafAttemptList({
       {/* Cabeçalho da Lista e Filtros */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
         <div className="flex items-center gap-2">
-          <History className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-          <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+          <History className="w-5 h-5 text-[#B7F34A]" />
+          <h3 className="font-bold text-base text-white">
             Histórico de Testes ({filtered.length})
           </h3>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Filtro por período */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs">
-            <Calendar className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
+          <div className="flex items-center gap-1 bg-[#131A2E] border border-[#1E2942] p-1 rounded-xl text-xs">
+            <Calendar className="w-3.5 h-3.5 text-[#8E9BB0] ml-1.5" />
             <button
               type="button"
               onClick={() => setFilterPeriod("all")}
               className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${
                 filterPeriod === "all"
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
+                  : "text-[#8E9BB0] hover:text-white"
               }`}
             >
               Todo o período
@@ -78,8 +78,8 @@ export function TafAttemptList({
               onClick={() => setFilterPeriod("30d")}
               className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${
                 filterPeriod === "30d"
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
+                  : "text-[#8E9BB0] hover:text-white"
               }`}
             >
               30 dias
@@ -89,8 +89,8 @@ export function TafAttemptList({
               onClick={() => setFilterPeriod("90d")}
               className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${
                 filterPeriod === "90d"
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
+                  : "text-[#8E9BB0] hover:text-white"
               }`}
             >
               90 dias
@@ -98,14 +98,14 @@ export function TafAttemptList({
           </div>
 
           {/* Filtro por duração */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs">
+          <div className="flex items-center gap-1 bg-[#131A2E] border border-[#1E2942] p-1 rounded-xl text-xs">
             <button
               type="button"
               onClick={() => setFilterDuration("12min")}
               className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
                 filterDuration === "12min"
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
+                  : "text-[#8E9BB0] hover:text-white"
               }`}
             >
               12 Minutos (TAF)
@@ -115,8 +115,8 @@ export function TafAttemptList({
               onClick={() => setFilterDuration("all")}
               className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
                 filterDuration === "all"
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
+                  : "text-[#8E9BB0] hover:text-white"
               }`}
             >
               Todos
@@ -126,8 +126,8 @@ export function TafAttemptList({
               onClick={() => setFilterDuration("other")}
               className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
                 filterDuration === "other"
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
+                  : "text-[#8E9BB0] hover:text-white"
               }`}
             >
               Outras durações
@@ -140,15 +140,15 @@ export function TafAttemptList({
       {filtered.length === 0 ? (
         <div
           data-testid="taf-empty-state"
-          className="bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center"
+          className="bg-[#131A2E]/60 border border-dashed border-[#1E2942] rounded-3xl p-8 text-center"
         >
-          <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto mb-3">
+          <div className="w-12 h-12 rounded-2xl bg-[#1E2942] text-[#B7F34A] flex items-center justify-center mx-auto mb-3">
             <Trophy className="w-6 h-6" />
           </div>
-          <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1">
+          <h4 className="font-bold text-sm text-white mb-1">
             Nenhum teste registrado
           </h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+          <p className="text-xs text-[#8E9BB0] max-w-sm mx-auto">
             {filterDuration === "12min"
               ? "Você ainda não registrou nenhum simulado de 12 minutos. Preencha o formulário acima para registrar sua primeira tentativa e ver seus recordes!"
               : "Nenhum teste encontrado para o filtro selecionado."}
