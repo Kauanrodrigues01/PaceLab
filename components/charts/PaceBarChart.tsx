@@ -63,6 +63,7 @@ export function PaceBarChart({
             axisLine={{ stroke: "#cbd5e1" }}
           />
           <YAxis
+            reversed
             stroke="#94a3b8"
             fontSize={11}
             tickLine={false}

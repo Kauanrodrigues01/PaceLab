@@ -150,6 +150,11 @@ describe("MeuTafPage - Fase E (Painel de Evolução & 5 Gráficos Recharts)", ()
     expect(
       within(chartC).queryByText("Sem dados suficientes de pace")
     ).not.toBeInTheDocument();
+    expect(
+      within(chartC).getByText(
+        /Eixo invertido: quanto mais alto, mais rápido seu ritmo \(evolução ascendente\)/i
+      )
+    ).toBeInTheDocument();
 
     const chartE = within(dashboard).getByTestId("chart-e-container");
     expect(

@@ -572,7 +572,7 @@ export function EvolutionDashboard({
                 Gráfico C: Evolução do Pace Médio por Treino
               </h4>
               <p className="text-xs text-[#8E9BB0] mt-0.5">
-                Velocidade de corrida ao longo do tempo (minutos por quilômetro).
+                Velocidade de corrida ao longo do tempo (minutos por quilômetro). Eixo invertido: quanto mais alto, mais rápido seu ritmo (evolução ascendente).
               </p>
             </div>
           </div>
@@ -581,8 +581,7 @@ export function EvolutionDashboard({
           <div className="mb-4 bg-[#0B1020]/80 border border-[#1E2942] p-2.5 rounded-xl flex items-center gap-2 text-[11px] text-[#8E9BB0] font-medium">
             <Info className="w-4 h-4 shrink-0 text-[#B7F34A]" />
             <span>
-              💡 <strong>Regra do Pace:</strong> Valores menores indicam maior velocidade (tempo
-              menor gasto para percorrer cada km).
+              💡 <strong>Regra do Pace:</strong> O eixo vertical está invertido para que a curva suba conforme sua velocidade aumenta (ritmo mais rápido e menor tempo no topo).
             </span>
           </div>
 
@@ -611,6 +610,8 @@ export function EvolutionDashboard({
                     stroke="#1E2942"
                   />
                   <YAxis
+                    reversed
+                    domain={["dataMin - 15", "dataMax + 15"]}
                     tickFormatter={(sec: number) => formatPace(sec)}
                     tick={{ fontSize: 11, fill: "#8E9BB0" }}
                     stroke="#1E2942"

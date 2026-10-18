@@ -974,7 +974,7 @@ export function TrainingEvolutionDashboard({
                     <span>Evolução do Pace por Sessão</span>
                   </h4>
                   <p className="text-xs text-[#8E9BB0] mt-0.5">
-                    Ritmo médio (min/km) ao longo do tempo. Valores menores = maior velocidade.
+                    Ritmo médio (min/km). Eixo invertido: quanto mais alto na curva, mais rápido seu ritmo (evolução ascendente).
                   </p>
                 </div>
 
@@ -1047,6 +1047,8 @@ export function TrainingEvolutionDashboard({
                         <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#1E2942" />
                         <XAxis dataKey="dateLabel" tick={{ fontSize: 10 }} stroke="#8E9BB0" />
                         <YAxis
+                          reversed
+                          domain={["dataMin - 15", "dataMax + 15"]}
                           tickFormatter={(sec: number) => formatPace(sec)}
                           tick={{ fontSize: 11 }}
                           stroke="#8E9BB0"

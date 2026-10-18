@@ -311,5 +311,16 @@ describe("TrainingEvolutionDashboard (Fase 4 & 5 - Gráficos Analíticos)", () =
     // Estado vazio some
     expect(within(paceCard).queryByTestId("pace-chart-empty")).not.toBeInTheDocument();
   });
+
+  it("exibe a explicação de eixo invertido para evolução ascendente no gráfico de pace", () => {
+    render(<TrainingEvolutionDashboard trainings={mockTrainings} />);
+
+    const paceCard = screen.getByTestId("chart-pace-evolution");
+    expect(
+      within(paceCard).getByText(
+        /Eixo invertido: quanto mais alto na curva, mais rápido seu ritmo \(evolução ascendente\)/i
+      )
+    ).toBeInTheDocument();
+  });
 });
 
