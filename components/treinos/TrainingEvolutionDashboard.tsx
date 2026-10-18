@@ -58,6 +58,16 @@ const RPE_ZONE_COLORS = {
   maximo: "#ef4444", // Vermelho (RPE 9-10)
 };
 
+const PACE_ACTIVITY_OPTIONS: Array<{
+  value: "all" | ActivityType;
+  label: string;
+}> = [
+  { value: "all", label: "Todas" },
+  { value: "corrida_continua", label: "Corrida Contínua" },
+  { value: "corrida_intervalada", label: "Intervalado" },
+  { value: "caminhada", label: "Caminhada" },
+];
+
 export function TrainingEvolutionDashboard({
   trainings,
 }: TrainingEvolutionDashboardProps) {
@@ -67,6 +77,7 @@ export function TrainingEvolutionDashboard({
   const [sessionCount, setSessionCount] = useState<SessionCountPreset>(4);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [paceActivityFilter, setPaceActivityFilter] = useState<"all" | ActivityType>("all");
 
   useEffect(() => {
     setIsMounted(true);
@@ -286,24 +297,35 @@ export function TrainingEvolutionDashboard({
   // ─── 4. Gráfico 2: Curva de Evolução do Pace (LineChart) ──────────────────────
   const paceChartData = useMemo(() => {
     return filteredTrainings
-      .filter((t) => t.distanceKm > 0 && t.durationSeconds > 0)
+      .filter((t) => {
+        if (t.distanceKm <= 0 || t.durationSeconds <= 0) return false;
+        if (paceActivityFilter !== "all" && t.activityType !== paceActivityFilter) {
+          return false;
+        }
+        return true;
+      })
       .map((t, idx) => {
         const d = parseSafeDate(t.sessionDate);
         const dateLabel = d
           ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`
           : `#${idx + 1}`;
 
+        const paceSec =
+          t.paceSeconds && t.paceSeconds > 0
+            ? t.paceSeconds
+            : Math.round(t.durationSeconds / t.distanceKm);
+
         return {
           id: t.id,
           dateLabel,
           distanceKm: t.distanceKm,
-          paceSeconds: t.paceSeconds,
-          paceFormatted: t.paceFormatted,
+          paceSeconds: paceSec,
+          paceFormatted: t.paceFormatted || formatPace(paceSec),
           activityType: t.activityType,
           activityLabel: ACTIVITY_LABELS[t.activityType] || "Corrida",
         };
       });
-  }, [filteredTrainings]);
+  }, [filteredTrainings, paceActivityFilter]);
 
   // ─── 5. Gráfico 3: Carga de Treino Semanal (Training Load / TRIMP) ─────────────
   const trainingLoadChartData = useMemo(() => {
@@ -945,64 +967,123 @@ export function TrainingEvolutionDashboard({
               data-testid="chart-pace-evolution"
               className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-6 shadow-sm"
             >
-              <div className="flex items-center justify-between mb-4">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
+                <div className="min-w-0">
                   <h4 className="font-bold text-sm sm:text-base text-white flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-[#B7F34A]" />
-                    Evolução do Pace por Sessão
+                    <Zap className="w-4 h-4 text-[#B7F34A] shrink-0" />
+                    <span>Evolução do Pace por Sessão</span>
                   </h4>
                   <p className="text-xs text-[#8E9BB0] mt-0.5">
                     Ritmo médio (min/km) ao longo do tempo. Valores menores = maior velocidade.
                   </p>
                 </div>
+
+                {/* Filtro por Modalidade / Tipo de Exercício */}
+                <div
+                  data-testid="filter-pace-activity-group"
+                  className="flex items-center gap-1 bg-[#0B1020] p-1 rounded-2xl border border-[#1E2942] self-start sm:self-center overflow-x-auto max-w-full shrink-0"
+                >
+                  {PACE_ACTIVITY_OPTIONS.map((opt) => {
+                    const isActive = paceActivityFilter === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        data-testid={`filter-pace-activity-${opt.value}`}
+                        onClick={() => setPaceActivityFilter(opt.value)}
+                        className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                          isActive
+                            ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                            : "text-[#8E9BB0] hover:text-white"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {isMounted ? (
-                <div className="h-64 sm:h-72 w-full">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={200}>
-                    <LineChart
-                      data={paceChartData}
-                      margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#1E2942" />
-                      <XAxis dataKey="dateLabel" tick={{ fontSize: 10 }} stroke="#8E9BB0" />
-                      <YAxis
-                        tickFormatter={(sec: number) => formatPace(sec)}
-                        tick={{ fontSize: 11 }}
-                        stroke="#8E9BB0"
-                      />
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="bg-[#0B1020] text-white text-xs p-3 rounded-xl shadow-xl border border-[#1E2942] space-y-1">
-                                <span className="font-bold text-[#8E9BB0] block">
-                                  {data.dateLabel} • {data.activityLabel}
-                                </span>
-                                <div className="text-sm font-black text-[#B7F34A]">
-                                  Pace: {data.paceFormatted} /km
+                paceChartData.length === 0 ? (
+                  <div
+                    data-testid="pace-chart-empty"
+                    className="h-64 sm:h-72 w-full flex flex-col items-center justify-center text-center p-6 border border-dashed border-[#1E2942] rounded-2xl bg-[#0B1020]/40 space-y-2"
+                  >
+                    <Zap className="w-8 h-8 text-[#8E9BB0]/40 mx-auto" />
+                    <p className="text-xs font-bold text-white">
+                      Nenhum treino de{" "}
+                      {paceActivityFilter === "all"
+                        ? "corrida ou caminhada"
+                        : (ACTIVITY_LABELS[paceActivityFilter] || paceActivityFilter)}{" "}
+                      no período
+                    </p>
+                    <p className="text-[11px] text-[#8E9BB0] max-w-xs mx-auto">
+                      {paceActivityFilter !== "all" ? (
+                        <>
+                          Alterne o filtro para{" "}
+                          <button
+                            type="button"
+                            data-testid="button-reset-pace-filter"
+                            onClick={() => setPaceActivityFilter("all")}
+                            className="text-[#B7F34A] underline font-semibold hover:opacity-80"
+                          >
+                            Todas
+                          </button>{" "}
+                          ou altere o período selecionado acima.
+                        </>
+                      ) : (
+                        "Nenhum treino com registro de pace e distância encontrado no período."
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="h-64 sm:h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={200}>
+                      <LineChart
+                        data={paceChartData}
+                        margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#1E2942" />
+                        <XAxis dataKey="dateLabel" tick={{ fontSize: 10 }} stroke="#8E9BB0" />
+                        <YAxis
+                          tickFormatter={(sec: number) => formatPace(sec)}
+                          tick={{ fontSize: 11 }}
+                          stroke="#8E9BB0"
+                        />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="bg-[#0B1020] text-white text-xs p-3 rounded-xl shadow-xl border border-[#1E2942] space-y-1">
+                                  <span className="font-bold text-[#8E9BB0] block">
+                                    {data.dateLabel} • {data.activityLabel}
+                                  </span>
+                                  <div className="text-sm font-black text-[#B7F34A]">
+                                    Pace: {data.paceFormatted} /km
+                                  </div>
+                                  <div className="text-[#8E9BB0] text-[11px]">
+                                    Distância: {data.distanceKm} km
+                                  </div>
                                 </div>
-                                <div className="text-[#8E9BB0] text-[11px]">
-                                  Distância: {data.distanceKm} km
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="paceSeconds"
-                        stroke="#B7F34A"
-                        strokeWidth={2.5}
-                        dot={{ r: 3.5, fill: "#B7F34A", strokeWidth: 1.5, stroke: "#0B1020" }}
-                        activeDot={{ r: 6 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="paceSeconds"
+                          stroke="#B7F34A"
+                          strokeWidth={2.5}
+                          dot={{ r: 3.5, fill: "#B7F34A", strokeWidth: 1.5, stroke: "#0B1020" }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )
               ) : (
                 <div className="h-64 w-full animate-pulse bg-[#0B1020] rounded-2xl" />
               )}

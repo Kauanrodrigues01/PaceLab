@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TrainingEvolutionDashboard } from "@/components/treinos/TrainingEvolutionDashboard";
 import { TrainingSession } from "@/types";
@@ -113,17 +113,19 @@ describe("TrainingEvolutionDashboard (Fase 4 & 5 - Gráficos Analíticos)", () =
   it("exibe a distribuição de modalidades por tipo de locomoção", () => {
     render(<TrainingEvolutionDashboard trainings={mockTrainings} />);
 
+    const activityCard = screen.getByTestId("chart-activity-distribution");
+
     // Corrida Contínua: 10 km (50%)
-    expect(screen.getByText("Corrida Contínua")).toBeInTheDocument();
-    expect(screen.getByText(/10 km/)).toBeInTheDocument();
+    expect(within(activityCard).getByText("Corrida Contínua")).toBeInTheDocument();
+    expect(within(activityCard).getByText(/10 km/)).toBeInTheDocument();
 
     // Intervalado / Tiros: 6 km (30%)
-    expect(screen.getByText("Intervalado / Tiros")).toBeInTheDocument();
-    expect(screen.getByText(/6 km/)).toBeInTheDocument();
+    expect(within(activityCard).getByText("Intervalado / Tiros")).toBeInTheDocument();
+    expect(within(activityCard).getByText(/6 km/)).toBeInTheDocument();
 
     // Caminhada: 4 km (20%)
-    expect(screen.getByText("Caminhada")).toBeInTheDocument();
-    expect(screen.getByText(/4 km/)).toBeInTheDocument();
+    expect(within(activityCard).getByText("Caminhada")).toBeInTheDocument();
+    expect(within(activityCard).getByText(/4 km/)).toBeInTheDocument();
   });
 
   it("permite alternar entre os filtros de período temporal", async () => {
@@ -226,6 +228,88 @@ describe("TrainingEvolutionDashboard (Fase 4 & 5 - Gráficos Analíticos)", () =
     await user.type(inputStartDate, futureDateStr);
 
     expect(screen.getByText("Nenhum treino registrado no período selecionado")).toBeInTheDocument();
+  });
+
+  it("renderiza os botões de filtro por modalidade no gráfico de evolução do pace", () => {
+    render(<TrainingEvolutionDashboard trainings={mockTrainings} />);
+
+    const paceCard = screen.getByTestId("chart-pace-evolution");
+    expect(within(paceCard).getByTestId("filter-pace-activity-all")).toBeInTheDocument();
+    expect(within(paceCard).getByTestId("filter-pace-activity-corrida_continua")).toBeInTheDocument();
+    expect(within(paceCard).getByTestId("filter-pace-activity-corrida_intervalada")).toBeInTheDocument();
+    expect(within(paceCard).getByTestId("filter-pace-activity-caminhada")).toBeInTheDocument();
+
+    // "Todas" ativo por padrão
+    const btnAll = within(paceCard).getByTestId("filter-pace-activity-all");
+    expect(btnAll).toHaveClass("bg-[#B7F34A]");
+  });
+
+  it("permite filtrar o gráfico de pace por modalidade e alternar entre corrida, intervalado e caminhada", async () => {
+    const user = userEvent.setup();
+    render(<TrainingEvolutionDashboard trainings={mockTrainings} />);
+
+    const paceCard = screen.getByTestId("chart-pace-evolution");
+    const btnCorrida = within(paceCard).getByTestId("filter-pace-activity-corrida_continua");
+    const btnIntervalado = within(paceCard).getByTestId("filter-pace-activity-corrida_intervalada");
+    const btnCaminhada = within(paceCard).getByTestId("filter-pace-activity-caminhada");
+    const btnAll = within(paceCard).getByTestId("filter-pace-activity-all");
+
+    // Seleciona Corrida Contínua
+    await user.click(btnCorrida);
+    expect(btnCorrida).toHaveClass("bg-[#B7F34A]");
+    expect(btnAll).not.toHaveClass("bg-[#B7F34A]");
+
+    // Seleciona Intervalado
+    await user.click(btnIntervalado);
+    expect(btnIntervalado).toHaveClass("bg-[#B7F34A]");
+    expect(btnCorrida).not.toHaveClass("bg-[#B7F34A]");
+
+    // Seleciona Caminhada
+    await user.click(btnCaminhada);
+    expect(btnCaminhada).toHaveClass("bg-[#B7F34A]");
+
+    // Retorna para Todas
+    await user.click(btnAll);
+    expect(btnAll).toHaveClass("bg-[#B7F34A]");
+    expect(btnCaminhada).not.toHaveClass("bg-[#B7F34A]");
+  });
+
+  it("exibe mensagem amigável no gráfico de pace quando a modalidade selecionada não possui treinos", async () => {
+    const user = userEvent.setup();
+    // Treinos apenas de corrida contínua
+    const onlyRunning: TrainingSession[] = [
+      {
+        id: "trn-run",
+        sessionDate: new Date().toISOString(),
+        activityType: "corrida_continua",
+        distanceKm: 5.0,
+        durationSeconds: 1500,
+        speedKmh: 12.0,
+        paceSeconds: 300,
+        paceFormatted: "05:00",
+        splits: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+
+    render(<TrainingEvolutionDashboard trainings={onlyRunning} />);
+
+    const paceCard = screen.getByTestId("chart-pace-evolution");
+    const btnCaminhada = within(paceCard).getByTestId("filter-pace-activity-caminhada");
+
+    // Filtra por Caminhada (que não existe nessa lista)
+    await user.click(btnCaminhada);
+
+    expect(within(paceCard).getByTestId("pace-chart-empty")).toBeInTheDocument();
+    expect(within(paceCard).getByText(/Nenhum treino de Caminhada no período/i)).toBeInTheDocument();
+
+    // Clica no link para voltar para "Todas"
+    const btnResetAll = within(paceCard).getByTestId("button-reset-pace-filter");
+    await user.click(btnResetAll);
+
+    // Estado vazio some
+    expect(within(paceCard).queryByTestId("pace-chart-empty")).not.toBeInTheDocument();
   });
 });
 
