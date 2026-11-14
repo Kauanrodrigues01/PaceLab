@@ -153,6 +153,7 @@ export default function TreinosPage() {
       const isUpdate = Boolean(editingTraining) || trainings.some((t) => t.id === session.id);
       const saved = await tafService.saveTraining(session, isUpdate);
 
+      clearCrossPageSheetsCaches({ includeGoal: false });
       setTrainings((prev) => {
         const index = prev.findIndex((t) => t.id === saved.id);
         const updated = index >= 0
@@ -194,6 +195,7 @@ export default function TreinosPage() {
 
   // Callback ao importar treino via .FIT / .GPX
   const handleImportedTraining = (saved: TrainingSession, isUpdated = false) => {
+    clearCrossPageSheetsCaches({ includeGoal: false });
     setTrainings((prev) => {
       const index = prev.findIndex((t) => t.id === saved.id);
       const updated =
@@ -216,6 +218,7 @@ export default function TreinosPage() {
 
   // Atualiza lista local e cache após salvar ou espelhar um treino
   const upsertTrainingInState = useCallback((saved: TrainingSession) => {
+    clearCrossPageSheetsCaches({ includeGoal: false });
     setTrainings((prev) => {
       const index = prev.findIndex((t) => t.id === saved.id);
       const updated =
@@ -233,6 +236,7 @@ export default function TreinosPage() {
     isUpdated = false,
     meta?: { mirrored?: boolean; mirrorError?: string | null }
   ) => {
+    clearCrossPageSheetsCaches({ includeGoal: false });
     setEditingTraining(null);
     setIsFormOpen(false);
     setFormMode("manual");
@@ -294,6 +298,7 @@ export default function TreinosPage() {
   const handleDeleteTraining = async (id: string) => {
     try {
       await tafService.deleteTraining(id);
+      clearCrossPageSheetsCaches({ includeGoal: false });
       setTrainings((prev) => {
         const updated = prev.filter((t) => t.id !== id);
         setCachedTrainings(updated);
@@ -392,7 +397,7 @@ export default function TreinosPage() {
       {notification && (
         <div
           data-testid="toast-notification"
-          className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold border transition-all ${
+          className={`fixed top-4 right-4 z-50 max-w-[calc(100vw-2rem)] flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold border transition-all ${
             notification.type === "success"
               ? "bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800"
               : "bg-red-50 dark:bg-red-950/90 text-red-800 dark:text-red-200 border-red-200 dark:border-red-800"

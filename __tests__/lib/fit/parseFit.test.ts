@@ -7,10 +7,14 @@ import {
   FitParseError,
   fitParserService,
   isFitBuffer,
-   isFitParseError,
+  isFitParseError,
   parseFit,
   semicirclesToDegrees,
 } from "@/lib/fit";
+import {
+  hasExplicitTimerPauseEvents,
+  motionStepsToSplitInputs,
+} from "@/lib/fit/movingMetrics";
 
 /**
  * Helper que codifica mensagens FIT reais em binário usando o `Encoder` oficial do `@garmin/fitsdk`.
@@ -841,6 +845,122 @@ describe("lib/fit/parseFit — Parser Binário .FIT (@garmin/fitsdk)", () => {
       expect(parsed.splits).toHaveLength(2);
       expect(parsed.splits[0].durationSeconds).toBe(290);
       expect(parsed.splits[1].durationSeconds).toBe(300);
+    });
+
+    it("mescla records alternados por timestamp (estilo Strava Mobile), ignora platôs do odômetro em degraus, detecta pausa real com timer/stop único e preserva soma exata das parciais", () => {
+      const startMs = Date.parse("2026-10-29T20:24:17Z");
+      const start = new Date(startMs);
+      const degToSemi = (deg: number) => Math.round(deg * (Math.pow(2, 31) / 180));
+      const records: Array<Record<string, unknown>> = [];
+
+      let cumDistM = 0;
+      const totalSpanSec = 1450;
+
+      for (let sec = 0; sec <= totalSpanSec; sec++) {
+        const ts = new Date(startMs + sec * 1000);
+        const inPause = sec >= 600 && sec <= 614; // 15s reais parados (inclui drift de +3m em sec=610)
+        const instSpeed = inPause ? 0.08 : 1.5;
+
+        if (!inPause && sec > 0 && sec % 4 === 0) {
+          cumDistM += 6; // odômetro atualizado em degraus de 4s (3s consecutivos dDist=0)
+        } else if (sec === 610) {
+          cumDistM += 3; // pequeno drift GPS durante pausa não deve ser perdido nas parciais
+        }
+
+        // Registro 1: apenas GPS + elevação + velocidade + acurácia (sem distance)
+        records.push({
+          timestamp: ts,
+          positionLat: degToSemi(-4.222 + sec * 0.00001),
+          positionLong: degToSemi(-38.723),
+          enhancedAltitude: Number((90 + (sec / totalSpanSec) * 12).toFixed(1)),
+          speed: instSpeed,
+          gpsAccuracy: 4,
+        });
+
+        // Registro 2 no mesmo timestamp: apenas distance (sem GPS/speed/elevação)
+        records.push({
+          timestamp: ts,
+          distance: Number(cumDistM.toFixed(2)),
+        });
+      }
+
+      const fitBuf = buildFitBuffer({
+        events: [
+          { timestamp: start, event: "timer", eventType: "start" },
+          { timestamp: new Date(startMs + totalSpanSec * 1000), event: "timer", eventType: "stop" },
+        ],
+        records,
+        laps: [
+          {
+            startTime: start,
+            timestamp: new Date(startMs + (totalSpanSec + 5) * 1000),
+            totalElapsedTime: totalSpanSec + 5,
+            totalTimerTime: totalSpanSec - 1, // Simula truncamento de 1s do Strava Android
+            totalDistance: cumDistM,
+          },
+        ],
+        session: {
+          startTime: start,
+          totalElapsedTime: totalSpanSec - 1, // Truncado 1s abaixo do span real dos records
+          totalTimerTime: totalSpanSec - 1,
+          totalDistance: cumDistM,
+          totalAscent: 12,
+          sport: "walking",
+        },
+      });
+
+      const parsed = parseFit(fitBuf);
+      const splitsDurSum = parsed.splits.reduce((acc, s) => acc + s.durationSeconds, 0);
+      const splitsDistSum = Number(
+        parsed.splits.reduce((acc, s) => acc + s.distanceKm, 0).toFixed(3)
+      );
+
+      expect(parsed.distanceKm).toBe(Number((cumDistM / 1000).toFixed(3)));
+      expect(parsed.elapsedSeconds).toBe(totalSpanSec); // Preserva span real de 1450s
+      expect(parsed.durationSeconds).toBe(totalSpanSec - 15); // Desconta só os 15s parados (sem falsos positivos!)
+      expect(parsed.pointCount).toBe(totalSpanSec + 1); // 1 ponto consolidado por timestamp
+      expect(parsed.warnings.some((w) => w.code === "PAUSES_DETECTED_FROM_RECORDS")).toBe(true);
+      // Tolerância de <= 1s apenas por arredondamento individual Math.round de frações nos marcos de 1 km
+      expect(Math.abs(splitsDurSum - parsed.durationSeconds)).toBeLessThanOrEqual(1);
+      expect(splitsDistSum).toBe(parsed.distanceKm);
+      expect(parsed.splits.every((s) => s.elevationDiffM !== null)).toBe(true);
+    });
+
+    it("hasExplicitTimerPauseEvents ignora stop único final e motionStepsToSplitInputs mantém coerência entre resumo e splits", () => {
+      const startMs = Date.parse("2026-11-10T16:00:00Z");
+
+      // Início + stop único no fim = NÃO houve pausa intermediária
+      expect(
+        hasExplicitTimerPauseEvents([
+          { timestamp: new Date(startMs), event: "timer", eventType: "start" },
+          { timestamp: new Date(startMs + 600_000), event: "timer", eventType: "stop" },
+        ])
+      ).toBe(false);
+
+      // Pausa real no meio (stop seguido de retomada start)
+      expect(
+        hasExplicitTimerPauseEvents([
+          { timestamp: new Date(startMs), event: "timer", eventType: "start" },
+          { timestamp: new Date(startMs + 300_000), event: "timer", eventType: "stop" },
+          { timestamp: new Date(startMs + 320_000), event: "timer", eventType: "start" },
+          { timestamp: new Date(startMs + 600_000), event: "timer", eventType: "stop" },
+        ])
+      ).toBe(true);
+
+      const sampleSteps = [
+        { deltaDistM: 10, deltaTimeSec: 3, isCandidateStop: false, isMoving: true, hr: null, eleFrom: 100, eleTo: 101 },
+        { deltaDistM: 0, deltaTimeSec: 2, isCandidateStop: false, isMoving: true, hr: null, eleFrom: 101, eleTo: 101 },
+        { deltaDistM: 4, deltaTimeSec: 10, isCandidateStop: true, isMoving: false, hr: null, eleFrom: 101, eleTo: 101 },
+        { deltaDistM: 20, deltaTimeSec: 6, isCandidateStop: false, isMoving: true, hr: null, eleFrom: 101, eleTo: 102 },
+      ];
+
+      const filtered = motionStepsToSplitInputs(sampleSteps, { filterPauses: true });
+      expect(filtered.reduce((a, b) => a + b.deltaDistanceM, 0)).toBe(34);
+      expect(filtered.reduce((a, b) => a + b.movingTimeSeconds, 0)).toBe(11);
+
+      const unfiltered = motionStepsToSplitInputs(sampleSteps, { filterPauses: false });
+      expect(unfiltered.reduce((a, b) => a + b.deltaDistanceM, 0)).toBe(34);
+      expect(unfiltered.reduce((a, b) => a + b.movingTimeSeconds, 0)).toBe(21);
     });
   });
 });

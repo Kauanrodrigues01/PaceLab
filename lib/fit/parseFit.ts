@@ -22,6 +22,7 @@ import {
 import {
   areLapsUniform1Km,
   buildFitMotionSteps,
+  coalesceFitRecordsByTimestamp,
   computeLapElevationDiff,
   hasExplicitTimerPauseEvents,
   motionStepsToSplitInputs,
@@ -385,7 +386,7 @@ export function parseFit(
   const session = sessionMesgs[0] ?? {};
 
   // Parseia recordMesgs para pontos normalizados (incluindo conversão de semicircles -> graus)
-  const records: FitRecordPoint[] = [];
+  const rawRecords: FitRecordPoint[] = [];
   let hasGpsCoords = false;
   let maxRecordHr: number | null = null;
   let hrSum = 0;
@@ -466,7 +467,7 @@ export function parseFit(
         ? rec.gpsAccuracy
         : null;
 
-    records.push({
+    rawRecords.push({
       timestampMs,
       timestampIso: iso,
       distanceM,
@@ -481,12 +482,8 @@ export function parseFit(
     });
   }
 
-  for (let i = 1; i < records.length; i++) {
-    if (records[i].timestampMs < records[i - 1].timestampMs) {
-      records.sort((a, b) => a.timestampMs - b.timestampMs);
-      break;
-    }
-  }
+  // Consolida registros no mesmo timestamp (comum no app mobile do Strava: GPS+velocidade vs odômetro em msgs alternadas)
+  const records = coalesceFitRecordsByTimestamp(rawRecords);
 
   // Classificação de modalidade
   const sportInfo = classifyFitSport(
@@ -583,7 +580,7 @@ export function parseFit(
     );
   }
 
-  const rawElapsedFloatSec =
+  const baseElapsedFloatSec =
     typeof session.totalElapsedTime === "number" && session.totalElapsedTime > 0
       ? session.totalElapsedTime
       : lapTotalElapsedSec > 0
@@ -591,6 +588,8 @@ export function parseFit(
         : recordSpanSec > 0
           ? recordSpanSec
           : rawTimerSec;
+
+  const rawElapsedFloatSec = Math.max(baseElapsedFloatSec, recordSpanSec);
 
   const sessionTotalMovingSec =
     typeof session.totalMovingTime === "number" &&
@@ -632,7 +631,10 @@ export function parseFit(
       ? explicitMovingSec
       : hasWatchAutoPause
         ? rawTimerSec
-        : Math.max(1, rawTimerSec - detectedPausedSec);
+        : detectedPausedSec > 0 &&
+            Math.abs(rawTimerSec - motionSummary.totalTimeSec) <= 2
+          ? motionSummary.movingTimeSec
+          : Math.max(1, rawTimerSec - detectedPausedSec);
 
   const durationSeconds = Math.round(rawMovingDurationSec);
   if (durationSeconds <= 0) {
@@ -841,7 +843,14 @@ export function parseFit(
       };
     });
   } else {
-    splits = splitByDistance(motionStepsToSplitInputs(motionSteps));
+    const excludeDetectedPausesFromSplits =
+      canDetectPausesFromRecords &&
+      detectedPausedSec >= FIT_PAUSE_HYSTERESIS_MIN_SECONDS;
+    splits = splitByDistance(
+      motionStepsToSplitInputs(motionSteps, {
+        filterPauses: excludeDetectedPausesFromSplits,
+      })
+    );
     if (splits.length > 0) {
       warnings.push({
         code: "SPLITS_FROM_RECORDS",

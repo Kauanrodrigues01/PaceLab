@@ -76,6 +76,12 @@ export function GoalAndBackupSettings({
   const [isSyncingSheets, setIsSyncingSheets] = useState(false);
   const [confirmFullBackfill, setConfirmFullBackfill] = useState(false);
 
+  const recordsSyncFingerprint = `${attempts
+    .map((a) => `${a.id}:${a.updatedAt ?? ""}:${a.syncedToSheetsAt ?? ""}`)
+    .join("|")}::${trainings
+    .map((t) => `${t.id}:${t.updatedAt ?? ""}:${t.syncedToSheetsAt ?? ""}`)
+    .join("|")}`;
+
   const loadSheetsStatus = useCallback(async () => {
     setIsLoadingSheetsStatus(true);
     try {
@@ -112,7 +118,7 @@ export function GoalAndBackupSettings({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [recordsSyncFingerprint]);
 
   const runSheetsSync = async (options: {
     direction: "bidirectional" | "push";
@@ -191,6 +197,7 @@ export function GoalAndBackupSettings({
       const saved = await tafService.saveGoal(updated);
       onGoalSaved(saved);
       showToast("Meta da prova física atualizada com sucesso!");
+      await loadSheetsStatus();
     } catch {
       showToast("Erro ao salvar meta da prova", "error");
     } finally {

@@ -23,6 +23,7 @@ import {
   parseTafAttemptRowFromSheet,
   hasTrainingRowDivergence,
   hasTafAttemptRowDivergence,
+  hasProfileGoalRowDivergence,
 } from "@/lib/googleSheets/mapper";
 
 describe("Google Sheets Mapper Bidirecional (lib/googleSheets/mapper.ts)", () => {
@@ -658,6 +659,88 @@ describe("Google Sheets Mapper Bidirecional (lib/googleSheets/mapper.ts)", () =>
           hasTafAttemptRowDivergence(dbAttempt, { ...parsed.data, notes: "Nota editada no Sheets" })
         ).toBe(true);
       }
+    });
+
+    it("compara Perfil_e_Metas tolerando formatação pt-BR e células finais vazias", () => {
+      const expected = mapProfileAndGoalToRow(
+        {
+          name: "Atleta PaceLab",
+          birthDate: "1996-05-10",
+          heightCm: 178,
+          currentWeightKg: 74.5,
+        },
+        {
+          institutionName: "PF - Agente",
+          minDistanceMeters: 2400,
+          targetDistanceMeters: 2600,
+          targetDurationMinutes: 12,
+          targetExamDate: "2026-12-01",
+        },
+        null
+      );
+
+      expect(hasProfileGoalRowDivergence(undefined, expected)).toBe(true);
+      expect(hasProfileGoalRowDivergence([], expected)).toBe(true);
+
+      // Linha equivalente formatada pelo Google Sheets em pt-BR (vírgula decimal, milhar pontuado e data DD/MM/YYYY)
+      const ptBrSameRow = [
+        "Atleta PaceLab",
+        String(expected[1]),
+        "178",
+        "74,5",
+        "PF - Agente",
+        "2.400",
+        "2.600",
+        "12",
+        "01/12/2026",
+      ];
+      expect(hasProfileGoalRowDivergence(ptBrSameRow, expected)).toBe(false);
+
+      // Tolera remoção de apóstrofo anti-fórmula pela API ao ler valor formatado
+      const formulaExpected = mapProfileAndGoalToRow(
+        { name: "=Atleta", currentWeightKg: 70 },
+        {
+          institutionName: "Edital Padrão",
+          minDistanceMeters: 2400,
+          targetDistanceMeters: 2600,
+          targetDurationMinutes: 12,
+        },
+        null
+      );
+      expect(
+        hasProfileGoalRowDivergence(
+          ["=Atleta", "", "", "70", "Edital Padrão", "2400", "2600", "12", ""],
+          formulaExpected
+        )
+      ).toBe(false);
+
+      // Divergência de peso ou meta
+      expect(
+        hasProfileGoalRowDivergence([...ptBrSameRow.slice(0, 3), "73,0", ...ptBrSameRow.slice(4)], expected)
+      ).toBe(true);
+      expect(
+        hasProfileGoalRowDivergence([...ptBrSameRow.slice(0, 6), "2700", ...ptBrSameRow.slice(7)], expected)
+      ).toBe(true);
+      expect(hasProfileGoalRowDivergence(ptBrSameRow.slice(0, 8), expected)).toBe(true);
+
+      // Quando não há data da prova e API omite última célula vazia
+      const expectedNoDate = mapProfileAndGoalToRow(
+        { name: "Atleta", currentWeightKg: 70 },
+        {
+          institutionName: "Edital Padrão",
+          minDistanceMeters: 2400,
+          targetDistanceMeters: 2600,
+          targetDurationMinutes: 12,
+          targetExamDate: null,
+        },
+        null
+      );
+      expect(
+        hasProfileGoalRowDivergence(
+          ["Atleta", "", "", "70", "Edital Padrão", "2400", "2600", "12"],
+          expectedNoDate
+        )
+      ).toBe(false);
     });
   });
 });

@@ -882,5 +882,168 @@ describe("Fase 6 — Frontend & UX: Sincronização Google Sheets", () => {
       const badge = formatSheetsSyncBadge("2026-10-15T15:00:00.000Z");
       expect(badge.title).toContain("12:00");
     });
+
+    it("formata os 3 cenários de formatSheetsSyncReportSummary (contagens > 0, apenas Perfil/Meta e sem pendências)", () => {
+      expect(
+        formatSheetsSyncReportSummary(
+          makeSyncReport({
+            pushedAppended: 1,
+            pushedUpdated: 2,
+            pulledUpdated: 0,
+            pulledCreated: 3,
+            profileSynced: true,
+          })
+        )
+      ).toBe("Planilha sincronizada: 1 enviado(s), 2 atualizado(s), 3 importado(s) do Sheets");
+
+      expect(
+        formatSheetsSyncReportSummary(
+          makeSyncReport({
+            pushedAppended: 0,
+            pushedUpdated: 0,
+            pulledUpdated: 0,
+            pulledLinked: 0,
+            pulledCreated: 0,
+            tafPushedAppended: 0,
+            tafPushedUpdated: 0,
+            tafPulledUpdated: 0,
+            tafPulledLinked: 0,
+            tafPulledCreated: 0,
+            profileSynced: true,
+          })
+        )
+      ).toBe("Planilha sincronizada: Perfil/Meta atualizados no Sheets");
+
+      expect(
+        formatSheetsSyncReportSummary(
+          makeSyncReport({
+            pushedAppended: 0,
+            pushedUpdated: 0,
+            pulledUpdated: 0,
+            pulledLinked: 0,
+            pulledCreated: 0,
+            tafPushedAppended: 0,
+            tafPushedUpdated: 0,
+            tafPulledUpdated: 0,
+            tafPulledLinked: 0,
+            tafPulledCreated: 0,
+            profileSynced: false,
+            warnings: [{ tab: "Log_Treinos", rowNumber: 4, message: "Aviso" }],
+          })
+        )
+      ).toBe("Planilha já estava atualizada (nenhuma pendência encontrada) (1 aviso(s))");
+    });
+
+    it("atualiza pendências em GoalAndBackupSettings quando trainings/attempts mudam e após salvar meta", async () => {
+      const user = userEvent.setup();
+      const getSheetsStatusSpy = vi
+        .spyOn(tafService, "getSheetsSyncStatus")
+        .mockResolvedValueOnce({
+          configured: true,
+          pendingTrainingsCount: 0,
+          pendingAttemptsCount: 0,
+          totalPendingCount: 0,
+        })
+        .mockResolvedValueOnce({
+          configured: true,
+          pendingTrainingsCount: 1,
+          pendingAttemptsCount: 0,
+          totalPendingCount: 1,
+        })
+        .mockResolvedValueOnce({
+          configured: true,
+          pendingTrainingsCount: 1,
+          pendingAttemptsCount: 1,
+          totalPendingCount: 2,
+        });
+
+      vi.spyOn(tafService, "saveGoal").mockResolvedValueOnce({
+        ...DEFAULT_GOAL,
+        targetDistanceMeters: 2700,
+      });
+
+      const onGoalSaved = vi.fn();
+      const showToast = vi.fn();
+      const { rerender } = render(
+        <GoalAndBackupSettings
+          goal={DEFAULT_GOAL}
+          attempts={[]}
+          trainings={[]}
+          onGoalSaved={onGoalSaved}
+          onDataRefreshed={vi.fn()}
+          showToast={showToast}
+        />
+      );
+
+      await waitFor(() => {
+        expect(getSheetsStatusSpy).toHaveBeenCalledTimes(1);
+      });
+
+      // Atualiza prop trainings com novo treino pendente -> dispara recarga reativa
+      rerender(
+        <GoalAndBackupSettings
+          goal={DEFAULT_GOAL}
+          attempts={[]}
+          trainings={[makeTraining({ id: "trn-new-reactive", syncedToSheetsAt: null })]}
+          onGoalSaved={onGoalSaved}
+          onDataRefreshed={vi.fn()}
+          showToast={showToast}
+        />
+      );
+
+      await waitFor(() => {
+        expect(getSheetsStatusSpy).toHaveBeenCalledTimes(2);
+      });
+      expect(screen.getByTestId("sheets-pending-summary")).toHaveTextContent(
+        "Pendências aguardando envio: 1"
+      );
+
+      // Salvar meta da prova física recarrega status de pendências
+      await user.click(
+        screen.getByRole("button", { name: /Salvar Configuração da Meta/i })
+      );
+
+      await waitFor(() => {
+        expect(onGoalSaved).toHaveBeenCalledTimes(1);
+        expect(getSheetsStatusSpy).toHaveBeenCalledTimes(3);
+      });
+      expect(screen.getByTestId("sheets-pending-summary")).toHaveTextContent(
+        "Pendências aguardando envio: 2"
+      );
+    });
+
+    it("limpa caches cross-page de /meu-taf ao salvar/excluir treino em /treinos e aplica max-w responsivo no toast", async () => {
+      const user = userEvent.setup();
+      sessionStorage.setItem(
+        "pacelab_cache_taf_trainings",
+        JSON.stringify([makeTraining({ id: "trn-stale-cache" })])
+      );
+      sessionStorage.setItem(
+        "pacelab_cache_taf_attempts",
+        JSON.stringify([makeAttempt({ id: "att-stale-cache" })])
+      );
+
+      vi.spyOn(tafService, "getTrainings").mockResolvedValueOnce([
+        makeTraining({ id: "trn-del-target" }),
+      ]);
+      vi.spyOn(tafService, "deleteTraining").mockResolvedValueOnce(true);
+
+      render(<TreinosPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("training-card-trn-del-target")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTitle("Excluir treino"));
+      await user.click(screen.getByRole("button", { name: /Sim, Excluir/i }));
+
+      await waitFor(() => {
+        expect(sessionStorage.getItem("pacelab_cache_taf_trainings")).toBeNull();
+        expect(sessionStorage.getItem("pacelab_cache_taf_attempts")).toBeNull();
+      });
+
+      const toast = await screen.findByTestId("toast-notification");
+      expect(toast).toHaveClass("max-w-[calc(100vw-2rem)]");
+    });
   });
 });

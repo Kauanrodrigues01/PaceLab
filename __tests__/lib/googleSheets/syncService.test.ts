@@ -1476,5 +1476,231 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
         syncHistoricalDataToSheets({ forceFullResync: false }, { now: () => fixedNow })
       ).rejects.toThrow("HTTP 503 Service Unavailable");
     });
+
+    it("protege registros locais dirty contra sobrescrita no pull e contabiliza pushedUpdated/tafPushedUpdated no sync bidirecional", async () => {
+      const syncedBefore = new Date("2026-11-10T10:00:00.000Z");
+      const editedLocallyAfter = new Date("2026-11-14T11:30:00.000Z");
+
+      const dirtyTraining = {
+        id: "trn-dirty-bi",
+        sessionDate: new Date("2026-11-10T09:00:00.000Z"),
+        source: "manual",
+        activityType: "corrida_continua",
+        distanceKm: 8.5,
+        durationSeconds: 2550,
+        speedKmh: 12,
+        paceSeconds: 300,
+        paceFormatted: "5:00",
+        notes: "Observação editada offline",
+        syncedToSheetsAt: syncedBefore,
+        updatedAt: editedLocallyAfter,
+      };
+
+      const dirtyAttempt = {
+        id: "taf-dirty-bi",
+        source: "manual",
+        testDate: new Date("2026-11-11T09:00:00.000Z"),
+        locationType: "pista_400m",
+        targetDurationSeconds: 720,
+        actualDurationSeconds: 720,
+        distanceMeters: 2720,
+        speedKmh: 13.6,
+        paceSeconds: 265,
+        paceFormatted: "4:25",
+        notes: "Distância corrigida local",
+        syncedToSheetsAt: null,
+        updatedAt: editedLocallyAfter,
+      };
+
+      // pullChangesFromSheets + syncHistoricalDataToSheets chamam findMany
+      mockPrisma.trainingSession.findMany
+        .mockResolvedValueOnce([dirtyTraining])
+        .mockResolvedValueOnce([dirtyTraining]);
+      mockPrisma.tafAttempt.findMany
+        .mockResolvedValueOnce([dirtyAttempt])
+        .mockResolvedValueOnce([dirtyAttempt]);
+      mockPrisma.userProfile.findFirst.mockResolvedValue({
+        name: "Atleta",
+        currentWeightKg: 75,
+        updatedAt: editedLocallyAfter,
+      });
+      mockPrisma.tafGoal.findFirst.mockResolvedValue({
+        institutionName: "PF",
+        minDistanceMeters: 2400,
+        targetDistanceMeters: 2600,
+        targetDurationMinutes: 12,
+        targetExamDate: null,
+      });
+      mockPrisma.weightRecord.findFirst.mockResolvedValue(null);
+
+      // 1º batchGet (pull) -> dados antigos no Sheets; 2º batchGet (push) -> IDs existentes na linha 2 + Perfil_e_Metas já igual
+      fakeSheets.spreadsheets.values.batchGet
+        .mockResolvedValueOnce({
+          data: {
+            valueRanges: [
+              {
+                values: [
+                  ["ID", "Data"],
+                  [
+                    "trn-dirty-bi",
+                    "2026-11-10",
+                    "manual",
+                    "corrida_continua",
+                    "5,00",
+                    "00:30:00",
+                    "6:00",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "Dado obsoleto na planilha",
+                  ],
+                ],
+              },
+              {
+                values: [
+                  ["ID", "Data"],
+                  [
+                    "taf-dirty-bi",
+                    "2026-11-11",
+                    "rua_plana",
+                    "720",
+                    "720",
+                    "2400",
+                    "5:00",
+                    "12.00",
+                    "Aprovado (Mínimo)",
+                    "TAF antigo no Sheets",
+                  ],
+                ],
+              },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            valueRanges: [
+              { values: [["trn-dirty-bi"]] },
+              { values: [["taf-dirty-bi"]] },
+              { values: [["Atleta", "", "", "75", "PF", "2400", "2600", "12"]] },
+            ],
+          },
+        });
+
+      const report = await syncWithGoogleSheets(
+        { direction: "bidirectional", forceFullResync: false },
+        { now: () => fixedNow }
+      );
+
+      // Pull não sobrescreveu nenhum dos 2 registros locais dirty
+      expect(report.pulledUpdated).toBe(0);
+      expect(report.tafPulledUpdated).toBe(0);
+      expect(report.skipped).toBe(2);
+      expect(mockPrisma.trainingSession.update).not.toHaveBeenCalled();
+      expect(mockPrisma.tafAttempt.update).not.toHaveBeenCalled();
+
+      // Push subsequente enviou os dois registros e não reescreveu Perfil_e_Metas igual
+      expect(report.pushedUpdated).toBe(1);
+      expect(report.tafPushedUpdated).toBe(1);
+      expect(report.pushedAppended).toBe(0);
+      expect(report.tafPushedAppended).toBe(0);
+      expect(report.profileSynced).toBe(false);
+      expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledTimes(1);
+      expect(fakeSheets.spreadsheets.values.update).not.toHaveBeenCalled();
+    });
+
+    it("detecta Perfil_e_Metas igual (profileSynced=false) vs divergente (profileSynced=true) em syncHistoricalDataToSheets", async () => {
+      mockPrisma.trainingSession.findMany.mockResolvedValue([]);
+      mockPrisma.tafAttempt.findMany.mockResolvedValue([]);
+      mockPrisma.userProfile.findFirst.mockResolvedValue({
+        name: "Atleta PaceLab",
+        birthDate: new Date("1995-03-20T12:00:00.000Z"),
+        heightCm: 175,
+        currentWeightKg: 74.5,
+      });
+      mockPrisma.tafGoal.findFirst.mockResolvedValue({
+        institutionName: "PF - Agente",
+        minDistanceMeters: 2400,
+        targetDistanceMeters: 2600,
+        targetDurationMinutes: 12,
+        targetExamDate: new Date("2026-12-01T12:00:00.000Z"),
+      });
+      mockPrisma.weightRecord.findFirst.mockResolvedValue(null);
+
+      // Descobre idade calculada pelo mapper usando a data fake atual via getFullYear
+      const nowYear = new Date().getFullYear();
+      const expectedAge = nowYear - 1995;
+
+      // Caso 1: Perfil_e_Metas já idêntico (formato pt-BR) -> não escreve nem marca profileSynced
+      fakeSheets.spreadsheets.values.batchGet.mockResolvedValueOnce({
+        data: {
+          valueRanges: [
+            { values: [] },
+            { values: [] },
+            {
+              values: [
+                [
+                  "Atleta PaceLab",
+                  String(expectedAge),
+                  "175",
+                  "74,5",
+                  "PF - Agente",
+                  "2400",
+                  "2600",
+                  "12",
+                  "01/12/2026",
+                ],
+              ],
+            },
+          ],
+        },
+      });
+
+      const sameRes = await syncHistoricalDataToSheets(
+        { forceFullResync: false },
+        { now: () => fixedNow }
+      );
+      expect(sameRes.profileSynced).toBe(false);
+      expect(fakeSheets.spreadsheets.values.update).not.toHaveBeenCalled();
+
+      // Caso 2: Meta alterada na planilha (ex.: alvo antigo era 2500m) -> escreve e marca profileSynced=true
+      fakeSheets.spreadsheets.values.batchGet.mockResolvedValueOnce({
+        data: {
+          valueRanges: [
+            { values: [] },
+            { values: [] },
+            {
+              values: [
+                [
+                  "Atleta PaceLab",
+                  String(expectedAge),
+                  "175",
+                  "74,5",
+                  "PF - Agente",
+                  "2400",
+                  "2500",
+                  "12",
+                  "01/12/2026",
+                ],
+              ],
+            },
+          ],
+        },
+      });
+
+      const diffRes = await syncHistoricalDataToSheets(
+        { forceFullResync: false },
+        { now: () => fixedNow }
+      );
+      expect(diffRes.profileSynced).toBe(true);
+      expect(fakeSheets.spreadsheets.values.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          range: "Perfil_e_Metas!A2:I2",
+        })
+      );
+    });
   });
 });

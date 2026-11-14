@@ -95,6 +95,8 @@ export interface SheetTrainingSessionInput {
   activeCalories?: number | null;
   shoeName?: string | null;
   notes?: string | null;
+  syncedToSheetsAt?: Date | null;
+  updatedAt?: Date;
 }
 
 export interface SheetTafAttemptInput {
@@ -108,6 +110,8 @@ export interface SheetTafAttemptInput {
   paceFormatted: string;
   speedKmh: number;
   notes?: string | null;
+  syncedToSheetsAt?: Date | null;
+  updatedAt?: Date;
 }
 
 export interface SheetTafGoalInput {
@@ -935,6 +939,71 @@ export function hasTafAttemptRowDivergence(
   if (dbAttempt.targetDurationSeconds !== parsedRow.targetDurationSeconds) return true;
   if (dbAttempt.actualDurationSeconds !== parsedRow.actualDurationSeconds) return true;
   if (dbAttempt.distanceMeters !== parsedRow.distanceMeters) return true;
+
+  return false;
+}
+
+const PROFILE_GOAL_NUMERIC_COLUMNS = new Set([1, 2, 3, 5, 6, 7]);
+const PROFILE_GOAL_DATE_COLUMN = 8;
+
+/**
+ * Compara a linha lida de `Perfil_e_Metas!A2:I2` com a linha esperada gerada do banco,
+ * tolerando formatação pt-BR (vírgula decimal, datas DD/MM/YYYY) e células finais omitidas pela API.
+ */
+export function hasProfileGoalRowDivergence(
+  existingRow: unknown[] | null | undefined,
+  expectedRow: (string | number)[]
+): boolean {
+  if (!existingRow || isBlankSheetRow(existingRow)) {
+    return true;
+  }
+
+  for (let col = 0; col < expectedRow.length; col += 1) {
+    const expectedStr = String(expectedRow[col] ?? "").trim();
+    const existingStr = String(existingRow[col] ?? "").trim();
+
+    if (col === PROFILE_GOAL_DATE_COLUMN) {
+      if (expectedStr === "" && existingStr === "") continue;
+      if (expectedStr === "" || existingStr === "") return true;
+
+      const expectedDate = parseSheetDate(expectedStr);
+      const existingDate = parseSheetDate(existingStr);
+      if (expectedDate && existingDate) {
+        if (formatDateFortaleza(expectedDate) !== formatDateFortaleza(existingDate)) {
+          return true;
+        }
+        continue;
+      }
+
+      if (expectedStr !== existingStr) return true;
+      continue;
+    }
+
+    if (PROFILE_GOAL_NUMERIC_COLUMNS.has(col)) {
+      if (expectedStr === "" && existingStr === "") continue;
+      const expectedNum = parseSheetNumber(expectedRow[col]);
+      const normalizedGroupedInt =
+        expectedNum !== null &&
+        Number.isInteger(expectedNum) &&
+        expectedNum >= 1000 &&
+        /^\d{1,3}(?:\.\d{3})+$/.test(existingStr)
+          ? Number(existingStr.replace(/\./g, ""))
+          : null;
+      const existingNum = normalizedGroupedInt ?? parseSheetNumber(existingRow[col]);
+      if (expectedNum !== null && existingNum !== null) {
+        if (Math.abs(expectedNum - existingNum) >= 0.01) {
+          return true;
+        }
+        continue;
+      }
+      if (expectedStr !== existingStr) return true;
+      continue;
+    }
+
+    if (stripLeadingApostrophe(expectedStr) !== stripLeadingApostrophe(existingStr)) {
+      return true;
+    }
+  }
 
   return false;
 }
