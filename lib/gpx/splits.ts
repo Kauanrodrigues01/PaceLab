@@ -2,18 +2,31 @@ import { computeSplitElevationDiff } from "./elevation";
 import { formatPaceSeconds } from "./metrics";
 import {
   GpxSplit,
-  GpxStepPair,
   MAX_VALID_HEART_RATE,
   MIN_RESIDUAL_SPLIT_METERS,
   MIN_VALID_HEART_RATE,
 } from "./types";
+
+export interface DistanceSplitInput {
+  deltaDistanceM: number;
+  movingTimeSeconds: number;
+  isMoving: boolean;
+  from: {
+    elevationM: number | null;
+    heartRateBpm: number | null;
+  };
+  to: {
+    elevationM: number | null;
+    heartRateBpm: number | null;
+  };
+}
 
 /**
  * Divide os pares de movimento em parciais por distância (`splitDistanceMeters`, padrão 1.000 m),
  * aplicando interpolação linear ao cruzar cada marca e emitindo parcial residual quando >= 10 m.
  */
 export function splitByDistance(
-  pairs: GpxStepPair[],
+  pairs: readonly DistanceSplitInput[],
   splitDistanceMeters = 1000
 ): GpxSplit[] {
   if (pairs.length === 0 || splitDistanceMeters <= 0) {

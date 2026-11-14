@@ -1493,6 +1493,12 @@ export const swaggerSpec = {
                 example: ["fit", "gpx"],
               },
               name: { type: "string", nullable: true, example: "Rodagem Matinal" },
+              titleSource: {
+                type: "string",
+                enum: ["metadata", "filename"],
+                nullable: true,
+                example: "filename",
+              },
               sourceActivityKind: { type: "string", enum: ["run", "walk", "unknown"] },
               isIndoor: { type: "boolean", example: false },
               startedAt: { type: "string", format: "date-time" },

@@ -81,6 +81,11 @@ export function TrainingCard({
   const config = ACTIVITY_CONFIG[training.activityType] || ACTIVITY_CONFIG.corrida_continua;
   const ActivityIcon = config.icon;
   const rpeInfo = getRpeBadgeInfo(training.perceivedEffort);
+  const pauseSeconds =
+    training.elapsedSeconds != null &&
+    training.elapsedSeconds > training.durationSeconds
+      ? Math.round(training.elapsedSeconds - training.durationSeconds)
+      : 0;
 
   const parsedSessionDate = new Date(training.sessionDate);
   const formattedDate = Number.isNaN(parsedSessionDate.getTime())
@@ -225,6 +230,18 @@ export function TrainingCard({
             <Clock className="w-4 h-4 text-[#8E9BB0]" />
             {formatTime(training.durationSeconds)}
           </div>
+          {pauseSeconds > 0 && training.elapsedSeconds != null && (
+            <div
+              data-testid="training-elapsed-pause"
+              className="text-[11px] text-[#8E9BB0] mt-0.5 leading-tight"
+              title={`Tempo total decorrido com pausas: ${formatTime(training.elapsedSeconds)}`}
+            >
+              Decorrido: {formatTime(training.elapsedSeconds)} •{" "}
+              {pauseSeconds < 60
+                ? `${pauseSeconds}s pausa`
+                : `${formatTime(pauseSeconds)} pausa`}
+            </div>
+          )}
         </div>
 
         <div>

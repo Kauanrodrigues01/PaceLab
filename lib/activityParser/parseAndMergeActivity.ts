@@ -1,6 +1,6 @@
 import type { TafWindowSummary } from "@/types";
 import { FitParseError, isFitBuffer, parseFit } from "../fit";
-import { GpxParseError, parseGpx, parseGpxXml } from "../gpx";
+import { GpxParseError, GpxSplit, parseGpx, parseGpxXml } from "../gpx";
 import {
   ActivityFileKind,
   ActivityParserInput,
@@ -36,6 +36,50 @@ function toUtf8String(
  * Identifica se um arquivo bruto enviado é `.FIT` ou `.GPX` combinando inspeção de
  * assinatura binária (`.FIT` nos bytes 8..11) / tag `<gpx` e extensão do nome do arquivo.
  */
+function mergeSplitElevationsFromGpx(
+  fitSplits: GpxSplit[],
+  gpxSplits: GpxSplit[],
+  fitDistanceKm: number,
+  gpxDistanceKm: number | null,
+  elevationMergedFromGpx: boolean
+): GpxSplit[] {
+  if (
+    fitSplits.length === 0 ||
+    gpxSplits.length !== fitSplits.length ||
+    gpxDistanceKm === null ||
+    gpxDistanceKm <= 0
+  ) {
+    return fitSplits;
+  }
+
+  const fitLacksSplitElevation = fitSplits.every(
+    (s) =>
+      s.elevationDiffM === null ||
+      (elevationMergedFromGpx && s.elevationDiffM === 0)
+  );
+  const gpxHasSplitElevation = gpxSplits.some((s) => s.elevationDiffM !== null);
+  if (!fitLacksSplitElevation || !gpxHasSplitElevation) {
+    return fitSplits;
+  }
+
+  const maxDistToleranceKm = Math.max(0.25, fitDistanceKm * 0.15);
+  if (Math.abs(fitDistanceKm - gpxDistanceKm) > maxDistToleranceKm) {
+    return fitSplits;
+  }
+
+  const perSplitCompatible = fitSplits.every(
+    (s, idx) => Math.abs(s.distanceKm - gpxSplits[idx].distanceKm) <= 0.25
+  );
+  if (!perSplitCompatible) {
+    return fitSplits;
+  }
+
+  return fitSplits.map((split, idx) => ({
+    ...split,
+    elevationDiffM: gpxSplits[idx].elevationDiffM ?? split.elevationDiffM,
+  }));
+}
+
 export function detectActivityFileKind(
   file: RawActivityFileInput
 ): ActivityFileKind | "unknown" {
@@ -195,6 +239,8 @@ export function parseAndMergeActivity(
   let gpxName: string | null = null;
   let gpxStartedAt: string | null = null;
   let gpxElevationGainM: number | null = null;
+  let gpxDistanceKm: number | null = null;
+  let gpxSplits: GpxSplit[] = [];
   let gpxKind = fit.sourceActivityKind;
   let gpxRawType: string | null = null;
   let gpxTafWindow: TafWindowSummary | null = null;
@@ -204,6 +250,8 @@ export function parseAndMergeActivity(
     gpxName = parsedGpx.name;
     gpxStartedAt = parsedGpx.startedAt;
     gpxElevationGainM = parsedGpx.elevationGainM;
+    gpxDistanceKm = parsedGpx.distanceKm;
+    gpxSplits = parsedGpx.splits;
     gpxKind = parsedGpx.sourceActivityKind;
     gpxRawType = parsedGpx.rawType;
     gpxTafWindow = parsedGpx.tafWindow ?? null;
@@ -253,12 +301,14 @@ export function parseAndMergeActivity(
 
   // 3.3 Complemento de Ganho de Elevação (quando totalAscent vier nulo ou 0 no .FIT)
   let mergedElevationGainM = fit.elevationGainM;
+  let elevationMergedFromGpx = false;
   if (
     (mergedElevationGainM === null || mergedElevationGainM === 0) &&
     gpxElevationGainM !== null &&
     gpxElevationGainM > 0
   ) {
     mergedElevationGainM = gpxElevationGainM;
+    elevationMergedFromGpx = true;
     const noEleIdx = warnings.findIndex((w) => w.code === "NO_ELEVATION_DATA");
     if (noEleIdx !== -1) {
       warnings.splice(noEleIdx, 1);
@@ -268,6 +318,14 @@ export function parseAndMergeActivity(
       message: `Ganho de elevação (+${mergedElevationGainM} m) complementado a partir do arquivo .GPX.`,
     });
   }
+
+  const mergedSplits = mergeSplitElevationsFromGpx(
+    fit.splits,
+    gpxSplits,
+    fit.distanceKm,
+    gpxDistanceKm,
+    elevationMergedFromGpx
+  );
 
   // 3.4 Complemento de modalidade caso o .FIT venha como genérico/unknown
   let mergedKind = fit.sourceActivityKind;
@@ -301,7 +359,7 @@ export function parseAndMergeActivity(
     elevationGainM: mergedElevationGainM,
     activeCalories: fit.activeCalories,
     avgTemperatureC: fit.avgTemperatureC,
-    splits: fit.splits,
+    splits: mergedSplits,
     laps: fit.laps,
     tafWindow: fit.tafWindow ?? gpxTafWindow ?? null,
     externalId: fit.externalId,

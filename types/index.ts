@@ -271,6 +271,7 @@ export interface ActivityParsePreview {
   source: "fit_upload" | "gpx_upload";
   filesUsed: Array<"fit" | "gpx">;
   name: string | null;
+  titleSource?: "metadata" | "filename" | null;
   rawType: string | null;
   sourceActivityKind: "run" | "walk" | "unknown";
   isIndoor: boolean;

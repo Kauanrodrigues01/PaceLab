@@ -176,6 +176,9 @@ describe("POST /api/training-sessions/parse-activity & /api/taf/trainings/gpx-pr
     expect(json.data.avgCadence).toBe(174);
     expect(json.data.elevationGainM).toBe(32);
     expect(json.data.activeCalories).toBe(370);
+    expect(json.data.name).toBeNull();
+    expect(json.data.suggestedNotes).toBe("treino garmin");
+    expect(json.data.titleSource).toBe("filename");
     expect(json.data.alreadyExists).toBe(false);
     expect(json.data.existingTrainingId).toBeNull();
     expect(json.data.suggestedActivityType).toBe("corrida_continua");
@@ -203,6 +206,7 @@ describe("POST /api/training-sessions/parse-activity & /api/taf/trainings/gpx-pr
     expect(json.data.filesUsed).toEqual(["gpx"]);
     expect(json.data.name).toBe("Rodagem Leve no Ibirapuera");
     expect(json.data.suggestedNotes).toBe("Rodagem Leve no Ibirapuera");
+    expect(json.data.titleSource).toBe("metadata");
     expect(json.data.externalId).toMatch(/^gpx_[a-f0-9]{64}$/);
   });
 
@@ -240,6 +244,7 @@ describe("POST /api/training-sessions/parse-activity & /api/taf/trainings/gpx-pr
     expect(json.data.durationSeconds).toBe(1800);
     expect(json.data.name).toBe("Rodagem Leve no Ibirapuera");
     expect(json.data.suggestedNotes).toBe("Rodagem Leve no Ibirapuera");
+    expect(json.data.titleSource).toBe("metadata");
     expect(json.data.elevationGainM).toBeGreaterThan(15);
     expect(json.data.activeCalories).toBe(410);
   });
@@ -458,5 +463,48 @@ describe("POST /api/training-sessions/parse-activity & /api/taf/trainings/gpx-pr
     });
     expect(Array.isArray(json.data.tafWindow.laps)).toBe(true);
     expect(json.data.tafWindow.laps.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("ignora ID numérico puro em arquivo .FIT para titleSource/suggestedNotes e usa nome descritivo quando válido (Fase 2)", async () => {
+    const fitBuf = buildFitBuffer({
+      session: {
+        startTime: new Date("2026-11-12T06:00:00Z"),
+        totalTimerTime: 1500,
+        totalElapsedTime: 1500,
+        totalDistance: 5000,
+        sport: "walking",
+      },
+    });
+
+    const numericReq = buildMultipartRequest(
+      "http://localhost/api/training-sessions/parse-activity",
+      [{ fileName: "1234567890.fit", content: fitBuf }]
+    );
+    const numericRes = await postParseActivity(numericReq);
+    const numericJson = await numericRes.json();
+
+    expect(numericRes.status).toBe(200);
+    expect(numericJson.data.name).toBeNull();
+    expect(numericJson.data.suggestedNotes).toBe("");
+    expect(numericJson.data.titleSource).toBeNull();
+
+    const gpxWithoutName = VALID_GPX_XML.replace(
+      "<name>Rodagem Leve no Ibirapuera</name>",
+      ""
+    );
+    const combinedReq = buildMultipartRequest(
+      "http://localhost/api/training-sessions/parse-activity",
+      [
+        { fileName: "1234567890.fit", content: fitBuf },
+        { fileName: "Caminhada_no_parque.gpx", content: gpxWithoutName },
+      ]
+    );
+    const combinedRes = await postParseActivity(combinedReq);
+    const combinedJson = await combinedRes.json();
+
+    expect(combinedRes.status).toBe(200);
+    expect(combinedJson.data.name).toBeNull();
+    expect(combinedJson.data.suggestedNotes).toBe("Caminhada no parque");
+    expect(combinedJson.data.titleSource).toBe("filename");
   });
 });

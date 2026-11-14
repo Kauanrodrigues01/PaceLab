@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { Encoder, Profile } from "@garmin/fitsdk";
 import {
@@ -17,6 +19,7 @@ function buildFitBuffer(options: {
   session?: Record<string, unknown>;
   laps?: Array<Record<string, unknown>>;
   records?: Array<Record<string, unknown>>;
+  events?: Array<Record<string, unknown>>;
   workout?: Record<string, unknown>;
 }): Buffer {
   const enc = new Encoder();
@@ -32,6 +35,10 @@ function buildFitBuffer(options: {
 
   if (options.workout) {
     enc.onMesg(Profile.MesgNum.WORKOUT, options.workout as never);
+  }
+
+  for (const ev of options.events ?? []) {
+    enc.onMesg(Profile.MesgNum.EVENT, ev as never);
   }
 
   for (const rec of options.records ?? []) {
@@ -367,6 +374,473 @@ describe("lib/fit/parseFit — Parser Binário .FIT (@garmin/fitsdk)", () => {
       expect(() => parseFit(Buffer.from("arquivo invalido", "utf8"))).toThrowError(
         FitParseError
       );
+    });
+  });
+
+  describe("Precisão de movimento, parciais, pausas e elevação (Fase 1)", () => {
+    it("detecta pausas estilo Strava Mobile em caminhada sem totalMovingTime, preserva elapsedSeconds, evita inflar Km 1 e calcula elevationDiffM", () => {
+      const startMs = Date.parse("2026-11-10T10:00:00Z");
+      const start = new Date(startMs);
+      const records: Array<Record<string, unknown>> = [];
+
+      let currentDist = 0;
+      const dKm1 = 1000 / 587; // 588s totais, com 1s isolado parado no segundo 300 (deve coalescer como movimento)
+      const dKm2 = 1000 / 804; // 809s totais, com pausa sustentada de 5s
+      const dKm3 = 840 / 734; // 744s totais, com pausa sustentada de 10s
+
+      const altitudeAtSecond = (sec: number): number => {
+        if (sec <= 588) {
+          // Desce gradualmente de 105m para 102m no Km 1
+          return Number((105 - (3 * sec) / 588).toFixed(2));
+        }
+        if (sec <= 1397) {
+          // Sobe suavemente de 102m para 105m no Km 2
+          return Number((102 + (3 * (sec - 588)) / 809).toFixed(2));
+        }
+        // Sobe acentuadamente de 105m para 119m no Km 3
+        return Number((105 + (14 * (sec - 1397)) / 744).toFixed(2));
+      };
+
+      records.push({
+        timestamp: start,
+        distance: 0,
+        speed: dKm1,
+        altitude: 105,
+      });
+
+      for (let sec = 1; sec <= 2141; sec++) {
+        let stepDist = 0;
+        let speed = 0;
+
+        if (sec <= 588) {
+          if (sec === 300) {
+            // Oscilação isolada de 1s (< FIT_PAUSE_HYSTERESIS_MIN_SECONDS): não deve contar como pausa
+            stepDist = 0;
+            speed = 0;
+          } else {
+            stepDist = dKm1;
+            speed = dKm1;
+          }
+        } else if (sec <= 1397) {
+          if (sec >= 1001 && sec <= 1005) {
+            // Pausa de 5s no Km 2
+            stepDist = 0;
+            speed = 0;
+          } else {
+            stepDist = dKm2;
+            speed = dKm2;
+          }
+        } else {
+          if (sec >= 1701 && sec <= 1710) {
+            // Pausa de 10s no Km 3
+            stepDist = 0;
+            speed = 0;
+          } else {
+            stepDist = dKm3;
+            speed = dKm3;
+          }
+        }
+
+        currentDist += stepDist;
+        records.push({
+          timestamp: new Date(startMs + sec * 1000),
+          distance: Number(currentDist.toFixed(3)),
+          speed: Number(speed.toFixed(3)),
+          altitude: altitudeAtSecond(sec),
+        });
+      }
+
+      const fitBuf = buildFitBuffer({
+        records,
+        laps: [
+          {
+            startTime: start,
+            totalElapsedTime: 588,
+            totalTimerTime: 588,
+            totalDistance: 1000,
+          },
+          {
+            startTime: new Date(startMs + 588 * 1000),
+            totalElapsedTime: 809,
+            totalTimerTime: 809,
+            totalDistance: 1000,
+          },
+          {
+            startTime: new Date(startMs + 1397 * 1000),
+            totalElapsedTime: 744,
+            totalTimerTime: 744,
+            totalDistance: 840,
+          },
+        ],
+        session: {
+          startTime: start,
+          totalElapsedTime: 2141,
+          totalTimerTime: 2141,
+          totalDistance: 2840,
+          sport: "walking",
+        },
+      });
+
+      const parsed = parseFit(fitBuf);
+
+      expect(parsed.sport).toBe("walking");
+      expect(parsed.distanceKm).toBe(2.84);
+      expect(parsed.durationSeconds).toBe(2126); // 35:26 sem os 15s parados
+      expect(parsed.elapsedSeconds).toBe(2141); // 35:41 com pausas preservado
+      expect(parsed.elevationGainM).toBeGreaterThan(0);
+      expect(parsed.warnings.some((w) => w.code === "PAUSES_DETECTED_FROM_RECORDS")).toBe(true);
+
+      expect(parsed.splits).toHaveLength(3);
+      expect(parsed.splits[0].distanceKm).toBe(1);
+      expect(parsed.splits[0].durationSeconds).toBe(588); // Km 1 não inflado (oscilação 1s ignorada)
+      expect(parsed.splits[1].distanceKm).toBe(1);
+      expect(parsed.splits[1].durationSeconds).toBe(804); // 809s - 5s parada
+      expect(parsed.splits[2].distanceKm).toBe(0.84);
+      expect(parsed.splits[2].durationSeconds).toBe(734); // 744s - 10s parada
+
+      for (const split of parsed.splits) {
+        expect(split.elevationDiffM).not.toBeNull();
+      }
+      expect(parsed.splits[2].elevationDiffM).toBeGreaterThan(10);
+    });
+
+    it("prioriza totalMovingTime da sessão/laps (Prioridade 1) sem aplicar duplo desconto de pausa", () => {
+      const startMs = Date.parse("2026-11-10T10:30:00Z");
+      const start = new Date(startMs);
+      const records: Array<Record<string, unknown>> = [];
+
+      // 200 steps de 5s (= 1000s). Nos passos 91..110 (100s) a velocidade nos records cai para 0.5 m/s (< 0.85 m/s):
+      // Se rodasse detecção por records, descontaria 100s (caindo para 900s), mas com session.totalMovingTime=980 deve respeitar 980s e NÃO emitir PAUSES_DETECTED_FROM_RECORDS.
+      let dist = 0;
+      records.push({
+        timestamp: start,
+        distance: 0,
+        speed: 2.1,
+      });
+      for (let i = 1; i <= 200; i++) {
+        const isSlowZone = i >= 91 && i <= 110;
+        const speed = isSlowZone ? 0.5 : 1950 / (180 * 5);
+        dist += speed * 5;
+        records.push({
+          timestamp: new Date(startMs + i * 5000),
+          distance: Number(dist.toFixed(2)),
+          speed: Number(speed.toFixed(3)),
+        });
+      }
+
+      const fitBuf = buildFitBuffer({
+        records,
+        laps: [
+          {
+            startTime: start,
+            totalElapsedTime: 1050,
+            totalTimerTime: 1000,
+            totalMovingTime: 980,
+            totalDistance: 2000,
+            totalAscent: 12,
+          },
+        ],
+        session: {
+          startTime: start,
+          totalElapsedTime: 1050,
+          totalTimerTime: 1000,
+          totalMovingTime: 980,
+          totalDistance: 2000,
+          totalAscent: 12,
+          sport: "running",
+        },
+      });
+
+      const parsed = parseFit(fitBuf);
+      expect(parsed.durationSeconds).toBe(980);
+      expect(parsed.elapsedSeconds).toBe(1050);
+      expect(parsed.splits).toHaveLength(2);
+      expect(parsed.warnings.some((w) => w.code === "PAUSES_DETECTED_FROM_RECORDS")).toBe(false);
+    });
+
+    it("respeita relógio com eventMesgs timer stop/start (Prioridade 2) sem descontar dos records", () => {
+      const startMs = Date.parse("2026-11-10T11:00:00Z");
+      const start = new Date(startMs);
+      const records: Array<Record<string, unknown>> = [];
+
+      for (let sec = 0; sec <= 300; sec++) {
+        records.push({
+          timestamp: new Date(startMs + sec * 1000),
+          distance: Number(((sec * 1000) / 300).toFixed(2)),
+          speed: sec >= 150 && sec <= 160 ? 0 : 3.33,
+          enhancedAltitude: 500 + sec * 0.02,
+        });
+      }
+
+      const fitBuf = buildFitBuffer({
+        events: [
+          { timestamp: start, event: "timer", eventType: "start" },
+          { timestamp: new Date(startMs + 150 * 1000), event: "timer", eventType: "stop" },
+          { timestamp: new Date(startMs + 160 * 1000), event: "timer", eventType: "start" },
+        ],
+        records,
+        laps: [
+          {
+            startTime: start,
+            totalElapsedTime: 300,
+            totalTimerTime: 300,
+            totalDistance: 1000,
+          },
+        ],
+        session: {
+          startTime: start,
+          totalElapsedTime: 300,
+          totalTimerTime: 300,
+          totalDistance: 1000,
+          sport: "running",
+        },
+      });
+
+      const parsed = parseFit(fitBuf);
+      expect(parsed.durationSeconds).toBe(300);
+      expect(parsed.elapsedSeconds).toBe(300);
+      expect(parsed.warnings.some((w) => w.code === "PAUSES_DETECTED_FROM_RECORDS")).toBe(false);
+      expect(parsed.splits[0].elevationDiffM).not.toBeNull();
+    });
+
+    it("calcula pausas de corrida (< 0.85 m/s) e GPS com acurácia ruim (> 50m) em sessão single-lap estilo mobile", () => {
+      const startMs = Date.parse("2026-11-10T12:00:00Z");
+      const start = new Date(startMs);
+      const records: Array<Record<string, unknown>> = [];
+      let dist = 0;
+
+      records.push({
+        timestamp: start,
+        distance: 0,
+        enhancedSpeed: 3.33,
+        enhancedAltitude: 100,
+        gpsAccuracy: 5,
+      });
+
+      for (let sec = 1; sec <= 380; sec++) {
+        let speed = 3.33;
+        let accuracy = 5;
+        let dStep = 800 / 240;
+
+        if (sec > 240) {
+          if (sec >= 300 && sec <= 309) {
+            // 10s de drift lento (< 0.85 m/s para running) com acurácia GPS ruim (80m > 50m)
+            speed = 0.6;
+            dStep = 0.6;
+            accuracy = 80;
+          } else {
+            dStep = 394 / 130;
+            speed = dStep;
+          }
+        }
+        dist += dStep;
+        records.push({
+          timestamp: new Date(startMs + sec * 1000),
+          distance: Number(dist.toFixed(2)),
+          enhancedSpeed: Number(speed.toFixed(3)),
+          enhancedAltitude: sec <= 240 ? 100 + (15 * sec) / 240 : 115 - (8 * (sec - 240)) / 140,
+          gpsAccuracy: accuracy,
+        });
+      }
+
+      const fitBuf = buildFitBuffer({
+        records,
+        laps: [
+          {
+            startTime: start,
+            totalElapsedTime: 380,
+            totalTimerTime: 380,
+            totalDistance: 1200,
+          },
+        ],
+        session: {
+          startTime: start,
+          totalElapsedTime: 380,
+          totalTimerTime: 380,
+          totalDistance: 1200,
+          sport: "running",
+        },
+      });
+
+      const parsed = parseFit(fitBuf);
+      expect(parsed.durationSeconds).toBe(370); // 380s - 10s pausa detectada
+      expect(parsed.elapsedSeconds).toBe(380);
+      expect(parsed.warnings.some((w) => w.code === "PAUSES_DETECTED_FROM_RECORDS")).toBe(true);
+    });
+
+    it("calcula elevationDiffM via records em laps estruturadas não-uniformes (800m + 400m) sem totalAscent preservando timer estruturado", () => {
+      const startMs = Date.parse("2026-11-10T12:30:00Z");
+      const start = new Date(startMs);
+      const records: Array<Record<string, unknown>> = [];
+      let dist = 0;
+
+      records.push({
+        timestamp: start,
+        distance: 0,
+        enhancedSpeed: 3.33,
+        enhancedAltitude: 100,
+      });
+
+      for (let sec = 1; sec <= 380; sec++) {
+        const dStep = sec <= 240 ? 800 / 240 : 400 / 140;
+        dist += dStep;
+        records.push({
+          timestamp: new Date(startMs + sec * 1000),
+          distance: Number(dist.toFixed(2)),
+          enhancedSpeed: Number(dStep.toFixed(3)),
+          enhancedAltitude: sec <= 240 ? 100 + (15 * sec) / 240 : 115 - (8 * (sec - 240)) / 140,
+        });
+      }
+
+      const fitBuf = buildFitBuffer({
+        records,
+        laps: [
+          {
+            startTime: start,
+            totalElapsedTime: 240,
+            totalTimerTime: 240,
+            totalDistance: 800,
+          },
+          {
+            startTime: new Date(startMs + 240 * 1000),
+            totalElapsedTime: 140,
+            totalTimerTime: 140,
+            totalDistance: 400,
+          },
+        ],
+        session: {
+          startTime: start,
+          totalElapsedTime: 380,
+          totalTimerTime: 380,
+          totalDistance: 1200,
+          sport: "running",
+        },
+      });
+
+      const parsed = parseFit(fitBuf);
+      expect(parsed.durationSeconds).toBe(380);
+      expect(parsed.splits).toHaveLength(2);
+      expect(parsed.splits[0].elevationDiffM).toBeGreaterThan(10);
+      expect(parsed.splits[1].elevationDiffM).toBeLessThan(0);
+    });
+
+    it("usa fallback Haversine com filtragem de saltos GPS anômalos (> 12 m/s) quando record.distance está ausente", () => {
+      const startMs = Date.parse("2026-11-10T13:00:00Z");
+      const start = new Date(startMs);
+      const degToSemicircle = (deg: number) => Math.round((deg * 2 ** 31) / 180);
+      const lat0 = -23.5505;
+      const lon0 = -46.6333;
+      const records: Array<Record<string, unknown>> = [];
+
+      // 100 pontos de 1s avançando ~3m/s para o norte (~0.000027 deg/s)
+      for (let sec = 0; sec <= 100; sec++) {
+        // No segundo 50 injeta um salto absurdo de GPS (> 12 m/s em 1s)
+        const lat = sec === 50 ? lat0 + 0.01 : lat0 + sec * 0.000027;
+        records.push({
+          timestamp: new Date(startMs + sec * 1000),
+          positionLat: degToSemicircle(lat),
+          positionLong: degToSemicircle(lon0),
+          altitude: 760 + sec * 0.1,
+        });
+      }
+
+      const fitBuf = buildFitBuffer({
+        records,
+        laps: [
+          {
+            startTime: start,
+            totalElapsedTime: 100,
+            totalTimerTime: 100,
+            totalDistance: 300,
+          },
+        ],
+        session: {
+          startTime: start,
+          totalElapsedTime: 100,
+          totalTimerTime: 100,
+          totalDistance: 300,
+          sport: "running",
+        },
+      });
+
+      const parsed = parseFit(fitBuf);
+      // Salto absurdo em sec=50 e sec=51 não deve inflar duração ou gerar distância anômala
+      expect(parsed.durationSeconds).toBeLessThanOrEqual(100);
+      expect(parsed.distanceKm).toBe(0.3);
+      expect(parsed.elevationGainM).toBeGreaterThan(0);
+    });
+
+    it("mantém regressão 100% intacta das fixtures reais (autolap 5K, intervalado, walk 3K e records 5.42km)", () => {
+      const fitDir = path.resolve(process.cwd(), "__tests__/fixtures/fit");
+
+      const autolap5k = parseFit(fs.readFileSync(path.join(fitDir, "fit_run_5k_autolap.fit")));
+      expect(autolap5k.distanceKm).toBe(5);
+      expect(autolap5k.durationSeconds).toBe(1500);
+      expect(autolap5k.elapsedSeconds).toBe(1520);
+      expect(autolap5k.splits).toHaveLength(5);
+      expect(autolap5k.splits.every((s) => s.durationSeconds === 300 && s.elevationDiffM === 7)).toBe(true);
+      expect(autolap5k.warnings.some((w) => w.code === "PAUSES_DETECTED_FROM_RECORDS")).toBe(false);
+
+      const intervalado = parseFit(
+        fs.readFileSync(path.join(fitDir, "fit_run_intervalado_pista.fit"))
+      );
+      expect(intervalado.splits).toHaveLength(12);
+      expect(intervalado.durationSeconds).toBe(intervalado.splits.reduce((a, s) => a + s.durationSeconds, 0));
+
+      const walk3k = parseFit(fs.readFileSync(path.join(fitDir, "fit_walk_3k.fit")));
+      expect(walk3k.sport).toBe("walking");
+      expect(walk3k.distanceKm).toBe(3);
+      expect(walk3k.durationSeconds).toBe(1800);
+      expect(walk3k.elapsedSeconds).toBe(1800);
+
+      const records5420 = parseFit(fs.readFileSync(path.join(fitDir, "fit_run_5420m_records.fit")));
+      expect(records5420.distanceKm).toBe(5.42);
+      expect(records5420.durationSeconds).toBe(1626);
+      expect(records5420.splits).toHaveLength(6);
+    });
+
+    it("combina voltas com e sem totalMovingTime sem zerar voltas faltantes e ordena records fora de ordem", () => {
+      const startMs = Date.parse("2026-11-10T15:00:00Z");
+      const start = new Date(startMs);
+      const fitBuf = buildFitBuffer({
+        records: [
+          { timestamp: new Date(startMs + 600 * 1000), distance: 2000, altitude: 755 },
+          { timestamp: start, distance: 0, altitude: 750 },
+          { timestamp: new Date(startMs + 300 * 1000), distance: 1000, altitude: 752 },
+        ],
+        laps: [
+          {
+            startTime: start,
+            totalElapsedTime: 305,
+            totalTimerTime: 300,
+            totalMovingTime: 290,
+            totalDistance: 1000,
+            totalAscent: 2,
+          },
+          {
+            startTime: new Date(startMs + 300 * 1000),
+            totalElapsedTime: 300,
+            totalTimerTime: 300,
+            totalDistance: 1000,
+            totalAscent: 3,
+          },
+        ],
+        session: {
+          startTime: start,
+          totalElapsedTime: 605,
+          totalTimerTime: 600,
+          totalDistance: 2000,
+          sport: "running",
+        },
+      });
+
+      const parsed = parseFit(fitBuf);
+      // Lap 1 (290s totalMovingTime) + Lap 2 (300s fallback totalTimerTime) = 590s (nunca 290s)
+      expect(parsed.durationSeconds).toBe(590);
+      expect(parsed.elapsedSeconds).toBe(605);
+      expect(parsed.splits).toHaveLength(2);
+      expect(parsed.splits[0].durationSeconds).toBe(290);
+      expect(parsed.splits[1].durationSeconds).toBe(300);
     });
   });
 });
