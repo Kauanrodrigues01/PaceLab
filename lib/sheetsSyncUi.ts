@@ -58,12 +58,18 @@ export function formatSheetsSyncReportSummary(report: SheetsSyncReport): string 
     report.tafPulledUpdated +
     report.tafPulledLinked;
   const importedNew = report.pulledCreated + report.tafPulledCreated;
+  const warningSuffix =
+    report.warnings.length > 0 ? ` (${report.warnings.length} aviso(s))` : "";
 
-  const baseMessage = `Planilha sincronizada: ${pushedNew} enviado(s), ${updatedCount} atualizado(s), ${importedNew} importado(s) do Sheets`;
-  if (report.warnings.length > 0) {
-    return `${baseMessage} (${report.warnings.length} aviso(s))`;
+  if (pushedNew > 0 || updatedCount > 0 || importedNew > 0) {
+    return `Planilha sincronizada: ${pushedNew} enviado(s), ${updatedCount} atualizado(s), ${importedNew} importado(s) do Sheets${warningSuffix}`;
   }
-  return baseMessage;
+
+  if (report.profileSynced) {
+    return `Planilha sincronizada: Perfil/Meta atualizados no Sheets${warningSuffix}`;
+  }
+
+  return `Planilha já estava atualizada (nenhuma pendência encontrada)${warningSuffix}`;
 }
 
 /**

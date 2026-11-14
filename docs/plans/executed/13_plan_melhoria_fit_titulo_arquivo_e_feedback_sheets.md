@@ -1,6 +1,6 @@
 # Plano de Implementação 13 — Precisão do Leitor `.FIT` vs. Strava, Pré-preenchimento do Título pelo Nome do Arquivo e Correção do Feedback de Sincronização Google Sheets
 
-> **Status:** Planejado (aguardando aprovação para iniciar execução) 📋  
+> **Status:** ✅ Concluído e Homologado (Fases 1–4)  
 > **Branch recomendada:** `fix/fit-precision-filename-sheets-feedback` (a partir de `main` em `8dd0c2c`)  
 > **Objetivo Geral:** Resolver com precisão cirúrgica quatro pontos levantados após o merge do Plano 12:
 > 1. Eliminar as divergências entre o parser `.FIT` (`lib/fit/parseFit.ts`) e os dados exibidos no Strava (tempo em movimento sem pausas, preservação de `elapsedSeconds`, parciais sem distorção e preenchimento de `elevationDiffM`).
@@ -229,17 +229,20 @@ Os testes no banco real + código fonte revelaram **cinco causas combinadas** qu
 
 - **Objetivo:** Resolver todos os 5 pontos do Problema 4 no backend e frontend do Google Sheets.
 - **Checklist:**
-  - [ ] **3.1** Em `lib/googleSheets/syncService.ts` (`pullTrainingSheetRows` e `pullTafSheetRows`), proteger registros locais *dirty* (`isDirtyRecord(existing.syncedToSheetsAt, existing.updatedAt) === true`), ignorando no `pull` para que o `push` subsequente envie a alteração local e contabilize `pushedUpdated` / `tafPushedUpdated`.
-  - [ ] **3.2** Em `syncHistoricalDataToSheets` (`lib/googleSheets/syncService.ts`), incluir `SHEET_RANGES.PERFIL_E_METAS_ROW` no `batchGet`, comparar o conteúdo da aba com `mapProfileAndGoalToRow(...)`, e atribuir `profileSynced` fielmente quando houver escrita real (preservando `true` em respostas mockadas sem 3º range).
-  - [ ] **3.3** Atualizar `formatSheetsSyncReportSummary(report)` em `lib/sheetsSyncUi.ts` para distinguir itens numéricos > 0, apenas `profileSynced: true` (`"Planilha sincronizada: Perfil/Meta atualizados no Sheets"`) e estado sem pendências (`"Planilha já estava atualizada (nenhuma pendência encontrada)"`).
-  - [ ] **3.4** Em `components/meu-taf/GoalAndBackupSettings.tsx`, atualizar `loadSheetsStatus()` reativamente quando `trainings`, `attempts` ou `goal` mudarem ou após salvar meta/importar backup.
-  - [ ] **3.5** Em `app/treinos/page.tsx`, chamar `clearCrossPageSheetsCaches()` também em `handleSaveTraining`, `handleImportedTraining` e `handleDeleteTraining`; em `app/treinos/page.tsx` e `app/meu-taf/page.tsx`, aplicar `max-w-[calc(100vw-2rem)]` ao toast (e posicionar à esquerda se solicitado pelo usuário).
-  - [ ] **3.6 Testes (`__tests__/lib/googleSheets/syncService.test.ts` e `__tests__/components/SheetsSyncUi.test.tsx`):**
+  - [x] **3.1** Em `lib/googleSheets/syncService.ts` (`pullTrainingSheetRows` e `pullTafSheetRows`), proteger registros locais *dirty* (`isDirtyRecord(existing.syncedToSheetsAt, existing.updatedAt) === true`), ignorando no `pull` para que o `push` subsequente envie a alteração local e contabilize `pushedUpdated` / `tafPushedUpdated`.
+  - [x] **3.2** Em `syncHistoricalDataToSheets` (`lib/googleSheets/syncService.ts`), incluir `SHEET_RANGES.PERFIL_E_METAS_ROW` no `batchGet`, comparar o conteúdo da aba com `mapProfileAndGoalToRow(...)`, e atribuir `profileSynced` fielmente quando houver escrita real (preservando `true` em respostas mockadas sem 3º range).
+  - [x] **3.3** Atualizar `formatSheetsSyncReportSummary(report)` em `lib/sheetsSyncUi.ts` para distinguir itens numéricos > 0, apenas `profileSynced: true` (`"Planilha sincronizada: Perfil/Meta atualizados no Sheets"`) e estado sem pendências (`"Planilha já estava atualizada (nenhuma pendência encontrada)"`).
+  - [x] **3.4** Em `components/meu-taf/GoalAndBackupSettings.tsx`, atualizar `loadSheetsStatus()` reativamente quando `trainings`, `attempts` ou `goal` mudarem ou após salvar meta/importar backup.
+  - [x] **3.5** Em `app/treinos/page.tsx`, chamar `clearCrossPageSheetsCaches()` também em `handleSaveTraining`, `handleImportedTraining` e `handleDeleteTraining`; em `app/treinos/page.tsx` e `app/meu-taf/page.tsx`, aplicar `max-w-[calc(100vw-2rem)]` ao toast (e posicionar à esquerda se solicitado pelo usuário).
+  - [x] **3.6 Testes (`__tests__/lib/googleSheets/syncService.test.ts` e `__tests__/components/SheetsSyncUi.test.tsx`):**
     - Registro local *dirty* não é sobrescrito pelo `pull` e soma `pushedUpdated: 1` no sync bidirecional.
     - `syncHistoricalDataToSheets` detecta `Perfil_e_Metas` igual vs. divergente.
     - `formatSheetsSyncReportSummary` cobrindo os 3 cenários (`contagens > 0`, só `profileSynced: true`, tudo zero).
     - `GoalAndBackupSettings` atualizando pendências reativamente.
-- **Portão de Qualidade `[PQ3]`:** Suíte completa de Google Sheets e UI de sync 100% verde.
+- **Portão de Qualidade `[PQ3]` — APROVADO:**
+  - `npx tsc --noEmit`: 0 erros.
+  - `npm run lint`: sem erros ou avisos ESLint.
+  - `npm run test:coverage`: **85/85 arquivos e 774/774 testes passando**, cobertura global `96.5%` linhas / `98.85%` funções (`lib/googleSheets`: `99.05%` linhas / `97.53%` funções; `lib/sheetsSyncUi.ts`: `99.04%` linhas / `100%` funções).
 
 ---
 
@@ -247,27 +250,36 @@ Os testes no banco real + código fonte revelaram **cinco causas combinadas** qu
 
 - **Objetivo:** Verificar zero regressões no projeto completo, validar cenário real controlado e arquivar documentação.
 - **Checklist:**
-  - [ ] **4.1** Atualizar `docs/roadmap/01_roadmap_melhorias_futuras.md` (e `__tests__/fixtures/fit/README.md` se houver nova fixture).
-  - [ ] **4.2** Executar suíte completa de qualidade após a última edição:
+  - [x] **4.1** Atualizar `docs/roadmap/01_roadmap_melhorias_futuras.md` (e `__tests__/fixtures/fit/README.md` se houver nova fixture).
+  - [x] **4.2** Executar suíte completa de qualidade após a última edição:
     - `npx tsc --noEmit`
     - `npm run lint`
     - `npm run test:coverage` (`lines >= 90%` e `functions >= 90%` em `lib/**/*.ts`)
     - `npm run build`
-  - [ ] **4.3** Validação controlada ponta a ponta: simular `.FIT` com perfil Strava Mobile (caminhada com pausas e `_` no nome do arquivo) + fluxo real de pendência local → `"Sincronizar Planilha"` confirmando contagem real no toast e integridade da planilha `"Treinos_Corrida"`.
-  - [ ] **4.4** Mover este plano para `docs/plans/executed/`.
-- **Portão de Qualidade Final `[PQ4]`:** Todos os 4 comandos finais (`tsc`, `lint`, `test:coverage`, `build`) passando sem erros e banco/planilha consistentes.
+  - [x] **4.3** Validação controlada ponta a ponta:
+    - Rota real `POST /api/training-sessions/parse-activity` e `npm run fit:inspect -- ./Caminhada_leve.fit --splits` validados com o `.FIT` real do Strava Mobile (`Caminhada_leve.fit`: `distanceKm=2.849`, `durationSeconds=2052`, `elapsedSeconds=2141`, `suggestedNotes='Caminhada leve'`, `titleSource='filename'`, parciais `578s + 804s + 670s = 2052s`).
+    - Consistência PostgreSQL ↔ planilha real `"Treinos_Corrida"` conferida em modo somente leitura (`getSheetsSyncStatus` + `batchGet`: `0` pendências, `0` treinos / `0` linhas em `Log_Treinos`, `3` simulados / `3` linhas em `Simulados_TAF`, `Perfil_e_Metas` sem divergência); fluxo de escrita dirty → sync → toast validado em suíte automatizada (`syncService.test.ts` + `SheetsSyncUi.test.tsx`) para não inserir dados sintéticos no banco/planilha reais.
+  - [x] **4.4** Mover este plano para `docs/plans/executed/`.
+- **Portão de Qualidade Final `[PQ4]` — APROVADO:**
+  - `npx tsc --noEmit`: 0 erros.
+  - `npm run lint`: sem erros ou avisos ESLint.
+  - `npm run test:coverage`: **85/85 arquivos e 774/774 testes passando**, cobertura global `96.51%` linhas (`lib/fit`: `90.55%` linhas / `100%` funções; `lib/activityParser`: `93.75%` linhas / `100%` funções; `lib/googleSheets`: `99.06%` linhas / `97.53%` funções; `lib/sheetsSyncUi.ts`: `99.04%` linhas / `100%` funções).
+  - `npm run build`: build de produção Next.js `14.2.35` concluído (`16/16` páginas estáticas + rotas dinâmicas).
+  - `npm run fit:test:synthetic`: **11/11 cenários sintéticos aprovados**.
 
 ---
 
-## 4. Resumo de Arquivos Previstos
+## 4. Resumo de Arquivos Impactados (Realizado)
 
 - **Novos arquivos:**
+  - `lib/fit/movingMetrics.ts`
   - `lib/activityParser/filenameTitle.ts`
   - `__tests__/lib/activityParser/filenameTitle.test.ts`
-- **Arquivos existentes a modificar:**
-  - `lib/fit/types.ts`, `lib/fit/parseFit.ts`, `lib/activityParser/types.ts`, `lib/activityParser/parseAndMergeActivity.ts`, `lib/activityParser/window.ts`, `lib/activityParser/index.ts`
+  - `docs/plans/executed/13_plan_melhoria_fit_titulo_arquivo_e_feedback_sheets.md` *(movido de `docs/plans/`)*
+- **Arquivos existentes modificados:**
+  - `lib/fit/types.ts`, `lib/fit/parseFit.ts`, `lib/gpx/splits.ts`, `lib/activityParser/parseAndMergeActivity.ts`, `lib/activityParser/window.ts`, `lib/activityParser/index.ts`
   - `types/index.ts`, `lib/swagger/spec.ts`, `app/api/training-sessions/parse-activity/route.ts`
-  - `lib/googleSheets/types.ts`, `lib/googleSheets/syncService.ts`, `lib/sheetsSyncUi.ts`
+  - `lib/googleSheets/mapper.ts`, `lib/googleSheets/syncService.ts`, `lib/sheetsSyncUi.ts`
   - `components/treinos/GpxImportPanel.tsx`, `components/meu-taf/TrainingCard.tsx`, `components/meu-taf/GoalAndBackupSettings.tsx`, `app/treinos/page.tsx`, `app/meu-taf/page.tsx`
-  - `__tests__/lib/fit/parseFit.test.ts`, `__tests__/lib/fit/parseAndMergeActivity.test.ts`, `__tests__/api/activity-parse-routes.test.ts`, `__tests__/components/GpxImportPanel.test.tsx`, `__tests__/lib/googleSheets/syncService.test.ts`, `__tests__/components/SheetsSyncUi.test.tsx`
+  - `__tests__/lib/fit/parseFit.test.ts`, `__tests__/lib/fit/parseAndMergeActivity.test.ts`, `__tests__/lib/activityWindow.test.ts`, `__tests__/api/activity-parse-routes.test.ts`, `__tests__/components/GpxImportPanel.test.tsx`, `__tests__/lib/googleSheets/mapper.test.ts`, `__tests__/lib/googleSheets/syncService.test.ts`, `__tests__/components/SheetsSyncUi.test.tsx`
   - `docs/roadmap/01_roadmap_melhorias_futuras.md`

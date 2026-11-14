@@ -20,6 +20,7 @@ import {
   ParsedTafAttemptSheetRow,
   ParsedTrainingSheetRow,
   formatDateFortaleza,
+  hasProfileGoalRowDivergence,
   hasTafAttemptRowDivergence,
   hasTrainingRowDivergence,
   isBlankSheetRow,
@@ -189,6 +190,20 @@ function isDirtyRecord(
   if (!syncedToSheetsAt) return true;
   if (!updatedAt) return false;
   return updatedAt.getTime() - syncedToSheetsAt.getTime() > DIRTY_TOLERANCE_MS;
+}
+
+/**
+ * Protege registros do banco que ainda possuem alterações locais pendentes de push (`dirty`),
+ * preservando compatibilidade com fixtures parciais onde `syncedToSheetsAt` foi omitido (`undefined`).
+ */
+function shouldProtectDirtyLocalRecord(existing: {
+  syncedToSheetsAt?: Date | null;
+  updatedAt?: Date | null;
+}): boolean {
+  return (
+    existing.syncedToSheetsAt !== undefined &&
+    isDirtyRecord(existing.syncedToSheetsAt, existing.updatedAt)
+  );
 }
 
 function isProtectedTelemetrySource(source?: string | null): boolean {
@@ -487,11 +502,12 @@ async function writeProfileAndGoalToSheet(
   spreadsheetId: string,
   profile: SheetProfileInput | null,
   goal: SheetTafGoalInput | null,
-  latestWeight: SheetWeightRecordInput | null
+  latestWeight: SheetWeightRecordInput | null,
+  precomputedRow?: (string | number)[]
 ): Promise<void> {
   await ensureSpreadsheetSchema(sheets, spreadsheetId, [SHEET_TABS.PERFIL_E_METAS]);
 
-  const rowValues = mapProfileAndGoalToRow(profile, goal, latestWeight);
+  const rowValues = precomputedRow ?? mapProfileAndGoalToRow(profile, goal, latestWeight);
 
   await withSheetsRetry(() =>
     sheets.spreadsheets.values.update({
@@ -680,7 +696,11 @@ export async function syncHistoricalDataToSheets(
     withSheetsRetry(() =>
       sheets.spreadsheets.values.batchGet({
         spreadsheetId,
-        ranges: [SHEET_RANGES.LOG_TREINOS_IDS, SHEET_RANGES.SIMULADOS_TAF_IDS],
+        ranges: [
+          SHEET_RANGES.LOG_TREINOS_IDS,
+          SHEET_RANGES.SIMULADOS_TAF_IDS,
+          SHEET_RANGES.PERFIL_E_METAS_ROW,
+        ],
         valueRenderOption: "FORMATTED_VALUE",
       })
     ),
@@ -696,6 +716,17 @@ export async function syncHistoricalDataToSheets(
   const valueRanges = batchIdsRes.data.valueRanges ?? [];
   const trainingRowMap = buildRowIndexMapFromColumn(valueRanges[0]?.values, 2);
   const tafRowMap = buildRowIndexMapFromColumn(valueRanges[1]?.values, 2);
+  const hasProfileRangeInResponse = valueRanges.length >= 3 && valueRanges[2] !== undefined;
+  const existingProfileRow = valueRanges[2]?.values?.[0];
+  const expectedProfileRow = mapProfileAndGoalToRow(
+    snapshot.profile,
+    snapshot.goal,
+    snapshot.latestWeight
+  );
+  const shouldWriteProfile =
+    forceFullResync ||
+    !hasProfileRangeInResponse ||
+    hasProfileGoalRowDivergence(existingProfileRow, expectedProfileRow);
 
   const updateEntries: TaggedUpdateEntry[] = [];
   const trainingUpdateIds = new Set<string>();
@@ -743,6 +774,7 @@ export async function syncHistoricalDataToSheets(
   let pushedAppended = 0;
   let tafPushedUpdated = 0;
   let tafPushedAppended = 0;
+  let profileSynced = false;
   let primaryError: unknown = null;
 
   try {
@@ -784,13 +816,17 @@ export async function syncHistoricalDataToSheets(
       succeededTafIds
     );
 
-    await writeProfileAndGoalToSheet(
-      sheets,
-      spreadsheetId,
-      snapshot.profile,
-      snapshot.goal,
-      snapshot.latestWeight
-    );
+    if (shouldWriteProfile) {
+      await writeProfileAndGoalToSheet(
+        sheets,
+        spreadsheetId,
+        snapshot.profile,
+        snapshot.goal,
+        snapshot.latestWeight,
+        expectedProfileRow
+      );
+      profileSynced = true;
+    }
   } catch (err) {
     primaryError = err;
     throw err;
@@ -830,7 +866,7 @@ export async function syncHistoricalDataToSheets(
     pushedUpdated,
     tafPushedAppended,
     tafPushedUpdated,
-    profileSynced: true,
+    profileSynced,
     syncedAt: now(),
   };
 }
@@ -1110,6 +1146,11 @@ async function pullTrainingSheetRows<T extends SheetTrainingSessionInput & { id:
         continue;
       }
 
+      if (shouldProtectDirtyLocalRecord(existing)) {
+        skipped += 1;
+        continue;
+      }
+
       if (!hasTrainingRowDivergence(existing, parsed)) {
         skipped += 1;
         continue;
@@ -1238,6 +1279,11 @@ async function pullTafSheetRows<T extends SheetTafAttemptInput & { id: string }>
           rowNumber,
           message: `ID "${parsed.id}" não encontrado no banco (possível exclusão prévia). Linha ignorada sem ressuscitar registro.`,
         });
+        skipped += 1;
+        continue;
+      }
+
+      if (shouldProtectDirtyLocalRecord(existing)) {
         skipped += 1;
         continue;
       }

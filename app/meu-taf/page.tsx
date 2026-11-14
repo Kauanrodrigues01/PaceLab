@@ -5,7 +5,10 @@ import Link from "next/link";
 import { TafAttempt, TafGoalConfig, TrainingSession } from "@/types";
 import type { SheetsSyncReport } from "@/lib/googleSheets/types";
 import { tafService, DEFAULT_GOAL } from "@/lib/services/tafService";
-import { clearCrossPageSheetsCaches } from "@/lib/sheetsSyncUi";
+import {
+  clearCrossPageSheetsCaches,
+  CROSS_PAGE_SHEETS_CACHE_KEYS,
+} from "@/lib/sheetsSyncUi";
 import { getPersonalRecord, processTafAttempts } from "@/lib/math/evolution";
 import { TafAttemptForm } from "@/components/meu-taf/TafAttemptForm";
 import { TafAttemptList } from "@/components/meu-taf/TafAttemptList";
@@ -231,6 +234,7 @@ export default function MeuTafPage() {
       if (typeof window !== "undefined") {
         try {
           sessionStorage.setItem(TAF_TRAININGS_CACHE_KEY, JSON.stringify(updated));
+          sessionStorage.removeItem(CROSS_PAGE_SHEETS_CACHE_KEYS.trainings);
         } catch {}
       }
       return updated;
@@ -352,7 +356,7 @@ export default function MeuTafPage() {
       {notification && (
         <div
           data-testid="toast-notification"
-          className={`fixed top-20 right-4 sm:right-8 z-50 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs sm:text-sm font-semibold transition-all animate-in fade-in slide-in-from-top-4 ${
+          className={`fixed top-20 right-4 sm:right-8 z-50 max-w-[calc(100vw-2rem)] px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs sm:text-sm font-semibold transition-all animate-in fade-in slide-in-from-top-4 ${
             notification.type === "success"
               ? "bg-emerald-600 text-white"
               : "bg-red-600 text-white"
@@ -792,7 +796,14 @@ export default function MeuTafPage() {
           goal={goal}
           attempts={attempts}
           trainings={trainings}
-          onGoalSaved={(savedGoal) => setGoal(savedGoal)}
+          onGoalSaved={(savedGoal) => {
+            setGoal(savedGoal);
+            if (typeof window !== "undefined") {
+              try {
+                sessionStorage.setItem(TAF_GOAL_CACHE_KEY, JSON.stringify(savedGoal));
+              } catch {}
+            }
+          }}
           onDataRefreshed={loadData}
           onSheetsSynced={handleSheetsSynced}
           showToast={showToast}

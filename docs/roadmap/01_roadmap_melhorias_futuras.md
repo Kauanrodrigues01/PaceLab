@@ -220,6 +220,16 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 
 ---
 
+### Eixo B.8: Precisão do Leitor `.FIT` vs. Strava, Título pelo Nome do Arquivo e Feedback Google Sheets — ✅ Concluído e Homologado (Fases 1–4)
+
+> **Plano executado:** [`docs/plans/executed/13_plan_melhoria_fit_titulo_arquivo_e_feedback_sheets.md`](../plans/executed/13_plan_melhoria_fit_titulo_arquivo_e_feedback_sheets.md)
+
+- **Precisão `.FIT` (Strava Mobile, pausas e parciais):** Separação entre tempo em movimento (`durationSeconds`) e tempo total decorrido (`elapsedSeconds`) em `lib/fit/movingMetrics.ts` e `lib/fit/parseFit.ts`, com parciais (`splits`) consistentes com o resumo da atividade (validado com o arquivo real `Caminhada_leve.fit`).
+- **Título pelo nome do arquivo e transparência de pausas:** Sugestão automática de título (`suggestedNotes` / `titleSource` via `/api/training-sessions/parse-activity`) mantendo observações já preenchidas e exibição de pausas na importação e visualização de treinos.
+- **Sincronização Google Sheets, Toast e Cache entre Páginas:** Proteção contra sobrescrita no pull para registros locais mais recentes (`shouldProtectDirtyLocalRecord` via `syncedToSheetsAt`/`updatedAt`), comparação de divergência em `Perfil_e_Metas` (`hasProfileGoalRowDivergence` e `profileSynced`), resumo claro no toast (`formatSheetsSyncReportSummary`), reatividade da badge de pendências em `GoalAndBackupSettings` (`recordsSyncFingerprint`) e invalidação de cache entre `/treinos` e `/meu-taf`.
+
+---
+
 ### Eixo C: Recursos de Produto para o Atleta na Pista
 
 #### 21. Transformação em PWA Completo (Progressive Web App)
