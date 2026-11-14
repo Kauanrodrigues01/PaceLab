@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MeuTafPage from "@/app/meu-taf/page";
 import { tafService } from "@/lib/services/tafService";
+import { CROSS_PAGE_SHEETS_CACHE_KEYS } from "@/lib/sheetsSyncUi";
 import { setupMockTafApi } from "@/test/helpers/mockTafApi";
+import { ACTIVITY_TYPES, ActivityParsePreview } from "@/types";
 
 describe("MeuTafPage - Fase C (Histórico de 12 Minutos e Interface do TAF)", () => {
   beforeEach(() => {
@@ -322,5 +324,160 @@ describe("MeuTafPage - Fase C (Histórico de 12 Minutos e Interface do TAF)", ()
     // Links para diário de treinos
     const treinosLinks = screen.getAllByRole("link", { name: /Diário de Treinos/i });
     expect(treinosLinks.some((l) => l.getAttribute("href") === "/treinos")).toBe(true);
+  });
+
+  it("integra importação em massa em /meu-taf (onBatchImported): espelha no Diário, sincroniza Sheets 1 vez, limpa caches e exibe toast único", async () => {
+    const { store } = setupMockTafApi();
+    sessionStorage.setItem(CROSS_PAGE_SHEETS_CACHE_KEYS.trainings, "[]");
+    sessionStorage.setItem(CROSS_PAGE_SHEETS_CACHE_KEYS.tafAttempts, "[]");
+    sessionStorage.setItem(CROSS_PAGE_SHEETS_CACHE_KEYS.tafTrainings, "[]");
+    sessionStorage.setItem(CROSS_PAGE_SHEETS_CACHE_KEYS.tafGoal, "keep_goal");
+    const removeItemSpy = vi.spyOn(Storage.prototype, "removeItem");
+
+    const buildTafPreview = (
+      id: string,
+      title: string,
+      meters: number
+    ): ActivityParsePreview => ({
+      source: "fit_upload",
+      filesUsed: ["fit"],
+      name: title,
+      rawType: "running",
+      sourceActivityKind: "run",
+      isIndoor: false,
+      externalId: id,
+      startedAt: new Date().toISOString(),
+      distanceKm: Number((meters / 1000).toFixed(3)),
+      durationSeconds: 720,
+      elapsedSeconds: 720,
+      paceSeconds: Math.round(720 / (meters / 1000)),
+      paceFormatted: "4:48",
+      speedKmh: Number(((meters / 1000) / (720 / 3600)).toFixed(2)),
+      elevationGainM: 12,
+      avgHeartRate: 168,
+      maxHeartRate: 180,
+      avgCadence: 180,
+      activeCalories: 240,
+      avgTemperatureC: null,
+      pointCount: 720,
+      splits: [],
+      laps: [],
+      warnings: [],
+      alreadyExists: false,
+      existingTrainingId: null,
+      alreadyExistsAttempt: false,
+      existingAttemptId: null,
+      tafWindow: {
+        targetDurationSeconds: 720,
+        actualDurationSeconds: 720,
+        distanceMeters: meters,
+        speedKmh: Number(((meters / 1000) / (720 / 3600)).toFixed(2)),
+        paceSeconds: Math.round(720 / (meters / 1000)),
+        paceFormatted: "4:48",
+        avgHeartRate: 168,
+        maxHeartRate: 180,
+        windowStartOffsetSeconds: 0,
+        windowEndOffsetSeconds: 720,
+        isShorterThanTarget: false,
+        laps: [
+          {
+            lapNumber: 1,
+            distanceMeters: 400,
+            durationSeconds: 115,
+            paceFormatted: "4:48",
+          },
+        ],
+      },
+      suggestedActivityType: "tempo_run",
+      suggestedNotes: "",
+      allowedActivityTypes: [...ACTIVITY_TYPES],
+    });
+
+    vi.spyOn(tafService, "parseActivity")
+      .mockResolvedValueOnce(buildTafPreview("taf_batch_1", "Simulado Lote A", 2500))
+      .mockResolvedValueOnce(buildTafPreview("taf_batch_2", "Simulado Lote B", 2600));
+
+    const origSaveAttempt = tafService.saveAttempt.bind(tafService);
+    const saveAttemptSpy = vi
+      .spyOn(tafService, "saveAttempt")
+      .mockImplementation((att, isUpd, opts) => origSaveAttempt(att, isUpd, opts));
+
+    const origSaveTraining = tafService.saveTraining.bind(tafService);
+    const saveTrainingSpy = vi
+      .spyOn(tafService, "saveTraining")
+      .mockImplementation((tr, isUpd, opts) => origSaveTraining(tr, isUpd, opts));
+
+    vi.spyOn(tafService, "getSheetsSyncStatus").mockResolvedValue({
+      configured: true,
+      pendingTrainingsCount: 0,
+      pendingAttemptsCount: 0,
+      totalPendingCount: 0,
+    });
+    const syncSpy = vi
+      .spyOn(tafService, "syncGoogleSheets")
+      .mockResolvedValue({
+        direction: "push",
+        forceFullResync: false,
+        pushedAppended: 2,
+        pushedUpdated: 0,
+        pulledCreated: 0,
+        pulledUpdated: 0,
+        pulledLinked: 0,
+        tafPushedAppended: 2,
+        tafPushedUpdated: 0,
+        tafPulledCreated: 0,
+        tafPulledUpdated: 0,
+        tafPulledLinked: 0,
+        profileSynced: false,
+        skipped: 0,
+        warnings: [],
+        durationMs: 100,
+        syncedAt: new Date().toISOString(),
+      });
+
+    const user = userEvent.setup({ applyAccept: false });
+    render(<MeuTafPage />);
+
+    await screen.findByRole("heading", { name: "Meu TAF" });
+    await user.click(screen.getByTestId("meu-taf-import-btn"));
+
+    const input = screen.getByTestId("activity-file-input") as HTMLInputElement;
+    await user.upload(input, [
+      new File([new Uint8Array(64)], "sim1.fit", { lastModified: 101 }),
+      new File([new Uint8Array(64)], "sim2.fit", { lastModified: 102 }),
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("batch-target-taf")).toHaveAttribute(
+        "aria-checked",
+        "true"
+      );
+      expect(screen.getByTestId("batch-submit-btn")).toHaveTextContent(
+        "Importar Lote (2 prontos)"
+      );
+    });
+
+    await user.click(screen.getByTestId("batch-also-save-diary-checkbox"));
+    await user.click(screen.getByTestId("batch-submit-btn"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("gpx-import-panel")).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("toast-notification")).toHaveTextContent(
+      /Lote importado: 2 novo\(s\), 2 espelhado\(s\) no Diário \(simulado\(s\) TAF\) • Google Sheets sincronizado!/i
+    );
+    expect(saveAttemptSpy).toHaveBeenCalledTimes(2);
+    expect(saveTrainingSpy).toHaveBeenCalledTimes(2);
+    expect(saveAttemptSpy.mock.calls.every(([, , opts]) => opts?.skipSheetsSync === true)).toBe(true);
+    expect(saveTrainingSpy.mock.calls.every(([, , opts]) => opts?.skipSheetsSync === true)).toBe(true);
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+    expect(store.attempts).toHaveLength(2);
+    expect(store.trainings).toHaveLength(2);
+    expect(screen.getByText("2.600")).toBeInTheDocument();
+    expect(removeItemSpy).toHaveBeenCalledWith(CROSS_PAGE_SHEETS_CACHE_KEYS.trainings);
+    expect(removeItemSpy).toHaveBeenCalledWith(CROSS_PAGE_SHEETS_CACHE_KEYS.tafAttempts);
+    expect(removeItemSpy).toHaveBeenCalledWith(CROSS_PAGE_SHEETS_CACHE_KEYS.tafTrainings);
+    expect(removeItemSpy).not.toHaveBeenCalledWith(CROSS_PAGE_SHEETS_CACHE_KEYS.tafGoal);
   });
 });

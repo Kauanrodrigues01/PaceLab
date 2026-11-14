@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
-import { TafAttempt, TrainingSession } from "@/types";
+import { BatchImportSummary, TafAttempt, TrainingSession } from "@/types";
 import { tafService } from "@/lib/services/tafService";
 import {
   clearCrossPageSheetsCaches,
+  formatBatchImportToast,
   formatSheetsSyncReportSummary,
   getSheetsSyncErrorMessage,
 } from "@/lib/sheetsSyncUi";
@@ -259,6 +260,22 @@ export default function TreinosPage() {
         : `Simulado TAF (${saved.distanceMeters}m) salvo no histórico do Meu TAF!`
     );
   };
+
+  // Callback consolidado ao finalizar importação em massa (.FIT / .GPX)
+  const handleBatchImported = useCallback(
+    async (summary: BatchImportSummary) => {
+      clearCrossPageSheetsCaches({ includeGoal: false });
+      await loadTrainings();
+      if (summary.failedCount === 0 && !summary.aborted) {
+        setEditingTraining(null);
+        setIsFormOpen(false);
+        setFormMode("manual");
+      }
+      const toast = formatBatchImportToast(summary);
+      showToast(toast.message, toast.type);
+    },
+    [loadTrainings, showToast]
+  );
 
   // Sincronização manual bidirecional com Google Sheets
   const handleSyncSheets = async () => {
@@ -789,6 +806,7 @@ export default function TreinosPage() {
                   onImported={handleImportedTraining}
                   onAttemptImported={handleImportedAttempt}
                   onMirroredTraining={upsertTrainingInState}
+                  onBatchImported={handleBatchImported}
                   onCancel={() => {
                     setIsFormOpen(false);
                     setFormMode("manual");

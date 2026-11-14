@@ -481,3 +481,24 @@ export interface TrainingDashboardMetrics {
   avgRpe: number | null;
 }
 
+// ─── Importação em Massa (.FIT / .GPX) ───────────────────────────────────────
+export type BatchImportTarget = "training" | "taf_attempt";
+
+export type BatchDuplicatePolicy = "skip" | "update";
+
+export interface BatchImportSummary {
+  target: BatchImportTarget;
+  duplicatePolicy: BatchDuplicatePolicy;
+  totalItems: number;
+  savedCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  mirroredCount: number;
+  mirrorSkippedCount: number;
+  mirrorFailedCount: number;
+  sheetsSynced: boolean;
+  sheetsSyncWarning?: string | null;
+  aborted?: boolean;
+}
+

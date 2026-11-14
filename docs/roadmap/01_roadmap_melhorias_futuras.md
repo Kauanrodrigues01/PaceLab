@@ -230,6 +230,19 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 
 ---
 
+### Eixo B.9: Importação e Preenchimento em Massa (`.FIT` / `.GPX`) com Seleção Única Global — ✅ Concluído e Homologado (Fases 1–4)
+
+> **Plano executado:** [`docs/plans/executed/14_plan_importacao_em_massa_fit_gpx.md`](../plans/executed/14_plan_importacao_em_massa_fit_gpx.md)
+>
+> **Guia técnico complementar:** [`docs/architecture/01_leitura_fit_gpx_e_divergencias_strava.md`](../architecture/01_leitura_fit_gpx_e_divergencias_strava.md)
+
+- **Agrupamento, Pareamento e Isolamento por Atividade (`lib/activityParser/batchGrouping.ts`):** Seleção múltipla entra automaticamente no **Modo Em Massa** (até 50 atividades/lote, limite 4 MB por arquivo), pareia arquivos `.FIT` + `.GPX` homônimos mantendo o `.FIT` prioritário (com ação para separar em 2 itens), pré-valida extensões/arquivos vazios/repetidos na fila e detecta duplicidade intra-lote pelo `externalId`.
+- **Motor de Análise, Payloads e Políticas em Lote (`lib/activityParser/batchPayloads.ts`):** Pool concorrente com suporte a `AbortSignal` para chamadas individuais a `/api/training-sessions/parse-activity`, pré-preenchimento de títulos por arquivo/GPX, recálculo calórico MET em lote (`bodyWeightKg`), sanitização compatível com os schemas Zod (`CreateTrainingSessionSchema` e `CreateTafAttemptSchema`), fallback manual para arquivos sem métricas completas, políticas globais de duplicidade (`"skip"` vs `"update"` via `onDuplicate: "update"`) e espelhamento seguro TAF → Diário (`buildSafeMirroredDiaryPayload`) sem criar registros órfãos.
+- **UI em Massa com Seleção Única Global (`components/treinos/GpxImportPanel.tsx` + `components/treinos/batch/*`):** Alternador de modo (`1 Treino (Individual)` vs `Em Massa (Vários Arquivos)`) preservando integralmente o fluxo individual, **`radiogroup` único global (`BatchImportTargetBar.tsx`)** definindo todo o lote como *Todos como Treinos do Diário* ou *Todos como Simulados TAF (Cooper 12 min)* sem seletores individuais por linha, barra de configuração rápida para aplicar tipo/local/tênis/RPE em massa (`BatchImportDefaultsBar.tsx`), cartões compactos de revisão (`BatchImportItemRow.tsx`) com `<GpxPreviewCard />` sob demanda para performance mobile e recuperação granular via *"Tentar novamente falhos"* sem duplicar itens já persistidos.
+- **Push Único Consolidado para Google Sheets & Cache (`lib/services/tafService.ts`, `lib/sheetsSyncUi.ts`, `app/treinos/page.tsx`, `app/meu-taf/page.tsx`):** Suporte a `{ skipSheetsSync: true }` nas gravações individuais via query param `?skipSheetsSync=true` (`shouldSkipSheetsSync` em `lib/api/sheetsSync.ts`) nas rotas `/api/taf/trainings` e `/api/taf/attempts` (`POST`/`PUT`), disparo de **1 único push consolidado** (`direction: "push"`) ao final quando configurado, invalidação de caches cross-page preservando a meta TAF (`clearCrossPageSheetsCaches({ includeGoal: false })`) e 1 toast resumo consolidado (`formatBatchImportToast`).
+
+---
+
 ### Eixo C: Recursos de Produto para o Atleta na Pista
 
 #### 21. Transformação em PWA Completo (Progressive Web App)

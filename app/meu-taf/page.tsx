@@ -2,12 +2,18 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { TafAttempt, TafGoalConfig, TrainingSession } from "@/types";
+import {
+  BatchImportSummary,
+  TafAttempt,
+  TafGoalConfig,
+  TrainingSession,
+} from "@/types";
 import type { SheetsSyncReport } from "@/lib/googleSheets/types";
 import { tafService, DEFAULT_GOAL } from "@/lib/services/tafService";
 import {
   clearCrossPageSheetsCaches,
   CROSS_PAGE_SHEETS_CACHE_KEYS,
+  formatBatchImportToast,
 } from "@/lib/sheetsSyncUi";
 import { getPersonalRecord, processTafAttempts } from "@/lib/math/evolution";
 import { TafAttemptForm } from "@/components/meu-taf/TafAttemptForm";
@@ -276,6 +282,21 @@ export default function MeuTafPage() {
       await loadData();
     },
     [loadData]
+  );
+
+  // Callback consolidado ao finalizar importação em massa (.FIT / .GPX)
+  const handleBatchImported = useCallback(
+    async (summary: BatchImportSummary) => {
+      clearCrossPageSheetsCaches({ includeGoal: false });
+      await loadData();
+      if (summary.failedCount === 0 && !summary.aborted) {
+        setEditingAttempt(null);
+        setShowImportPanel(false);
+      }
+      const toast = formatBatchImportToast(summary);
+      showToast(toast.message, toast.type);
+    },
+    [loadData, showToast]
   );
 
   // Salvar tentativa
@@ -741,6 +762,7 @@ export default function MeuTafPage() {
               onAttemptImported={handleImportedAttempt}
               onImported={handleImportedTraining}
               onMirroredTraining={upsertTrainingInState}
+              onBatchImported={handleBatchImported}
               onCancel={() => setShowImportPanel(false)}
             />
           )}
