@@ -13,6 +13,7 @@ import { GoalAndBackupSettings } from "@/components/meu-taf/GoalAndBackupSetting
 import { CooperVo2MaxCard } from "@/components/meu-taf/CooperVo2MaxCard";
 import { TafApprovalRuler } from "@/components/meu-taf/TafApprovalRuler";
 import { TafComplementaryExercisesCard } from "@/components/meu-taf/TafComplementaryExercisesCard";
+import { GpxImportPanel } from "@/components/treinos/GpxImportPanel";
 import { calculateAge } from "@/lib/math/cooper";
 import { profileService } from "@/lib/services/profileService";
 import { UserProfile } from "@/types";
@@ -29,6 +30,7 @@ import {
   Zap,
   Activity,
   Dumbbell,
+  Upload,
 } from "lucide-react";
 
 const TAF_ATTEMPTS_CACHE_KEY = "pacelab_cache_taf_attempts";
@@ -78,6 +80,7 @@ export default function MeuTafPage() {
   const [goal, setGoal] = useState<TafGoalConfig>(DEFAULT_GOAL);
   const [attempts, setAttempts] = useState<TafAttempt[]>([]);
   const [editingAttempt, setEditingAttempt] = useState<TafAttempt | null>(null);
+  const [showImportPanel, setShowImportPanel] = useState(false);
 
   // Treinos mantidos para os gráficos agregados, comparador e backup
   const [trainings, setTrainings] = useState<TrainingSession[]>([]);
@@ -156,6 +159,53 @@ export default function MeuTafPage() {
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 4000);
+  };
+
+  // Callback ao importar Simulado TAF via .FIT / .GPX diretamente na aba Meu TAF
+  const handleImportedAttempt = (saved: TafAttempt, isUpdated = false) => {
+    setAttempts((prev) => {
+      const index = prev.findIndex((a) => a.id === saved.id);
+      const updated =
+        index >= 0
+          ? prev.map((a) => (a.id === saved.id ? saved : a))
+          : [saved, ...prev];
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(TAF_ATTEMPTS_CACHE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
+    setEditingAttempt(null);
+    setShowImportPanel(false);
+    showToast(
+      isUpdated
+        ? "Simulado TAF existente atualizado com sucesso!"
+        : "Simulado TAF importado do Strava com sucesso!"
+    );
+  };
+
+  // Callback caso usuário mude o seletor interno para Treino do Diário
+  const handleImportedTraining = (saved: TrainingSession, isUpdated = false) => {
+    setTrainings((prev) => {
+      const index = prev.findIndex((t) => t.id === saved.id);
+      const updated =
+        index >= 0
+          ? prev.map((t) => (t.id === saved.id ? saved : t))
+          : [saved, ...prev];
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(TAF_TRAININGS_CACHE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
+    setShowImportPanel(false);
+    showToast(
+      isUpdated
+        ? "Treino existente atualizado com sucesso!"
+        : "Treino importado para o Diário com sucesso!"
+    );
   };
 
   // Salvar tentativa
@@ -593,6 +643,36 @@ export default function MeuTafPage() {
 
           {/* Exercícios Complementares do TAF (Barra, Flexão, Abdominal) */}
           <TafComplementaryExercisesCard goal={goal} />
+
+          {/* Barra de Atalho para Importar .FIT / .GPX como Simulado TAF */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#131A2E] border border-[#1E2942] rounded-2xl px-4 py-3">
+            <div>
+              <span className="text-xs sm:text-sm font-bold text-white block">
+                Importar Simulado do Strava / Garmin (.FIT ou .GPX)
+              </span>
+              <span className="text-[11px] text-[#8E9BB0]">
+                Extrai automaticamente a melhor janela contínua de 12 minutos e as voltas de 400m.
+              </span>
+            </div>
+            <button
+              type="button"
+              data-testid="meu-taf-import-btn"
+              onClick={() => setShowImportPanel((prev) => !prev)}
+              className="px-4 py-2 rounded-xl bg-[#B7F34A]/15 hover:bg-[#B7F34A]/25 text-[#B7F34A] border border-[#B7F34A]/40 font-bold text-xs inline-flex items-center gap-2 transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              {showImportPanel ? "Fechar Importador" : "Importar .FIT / .GPX (Strava)"}
+            </button>
+          </div>
+
+          {showImportPanel && (
+            <GpxImportPanel
+              defaultSaveAs="taf_attempt"
+              onAttemptImported={handleImportedAttempt}
+              onImported={handleImportedTraining}
+              onCancel={() => setShowImportPanel(false)}
+            />
+          )}
 
           {/* Formulário de Registro Rápido */}
           <TafAttemptForm

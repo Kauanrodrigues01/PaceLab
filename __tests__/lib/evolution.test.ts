@@ -305,5 +305,45 @@ describe("lib/math/evolution.ts — Motor Matemático de Evolução do TAF", () 
       expect(comp.deltaTafDistanceMeters).toBeNull();
       expect(comp.summaryText).toContain("idêntico");
     });
+
+    it("contabiliza rodagem_leve, tempo_run e longao como treinos comuns sem dupla contagem com TAF (Fase 2)", () => {
+      const tRodagem = baseTraining({
+        id: "t-rod",
+        sessionDate: "2026-10-05",
+        activityType: "rodagem_leve",
+        distanceKm: 6,
+        durationSeconds: 2160,
+        perceivedEffort: 4,
+      });
+      const tTempo = baseTraining({
+        id: "t-tmp",
+        sessionDate: "2026-10-07",
+        activityType: "tempo_run",
+        distanceKm: 8,
+        durationSeconds: 2400,
+        perceivedEffort: 7,
+      });
+      const tLongao = baseTraining({
+        id: "t-lng",
+        sessionDate: "2026-10-10",
+        activityType: "longao",
+        distanceKm: 16,
+        durationSeconds: 5120,
+        perceivedEffort: 6,
+      });
+
+      const metrics = calculatePeriodMetrics({
+        startDate: "2026-10-01",
+        endDate: "2026-10-31",
+        trainings: [tRodagem, tTempo, tLongao],
+        attempts: [],
+      });
+
+      expect(metrics.totalSessions).toBe(3);
+      expect(metrics.totalDistanceKm).toBe(30);
+      expect(metrics.tafTestsCount).toBe(0);
+      expect(metrics.bestTafDistanceMeters).toBeNull();
+      expect(metrics.hasLowSampleWarning).toBe(false);
+    });
   });
 });

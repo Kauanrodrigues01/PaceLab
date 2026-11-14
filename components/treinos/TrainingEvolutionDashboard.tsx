@@ -7,8 +7,13 @@ import {
   SessionCountPreset,
   DashboardFilterMode,
   ActivityType,
-  ACTIVITY_LABELS,
 } from "@/types";
+import {
+  ACTIVITY_COLORS,
+  ACTIVITY_LABELS,
+  ACTIVITY_TYPES,
+  PACE_ACTIVITY_OPTIONS,
+} from "@/lib/activity";
 import { formatPace, formatTime } from "@/lib/formatting/time";
 import { parseSafeDate } from "@/lib/math/evolution";
 import {
@@ -45,28 +50,12 @@ interface TrainingEvolutionDashboardProps {
   trainings: TrainingSession[];
 }
 
-const ACTIVITY_COLORS: Record<ActivityType, string> = {
-  corrida_continua: "#3b82f6", // azul
-  corrida_intervalada: "#f59e0b", // âmbar
-  caminhada: "#10b981", // verde esmeralda
-};
-
 const RPE_ZONE_COLORS = {
   leve: "#10b981", // Verde (RPE 1-3)
   moderado: "#3b82f6", // Azul (RPE 4-6)
   intenso: "#f59e0b", // Âmbar (RPE 7-8)
   maximo: "#ef4444", // Vermelho (RPE 9-10)
 };
-
-const PACE_ACTIVITY_OPTIONS: Array<{
-  value: "all" | ActivityType;
-  label: string;
-}> = [
-  { value: "all", label: "Todas" },
-  { value: "corrida_continua", label: "Corrida Contínua" },
-  { value: "corrida_intervalada", label: "Intervalado" },
-  { value: "caminhada", label: "Caminhada" },
-];
 
 export function TrainingEvolutionDashboard({
   trainings,
@@ -438,39 +427,32 @@ export function TrainingEvolutionDashboard({
   const activityDistributionData = useMemo(() => {
     if (filteredTrainings.length === 0) return [];
 
-    let kmContinua = 0;
-    let kmIntervalada = 0;
-    let kmCaminhada = 0;
+    const kmByType: Record<ActivityType, number> = {
+      rodagem_leve: 0,
+      corrida_continua: 0,
+      tempo_run: 0,
+      corrida_intervalada: 0,
+      longao: 0,
+      caminhada: 0,
+    };
 
+    let totalKm = 0;
     filteredTrainings.forEach((t) => {
       const km = t.distanceKm || 0;
-      if (t.activityType === "corrida_intervalada") kmIntervalada += km;
-      else if (t.activityType === "caminhada") kmCaminhada += km;
-      else kmContinua += km;
+      const type = t.activityType in kmByType ? t.activityType : "corrida_continua";
+      kmByType[type] += km;
+      totalKm += km;
     });
 
-    const totalKm = kmContinua + kmIntervalada + kmCaminhada;
-
-    return [
-      {
-        name: "Corrida Contínua",
-        value: Number(kmContinua.toFixed(1)),
-        percent: totalKm > 0 ? Math.round((kmContinua / totalKm) * 100) : 0,
-        color: ACTIVITY_COLORS.corrida_continua,
-      },
-      {
-        name: "Intervalado / Tiros",
-        value: Number(kmIntervalada.toFixed(1)),
-        percent: totalKm > 0 ? Math.round((kmIntervalada / totalKm) * 100) : 0,
-        color: ACTIVITY_COLORS.corrida_intervalada,
-      },
-      {
-        name: "Caminhada",
-        value: Number(kmCaminhada.toFixed(1)),
-        percent: totalKm > 0 ? Math.round((kmCaminhada / totalKm) * 100) : 0,
-        color: ACTIVITY_COLORS.caminhada,
-      },
-    ].filter((item) => item.value > 0);
+    return ACTIVITY_TYPES.map((type) => {
+      const km = kmByType[type];
+      return {
+        name: ACTIVITY_LABELS[type],
+        value: Number(km.toFixed(1)),
+        percent: totalKm > 0 ? Math.round((km / totalKm) * 100) : 0,
+        color: ACTIVITY_COLORS[type],
+      };
+    }).filter((item) => item.value > 0);
   }, [filteredTrainings]);
 
   // ─── 8. Gráfico 6: Gasto Calórico Semanal Acumulado (BarChart) ────────────────
@@ -530,39 +512,32 @@ export function TrainingEvolutionDashboard({
   const activityCaloriesData = useMemo(() => {
     if (filteredTrainings.length === 0) return [];
 
-    let calContinua = 0;
-    let calIntervalada = 0;
-    let calCaminhada = 0;
+    const calByType: Record<ActivityType, number> = {
+      rodagem_leve: 0,
+      corrida_continua: 0,
+      tempo_run: 0,
+      corrida_intervalada: 0,
+      longao: 0,
+      caminhada: 0,
+    };
 
+    let totalCal = 0;
     filteredTrainings.forEach((t) => {
       const cal = t.activeCalories || 0;
-      if (t.activityType === "corrida_intervalada") calIntervalada += cal;
-      else if (t.activityType === "caminhada") calCaminhada += cal;
-      else calContinua += cal;
+      const type = t.activityType in calByType ? t.activityType : "corrida_continua";
+      calByType[type] += cal;
+      totalCal += cal;
     });
 
-    const totalCal = calContinua + calIntervalada + calCaminhada;
-
-    return [
-      {
-        name: "Corrida Contínua",
-        value: Math.round(calContinua),
-        percent: totalCal > 0 ? Math.round((calContinua / totalCal) * 100) : 0,
-        color: ACTIVITY_COLORS.corrida_continua,
-      },
-      {
-        name: "Intervalado / Tiros",
-        value: Math.round(calIntervalada),
-        percent: totalCal > 0 ? Math.round((calIntervalada / totalCal) * 100) : 0,
-        color: ACTIVITY_COLORS.corrida_intervalada,
-      },
-      {
-        name: "Caminhada",
-        value: Math.round(calCaminhada),
-        percent: totalCal > 0 ? Math.round((calCaminhada / totalCal) * 100) : 0,
-        color: ACTIVITY_COLORS.caminhada,
-      },
-    ].filter((item) => item.value > 0);
+    return ACTIVITY_TYPES.map((type) => {
+      const cal = calByType[type];
+      return {
+        name: ACTIVITY_LABELS[type],
+        value: Math.round(cal),
+        percent: totalCal > 0 ? Math.round((cal / totalCal) * 100) : 0,
+        color: ACTIVITY_COLORS[type],
+      };
+    }).filter((item) => item.value > 0);
   }, [filteredTrainings]);
 
   // Formata horas e minutos totais

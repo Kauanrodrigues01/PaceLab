@@ -163,31 +163,20 @@ export interface LapDetail {
   paceFormatted?: string;
 }
 
-export interface TafAttempt {
-  id: string;
-  userId?: string | null;
-  testDate: string; // ISO 8601
-  targetDurationSeconds: Seconds; // Padrão 720 (12 min)
-  actualDurationSeconds: Seconds;
-  distanceMeters: number;
-  speedKmh: KmPerHour;
-  paceSeconds: SecondsPerKm;
-  paceFormatted: string; // e.g. "5:13"
-  locationType?: LocationType | null;
-  notes?: string | null;
-  laps?: LapDetail[];
-  createdAt: string;
-  updatedAt: string;
-  // Campos computados em tempo de execução
-  isPersonalRecord?: boolean;
-  deltaPreviousMeters?: number | null;
-  deficitTargetMeters?: number;
-}
+export const ACTIVITY_TYPES = [
+  "rodagem_leve",
+  "corrida_continua",
+  "tempo_run",
+  "corrida_intervalada",
+  "longao",
+  "caminhada",
+] as const;
 
-export type ActivityType =
-  | "corrida_continua"
-  | "corrida_intervalada"
-  | "caminhada";
+export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+
+export const ACTIVITY_SOURCES = ["manual", "gpx_upload", "fit_upload"] as const;
+
+export type ActivitySource = (typeof ACTIVITY_SOURCES)[number];
 
 export type LocationType =
   | "pista_400m"
@@ -197,9 +186,18 @@ export type LocationType =
   | "outro";
 
 export const ACTIVITY_LABELS: Record<ActivityType, string> = {
+  rodagem_leve: "Rodagem Leve",
   corrida_continua: "Corrida Contínua",
+  tempo_run: "Tempo Run / Ritmo",
   corrida_intervalada: "Intervalado / Tiros",
+  longao: "Longão",
   caminhada: "Caminhada",
+};
+
+export const SOURCE_LABELS: Record<ActivitySource, string> = {
+  manual: "Manual",
+  gpx_upload: "Strava GPX",
+  fit_upload: "Strava FIT",
 };
 
 export const LOCATION_LABELS: Record<LocationType, string> = {
@@ -210,22 +208,121 @@ export const LOCATION_LABELS: Record<LocationType, string> = {
   outro: "Outro Percurso",
 };
 
+export interface TafAttempt {
+  id: string;
+  userId?: string | null;
+  source?: ActivitySource;
+  externalId?: string | null;
+  testDate: string; // ISO 8601
+  targetDurationSeconds: Seconds; // Padrão 720 (12 min)
+  actualDurationSeconds: Seconds;
+  distanceMeters: number;
+  speedKmh: KmPerHour;
+  paceSeconds: SecondsPerKm;
+  paceFormatted: string; // e.g. "5:13"
+  locationType?: LocationType | null;
+  shoeName?: string | null;
+  avgHeartRate?: number | null;
+  maxHeartRate?: number | null;
+  notes?: string | null;
+  laps?: LapDetail[];
+  createdAt: string;
+  updatedAt: string;
+  // Campos computados em tempo de execução
+  isPersonalRecord?: boolean;
+  deltaPreviousMeters?: number | null;
+  deficitTargetMeters?: number;
+}
+
 export interface SplitDetail {
   kilometer: number;
   durationSeconds: Seconds;
   paceFormatted: string;
+  distanceKm?: Kilometers;
+  paceSeconds?: SecondsPerKm;
+  avgHeartRate?: number | null;
+  elevationDiffM?: number | null;
+}
+
+export interface ActivityParseWarning {
+  code: string;
+  message: string;
+  count?: number;
+}
+
+export interface TafWindowSummary {
+  targetDurationSeconds: Seconds; // Padrão 720 (12 min)
+  actualDurationSeconds: Seconds;
+  distanceMeters: number;
+  speedKmh: KmPerHour;
+  paceSeconds: SecondsPerKm;
+  paceFormatted: string;
+  avgHeartRate: number | null;
+  maxHeartRate: number | null;
+  windowStartOffsetSeconds: number;
+  windowEndOffsetSeconds: number;
+  isShorterThanTarget: boolean;
+  laps: LapDetail[];
+}
+
+export interface ActivityParsePreview {
+  source: "fit_upload" | "gpx_upload";
+  filesUsed: Array<"fit" | "gpx">;
+  name: string | null;
+  rawType: string | null;
+  sourceActivityKind: "run" | "walk" | "unknown";
+  isIndoor: boolean;
+  startedAt: string;
+  distanceKm: Kilometers;
+  durationSeconds: Seconds;
+  elapsedSeconds: Seconds;
+  speedKmh: KmPerHour;
+  paceSeconds: SecondsPerKm;
+  paceFormatted: string;
+  avgHeartRate: number | null;
+  maxHeartRate: number | null;
+  avgCadence: number | null;
+  elevationGainM: number | null;
+  activeCalories: number | null;
+  avgTemperatureC: number | null;
+  splits: SplitDetail[];
+  laps: LapDetail[];
+  externalId: string;
+  pointCount: number;
+  warnings: ActivityParseWarning[];
+  alreadyExists: boolean;
+  existingTrainingId: string | null;
+  alreadyExistsAttempt?: boolean;
+  existingAttemptId?: string | null;
+  tafWindow?: TafWindowSummary | null;
+  suggestedActivityType: ActivityType | null;
+  suggestedNotes: string;
+  allowedActivityTypes: ActivityType[];
 }
 
 export interface TrainingSession {
   id: string;
   userId?: string | null;
+  // Rastreabilidade e Anti-Duplicação
+  source?: ActivitySource;
+  externalId?: string | null;
+  syncedToSheetsAt?: string | null;
+  // Métricas Principais
   sessionDate: string; // ISO 8601
   activityType: ActivityType;
   distanceKm: Kilometers;
   durationSeconds: Seconds;
+  elapsedSeconds?: Seconds | null;
   speedKmh: KmPerHour;
   paceSeconds: SecondsPerKm;
   paceFormatted: string;
+  // Telemetria Extra (Strava / GPX)
+  avgHeartRate?: number | null;
+  maxHeartRate?: number | null;
+  elevationGainM?: number | null;
+  avgCadence?: number | null;
+  shoeName?: string | null;
+  // Contexto Subjetivo e Detalhes
   perceivedEffort?: number | null; // RPE 1 a 10
   bodyWeightKg?: number | null;
   notes?: string | null;

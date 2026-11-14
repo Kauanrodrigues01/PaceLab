@@ -1,5 +1,6 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { withApiHandler, apiSuccess, apiConflict } from "@/lib/api/response";
 import {
   CreateTrainingSessionSchema,
   PaginationQuerySchema,
@@ -60,13 +61,29 @@ export async function POST(request: Request) {
 
     const trainingData = {
       userId: validated.userId || null,
+      source: validated.source ?? "manual",
+      externalId: validated.externalId ?? null,
+      syncedToSheetsAt: validated.syncedToSheetsAt
+        ? new Date(validated.syncedToSheetsAt)
+        : null,
       sessionDate: new Date(validated.sessionDate),
       activityType: validated.activityType,
       distanceKm: validated.distanceKm,
       durationSeconds: validated.durationSeconds,
+      elapsedSeconds:
+        validated.elapsedSeconds !== undefined ? validated.elapsedSeconds : null,
       speedKmh,
       paceSeconds,
       paceFormatted,
+      avgHeartRate:
+        validated.avgHeartRate !== undefined ? validated.avgHeartRate : null,
+      maxHeartRate:
+        validated.maxHeartRate !== undefined ? validated.maxHeartRate : null,
+      elevationGainM:
+        validated.elevationGainM !== undefined ? validated.elevationGainM : null,
+      avgCadence:
+        validated.avgCadence !== undefined ? validated.avgCadence : null,
+      shoeName: validated.shoeName ?? null,
       perceivedEffort:
         validated.perceivedEffort !== undefined ? validated.perceivedEffort : null,
       bodyWeightKg:
@@ -84,19 +101,110 @@ export async function POST(request: Request) {
       calorieMetadata: validated.calorieMetadata || null,
     };
 
-    const created = validated.id
-      ? await prisma.trainingSession.upsert({
-          where: { id: validated.id },
-          create: {
-            id: validated.id,
+    const conflictLabel =
+      trainingData.source === "fit_upload" ||
+      validated.externalId?.startsWith("fit_")
+        ? ".FIT"
+        : ".GPX";
+
+    if (validated.externalId) {
+      const existing = await prisma.trainingSession.findUnique({
+        where: { externalId: validated.externalId },
+      });
+
+      if (existing) {
+        if (validated.onDuplicate !== "update") {
+          return apiConflict(`Este arquivo ${conflictLabel} já foi importado`, {
+            existingId: existing.id,
+          });
+        }
+
+        const hasRawField = (key: string) =>
+          Boolean(
+            body &&
+              typeof body === "object" &&
+              Object.prototype.hasOwnProperty.call(body, key) &&
+              (body as Record<string, unknown>)[key] !== undefined
+          );
+
+        const updated = await prisma.trainingSession.update({
+          where: { id: existing.id },
+          data: {
             ...trainingData,
+            sessionDate: hasRawField("sessionDate")
+              ? trainingData.sessionDate
+              : existing.sessionDate,
+            activityType: hasRawField("activityType")
+              ? validated.activityType
+              : existing.activityType,
+            perceivedEffort: hasRawField("perceivedEffort")
+              ? trainingData.perceivedEffort
+              : existing.perceivedEffort,
+            bodyWeightKg: hasRawField("bodyWeightKg")
+              ? trainingData.bodyWeightKg
+              : existing.bodyWeightKg,
+            notes: hasRawField("notes") ? trainingData.notes : existing.notes,
+            shoeName: hasRawField("shoeName")
+              ? trainingData.shoeName
+              : existing.shoeName,
+            splits: hasRawField("splits")
+              ? trainingData.splits
+              : (existing.splits ?? []),
+            activeCalories: hasRawField("activeCalories")
+              ? trainingData.activeCalories
+              : existing.activeCalories,
+            totalCalories: hasRawField("totalCalories")
+              ? trainingData.totalCalories
+              : existing.totalCalories,
+            metValue: hasRawField("metValue")
+              ? trainingData.metValue
+              : existing.metValue,
+            calorieMethod: hasRawField("calorieMethod")
+              ? trainingData.calorieMethod
+              : existing.calorieMethod,
+            calorieSource: hasRawField("calorieSource")
+              ? trainingData.calorieSource
+              : existing.calorieSource,
+            calorieMetadata: hasRawField("calorieMetadata")
+              ? trainingData.calorieMetadata
+              : existing.calorieMetadata,
           },
-          update: trainingData,
-        })
-      : await prisma.trainingSession.create({
-          data: trainingData,
         });
 
-    return apiSuccess(created, 201);
+        return apiSuccess(updated, 200);
+      }
+    }
+
+    try {
+      const created = validated.id
+        ? await prisma.trainingSession.upsert({
+            where: { id: validated.id },
+            create: {
+              id: validated.id,
+              ...trainingData,
+            },
+            update: trainingData,
+          })
+        : await prisma.trainingSession.create({
+            data: trainingData,
+          });
+
+      return apiSuccess(created, 201);
+    } catch (err) {
+      if (
+        validated.externalId &&
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        const raceExisting = await prisma.trainingSession
+          .findUnique({ where: { externalId: validated.externalId } })
+          .catch(() => null);
+        return apiConflict(`Este arquivo ${conflictLabel} já foi importado`, {
+          ...(raceExisting?.id ? { existingId: raceExisting.id } : {}),
+          code: "DUPLICATE_EXTERNAL_ID",
+        });
+      }
+      throw err;
+    }
   });
 }

@@ -148,7 +148,7 @@ export function GoalAndBackupSettings({
   const handleExportAttemptsCsv = () => {
     try {
       const csvStr = tafService.exportAttemptsCsv(attempts);
-      const blob = new Blob([csvStr], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob(["\uFEFF" + csvStr], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const dateStr = new Date().toISOString().slice(0, 10);
@@ -166,7 +166,7 @@ export function GoalAndBackupSettings({
   const handleExportTrainingsCsv = () => {
     try {
       const csvStr = tafService.exportTrainingsCsv(trainings);
-      const blob = new Blob([csvStr], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob(["\uFEFF" + csvStr], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const dateStr = new Date().toISOString().slice(0, 10);
@@ -201,8 +201,12 @@ export function GoalAndBackupSettings({
 
       const res = await tafService.importBackupJson(text);
       if (res.success) {
+        const skippedMsg =
+          res.skippedCount && res.skippedCount > 0
+            ? ` (${res.skippedCount} duplicado${res.skippedCount === 1 ? "" : "s"} ignorado${res.skippedCount === 1 ? "" : "s"})`
+            : "";
         showToast(
-          `Backup restaurado com sucesso: ${res.attemptsCount} simulados e ${res.trainingsCount} treinos carregados!`
+          `Backup restaurado com sucesso: ${res.attemptsCount} simulados e ${res.trainingsCount} treinos carregados!${skippedMsg}`
         );
         onDataRefreshed();
       } else {

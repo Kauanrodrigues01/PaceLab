@@ -13,19 +13,56 @@ export async function PUT(
     const body = await request.json();
     const validated = UpdateTrainingSessionSchema.parse(body);
 
+    const hasRawField = (key: string) =>
+      Boolean(
+        body &&
+          typeof body === "object" &&
+          Object.prototype.hasOwnProperty.call(body, key) &&
+          (body as Record<string, unknown>)[key] !== undefined
+      );
+
     const updated = await prisma.trainingSession.update({
       where: { id },
       data: {
-        ...(validated.sessionDate ? { sessionDate: new Date(validated.sessionDate) } : {}),
-        ...(validated.activityType ? { activityType: validated.activityType } : {}),
+        ...(hasRawField("sessionDate") && validated.sessionDate
+          ? { sessionDate: new Date(validated.sessionDate) }
+          : {}),
+        ...(hasRawField("activityType") && validated.activityType
+          ? { activityType: validated.activityType }
+          : {}),
+        ...(validated.syncedToSheetsAt !== undefined
+          ? {
+              syncedToSheetsAt: validated.syncedToSheetsAt
+                ? new Date(validated.syncedToSheetsAt)
+                : null,
+            }
+          : {}),
         ...(validated.distanceKm !== undefined ? { distanceKm: validated.distanceKm } : {}),
         ...(validated.durationSeconds !== undefined
           ? { durationSeconds: validated.durationSeconds }
+          : {}),
+        ...(validated.elapsedSeconds !== undefined
+          ? { elapsedSeconds: validated.elapsedSeconds }
           : {}),
         ...(validated.speedKmh !== undefined ? { speedKmh: validated.speedKmh } : {}),
         ...(validated.paceSeconds !== undefined ? { paceSeconds: validated.paceSeconds } : {}),
         ...(validated.paceFormatted !== undefined
           ? { paceFormatted: validated.paceFormatted }
+          : {}),
+        ...(validated.avgHeartRate !== undefined
+          ? { avgHeartRate: validated.avgHeartRate }
+          : {}),
+        ...(validated.maxHeartRate !== undefined
+          ? { maxHeartRate: validated.maxHeartRate }
+          : {}),
+        ...(validated.elevationGainM !== undefined
+          ? { elevationGainM: validated.elevationGainM }
+          : {}),
+        ...(validated.avgCadence !== undefined
+          ? { avgCadence: validated.avgCadence }
+          : {}),
+        ...(hasRawField("shoeName") && validated.shoeName !== undefined
+          ? { shoeName: validated.shoeName }
           : {}),
         ...(validated.perceivedEffort !== undefined
           ? { perceivedEffort: validated.perceivedEffort }
@@ -34,7 +71,9 @@ export async function PUT(
           ? { bodyWeightKg: validated.bodyWeightKg }
           : {}),
         ...(validated.notes !== undefined ? { notes: validated.notes || null } : {}),
-        ...(validated.splits !== undefined ? { splits: validated.splits || [] } : {}),
+        ...(hasRawField("splits") && validated.splits !== undefined
+          ? { splits: validated.splits || [] }
+          : {}),
         ...(validated.activeCalories !== undefined
           ? { activeCalories: validated.activeCalories }
           : {}),

@@ -1,0 +1,16 @@
+{
+  "_instrucao": "Renomeie/copie este arquivo para strava-reference.json e adicione uma entrada para cada arquivo .fit real colocado nesta pasta.",
+  "exemplo_treino_5k.fit": {
+    "scenario": "Corrida 5K no parque exportada via 'Exportar Original' no Strava Web",
+    "stravaScreen": {
+      "distanceKm": 5.02,
+      "movingSeconds": 1510,
+      "elapsedSeconds": 1545,
+      "paceFormatted": "5:01",
+      "avgHeartRate": 162,
+      "avgCadence": 174,
+      "elevationGainM": 42,
+      "activeCalories": 385
+    }
+  }
+}

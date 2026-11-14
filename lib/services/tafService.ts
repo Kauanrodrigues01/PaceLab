@@ -1,4 +1,11 @@
 import {
+  ACTIVITY_SOURCES,
+  ACTIVITY_TYPES,
+  ActivityParsePreview,
+  ActivitySource,
+  ActivityType,
+  LOCATION_LABELS,
+  LocationType,
   TafAttempt,
   TrainingSession,
   TafGoalConfig,
@@ -31,6 +38,242 @@ export interface TafPaginationOptions {
 
 export interface TrainingPaginationOptions extends TafPaginationOptions {
   activityType?: string;
+}
+
+export class TafApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "TafApiError";
+    this.status = status;
+  }
+}
+
+const VALID_SOURCES_SET = new Set<string>(ACTIVITY_SOURCES);
+const VALID_ACTIVITIES_SET = new Set<string>(ACTIVITY_TYPES);
+const VALID_LOCATIONS_SET = new Set<string>(Object.keys(LOCATION_LABELS));
+const CSV_FORMULA_PREFIX_REGEX = /^(?:\s*[=+\-@]|[\t\r])/;
+
+function isDuplicateConflictError(err: unknown): boolean {
+  if (err instanceof TafApiError && err.status === 409) {
+    return true;
+  }
+  if (err instanceof Error) {
+    return /já foi importado|DUPLICATE_EXTERNAL_ID|already exists|\b409\b/i.test(
+      err.message
+    );
+  }
+  return false;
+}
+
+function normalizeSource(raw: unknown): ActivitySource {
+  if (typeof raw === "string" && VALID_SOURCES_SET.has(raw)) {
+    return raw as ActivitySource;
+  }
+  return "manual";
+}
+
+function normalizeIsoDate(raw: unknown, fallbackIso: string): string {
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    const parsedMs = Date.parse(raw.trim());
+    if (Number.isFinite(parsedMs)) {
+      return new Date(parsedMs).toISOString();
+    }
+  }
+  return fallbackIso;
+}
+
+function sanitizeBoundedInt(
+  raw: unknown,
+  min: number,
+  max: number
+): number | null {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return null;
+  }
+  const rounded = Math.round(raw);
+  if (rounded < min || rounded > max) {
+    return null;
+  }
+  return rounded;
+}
+
+function sanitizeBoundedNumber(
+  raw: unknown,
+  min: number,
+  max: number
+): number | null {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return null;
+  }
+  if (raw < min || raw > max) {
+    return null;
+  }
+  return raw;
+}
+
+function sanitizePositiveNumber(raw: unknown): number | null {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw <= 0) {
+    return null;
+  }
+  return raw;
+}
+
+function normalizeHeartRatePair(
+  rawAvg: unknown,
+  rawMax: unknown
+): { avgHeartRate: number | null; maxHeartRate: number | null } {
+  const avgHeartRate = sanitizeBoundedInt(rawAvg, 30, 250);
+  let maxHeartRate = sanitizeBoundedInt(rawMax, 30, 250);
+  if (
+    avgHeartRate !== null &&
+    maxHeartRate !== null &&
+    maxHeartRate < avgHeartRate
+  ) {
+    maxHeartRate = avgHeartRate;
+  }
+  return { avgHeartRate, maxHeartRate };
+}
+
+function resolveFallbackPaceMetrics(
+  raw: Record<string, unknown>,
+  distanceKm: number,
+  durationSeconds: number
+): { speedKmh: number; paceSeconds: number; paceFormatted: string } {
+  const safeDistanceKm = distanceKm > 0 ? distanceKm : 0.05;
+  const safeDurationSec = durationSeconds > 0 ? Math.round(durationSeconds) : 30;
+
+  const speedKmh =
+    typeof raw.speedKmh === "number" && Number.isFinite(raw.speedKmh) && raw.speedKmh > 0
+      ? raw.speedKmh
+      : Number((safeDistanceKm / (safeDurationSec / 3600)).toFixed(2));
+  const paceSeconds =
+    typeof raw.paceSeconds === "number" && Number.isFinite(raw.paceSeconds) && raw.paceSeconds > 0
+      ? Math.max(1, Math.round(raw.paceSeconds))
+      : Math.max(1, Math.round(safeDurationSec / safeDistanceKm));
+  const paceFormatted =
+    typeof raw.paceFormatted === "string" && raw.paceFormatted.trim().length > 0
+      ? raw.paceFormatted
+      : `${Math.floor(paceSeconds / 60)}:${String(paceSeconds % 60).padStart(2, "0")}`;
+
+  return { speedKmh, paceSeconds, paceFormatted };
+}
+
+function normalizeAttemptFromBackup(
+  raw: Record<string, unknown>
+): TafAttempt {
+  const distanceMeters = Math.round(Number(raw.distanceMeters));
+  const actualDurationSeconds = Math.round(Number(raw.actualDurationSeconds));
+  const pace = resolveFallbackPaceMetrics(
+    raw,
+    distanceMeters / 1000,
+    actualDurationSeconds
+  );
+  const nowIso = new Date().toISOString();
+  const hr = normalizeHeartRatePair(raw.avgHeartRate, raw.maxHeartRate);
+  const locationType =
+    typeof raw.locationType === "string" && VALID_LOCATIONS_SET.has(raw.locationType)
+      ? (raw.locationType as LocationType)
+      : null;
+
+  return {
+    ...(raw as Partial<TafAttempt>),
+    id: typeof raw.id === "string" ? raw.id.trim() : "",
+    testDate: normalizeIsoDate(raw.testDate, nowIso),
+    targetDurationSeconds:
+      sanitizeBoundedInt(raw.targetDurationSeconds, 1, 7200) ?? 720,
+    actualDurationSeconds,
+    distanceMeters,
+    ...pace,
+    locationType,
+    avgHeartRate: hr.avgHeartRate,
+    maxHeartRate: hr.maxHeartRate,
+    createdAt: normalizeIsoDate(raw.createdAt, nowIso),
+    updatedAt: normalizeIsoDate(raw.updatedAt, nowIso),
+    source: normalizeSource(raw.source),
+    externalId:
+      typeof raw.externalId === "string" && raw.externalId.trim().length > 0
+        ? raw.externalId.trim()
+        : null,
+    laps: Array.isArray(raw.laps) ? (raw.laps as TafAttempt["laps"]) : [],
+  };
+}
+
+function normalizeTrainingFromBackup(
+  raw: Record<string, unknown>
+): TrainingSession {
+  const distanceKm = Number(raw.distanceKm);
+  const durationSeconds = Math.round(Number(raw.durationSeconds));
+  const pace = resolveFallbackPaceMetrics(raw, distanceKm, durationSeconds);
+  const nowIso = new Date().toISOString();
+  const hr = normalizeHeartRatePair(raw.avgHeartRate, raw.maxHeartRate);
+  const activityType =
+    typeof raw.activityType === "string" && VALID_ACTIVITIES_SET.has(raw.activityType)
+      ? (raw.activityType as ActivityType)
+      : "corrida_continua";
+
+  let elapsedSeconds = sanitizeBoundedInt(raw.elapsedSeconds, 30, 86400);
+  if (elapsedSeconds !== null && elapsedSeconds < durationSeconds) {
+    elapsedSeconds = Math.min(86400, durationSeconds);
+  }
+
+  return {
+    ...(raw as Partial<TrainingSession>),
+    id: typeof raw.id === "string" ? raw.id.trim() : "",
+    sessionDate: normalizeIsoDate(raw.sessionDate, nowIso),
+    activityType,
+    distanceKm,
+    durationSeconds,
+    elapsedSeconds,
+    ...pace,
+    avgHeartRate: hr.avgHeartRate,
+    maxHeartRate: hr.maxHeartRate,
+    avgCadence: sanitizeBoundedInt(raw.avgCadence, 30, 300),
+    elevationGainM: sanitizeBoundedNumber(raw.elevationGainM, 0, 10000),
+    perceivedEffort: sanitizeBoundedInt(raw.perceivedEffort, 1, 10),
+    bodyWeightKg: sanitizeBoundedNumber(raw.bodyWeightKg, 30, 250),
+    activeCalories: sanitizePositiveNumber(raw.activeCalories),
+    totalCalories: sanitizePositiveNumber(raw.totalCalories),
+    metValue: sanitizePositiveNumber(raw.metValue),
+    createdAt: normalizeIsoDate(raw.createdAt, nowIso),
+    updatedAt: normalizeIsoDate(raw.updatedAt, nowIso),
+    source: normalizeSource(raw.source),
+    externalId:
+      typeof raw.externalId === "string" && raw.externalId.trim().length > 0
+        ? raw.externalId.trim()
+        : null,
+    splits: Array.isArray(raw.splits)
+      ? (raw.splits as TrainingSession["splits"])
+      : [],
+  };
+}
+
+function sanitizeCsvTextCell(
+  value: string | number | null | undefined,
+  alwaysQuote = false
+): string {
+  if (value === null || value === undefined) {
+    return alwaysQuote ? '""' : "";
+  }
+  const rawStr = String(value).replace(/\r\n|\r|\n/g, " ");
+  const hasFormulaPrefix = CSV_FORMULA_PREFIX_REGEX.test(rawStr);
+  const safeStr = hasFormulaPrefix ? `'${rawStr}` : rawStr;
+
+  if (alwaysQuote || hasFormulaPrefix || /[",]/.test(safeStr)) {
+    return `"${safeStr.replace(/"/g, '""')}"`;
+  }
+  return safeStr;
+}
+
+function formatCsvNumber(
+  value: number | null | undefined,
+  decimals?: number
+): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "";
+  }
+  return typeof decimals === "number" ? value.toFixed(decimals) : String(value);
 }
 
 function unwrapApiResponse<T>(payload: unknown): T {
@@ -145,7 +388,7 @@ export const tafService = {
         res,
         "Erro ao salvar simulado no banco de dados"
       );
-      throw new Error(message);
+      throw new TafApiError(message, res.status);
     }
 
     const json = await res.json();
@@ -205,7 +448,7 @@ export const tafService = {
         res,
         "Erro ao salvar treino no banco de dados"
       );
-      throw new Error(message);
+      throw new TafApiError(message, res.status);
     }
 
     const json = await res.json();
@@ -226,6 +469,40 @@ export const tafService = {
     }
 
     return true;
+  },
+
+  // ─── Importação / Preview Unificado de Arquivos (.FIT Prioritário + .GPX) ──
+  async parseActivity(
+    files: File | Blob | Array<File | Blob>
+  ): Promise<ActivityParsePreview> {
+    const fileList = Array.isArray(files) ? files : [files];
+    const formData = new FormData();
+
+    for (const file of fileList) {
+      formData.append("files", file);
+    }
+
+    const res = await fetch("/api/training-sessions/parse-activity", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const message = await extractErrorMessage(
+        res,
+        "Erro ao processar arquivo de atividade (.FIT / .GPX)"
+      );
+      throw new Error(message);
+    }
+
+    const json = await res.json();
+    return unwrapApiResponse<ActivityParsePreview>(json);
+  },
+
+  async parseGpx(
+    file: File | Blob | Array<File | Blob>
+  ): Promise<ActivityParsePreview> {
+    return this.parseActivity(file);
   },
 
   // ─── Status do Banco SQL / Prisma ──────────────────────────────────────────
@@ -265,7 +542,7 @@ export const tafService = {
     trainings: TrainingSession[] = []
   ): string {
     const backup = {
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       appName: "PaceLab",
       goal,
@@ -280,35 +557,85 @@ export const tafService = {
     success: boolean;
     attemptsCount: number;
     trainingsCount: number;
+    skippedCount?: number;
+    failedCount?: number;
+    version?: number;
     error?: string;
   }> {
     try {
       const parsed = JSON.parse(jsonString);
-      if (!parsed || typeof parsed !== "object") {
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Arquivo JSON inválido");
       }
 
-      let attemptsCount = 0;
-      let trainingsCount = 0;
+      const record = parsed as Record<string, unknown>;
+      const hasKnownStructure =
+        "goal" in record ||
+        Array.isArray(record.attempts) ||
+        Array.isArray(record.trainings);
 
-      if (parsed.goal) {
-        await this.saveGoal(parsed.goal).catch(() => null);
+      if (!hasKnownStructure) {
+        throw new Error("Formato de backup PaceLab não reconhecido");
       }
 
-      if (Array.isArray(parsed.attempts)) {
-        for (const att of parsed.attempts) {
-          if (att.distanceMeters && att.actualDurationSeconds) {
-            await this.saveAttempt(att, false).catch(() => null);
-            attemptsCount++;
+      const version =
+        typeof record.version === "number" && Number.isFinite(record.version)
+          ? record.version
+          : 1;
+
+      let attemptsCount = 0;
+      let trainingsCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
+
+      if (record.goal && typeof record.goal === "object") {
+        await this.saveGoal(record.goal as TafGoalConfig).catch(() => null);
+      }
+
+      if (Array.isArray(record.attempts)) {
+        for (const item of record.attempts) {
+          if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+          const att = item as Record<string, unknown>;
+          if (
+            typeof att.distanceMeters === "number" &&
+            att.distanceMeters > 0 &&
+            typeof att.actualDurationSeconds === "number" &&
+            att.actualDurationSeconds > 0
+          ) {
+            try {
+              await this.saveAttempt(normalizeAttemptFromBackup(att), false);
+              attemptsCount++;
+            } catch (err) {
+              if (isDuplicateConflictError(err)) {
+                skippedCount++;
+              } else {
+                failedCount++;
+              }
+            }
           }
         }
       }
 
-      if (Array.isArray(parsed.trainings)) {
-        for (const tr of parsed.trainings) {
-          if (tr.distanceKm && tr.durationSeconds) {
-            await this.saveTraining(tr, false).catch(() => null);
-            trainingsCount++;
+      if (Array.isArray(record.trainings)) {
+        for (const item of record.trainings) {
+          if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+          const tr = item as Record<string, unknown>;
+          if (
+            typeof tr.distanceKm === "number" &&
+            tr.distanceKm > 0 &&
+            typeof tr.durationSeconds === "number" &&
+            tr.durationSeconds > 0
+          ) {
+            try {
+              await this.saveTraining(normalizeTrainingFromBackup(tr), false);
+              trainingsCount++;
+            } catch (err) {
+              if (isDuplicateConflictError(err)) {
+                skippedCount++;
+              } else {
+                failedCount++;
+              }
+            }
           }
         }
       }
@@ -317,6 +644,9 @@ export const tafService = {
         success: true,
         attemptsCount,
         trainingsCount,
+        skippedCount,
+        failedCount,
+        version,
       };
     } catch (err) {
       return {
@@ -338,17 +668,29 @@ export const tafService = {
       "Velocidade_Kmh",
       "Local",
       "Notas",
+      "Origem",
+      "ID_Externo",
+      "Tenis",
+      "FC_Media_Bpm",
+      "FC_Max_Bpm",
+      "Voltas_400m",
     ];
 
     const rows = attempts.map((a) => [
-      a.id,
-      a.testDate,
-      a.actualDurationSeconds,
-      a.distanceMeters,
-      `"${a.paceFormatted}"`,
-      a.speedKmh.toFixed(2),
-      `"${a.locationType || ""}"`,
-      `"${(a.notes || "").replace(/"/g, '""')}"`,
+      sanitizeCsvTextCell(a.id),
+      sanitizeCsvTextCell(a.testDate),
+      formatCsvNumber(a.actualDurationSeconds),
+      formatCsvNumber(a.distanceMeters),
+      sanitizeCsvTextCell(a.paceFormatted, true),
+      formatCsvNumber(a.speedKmh, 2),
+      sanitizeCsvTextCell(a.locationType ?? "", true),
+      sanitizeCsvTextCell(a.notes ?? "", true),
+      sanitizeCsvTextCell(a.source ?? "manual"),
+      sanitizeCsvTextCell(a.externalId ?? "", true),
+      sanitizeCsvTextCell(a.shoeName ?? "", true),
+      formatCsvNumber(a.avgHeartRate),
+      formatCsvNumber(a.maxHeartRate),
+      formatCsvNumber(Array.isArray(a.laps) ? a.laps.length : 0),
     ]);
 
     return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -366,19 +708,39 @@ export const tafService = {
       "RPE_Esforco",
       "Peso_Kg",
       "Notas",
+      "Origem",
+      "ID_Externo",
+      "Tempo_Decorrido_Segundos",
+      "FC_Media_Bpm",
+      "FC_Max_Bpm",
+      "Cadencia_Media_Spm",
+      "Ganho_Elevacao_M",
+      "Tenis",
+      "Calorias_Ativas",
+      "Calorias_Totais",
     ];
 
     const rows = trainings.map((t) => [
-      t.id,
-      t.sessionDate,
-      t.activityType,
-      t.distanceKm.toFixed(2),
-      t.durationSeconds,
-      `"${t.paceFormatted}"`,
-      t.speedKmh.toFixed(2),
-      t.perceivedEffort ?? "",
-      t.bodyWeightKg ?? "",
-      `"${(t.notes || "").replace(/"/g, '""')}"`,
+      sanitizeCsvTextCell(t.id),
+      sanitizeCsvTextCell(t.sessionDate),
+      sanitizeCsvTextCell(t.activityType),
+      formatCsvNumber(t.distanceKm, 2),
+      formatCsvNumber(t.durationSeconds),
+      sanitizeCsvTextCell(t.paceFormatted, true),
+      formatCsvNumber(t.speedKmh, 2),
+      formatCsvNumber(t.perceivedEffort),
+      formatCsvNumber(t.bodyWeightKg),
+      sanitizeCsvTextCell(t.notes ?? "", true),
+      sanitizeCsvTextCell(t.source ?? "manual"),
+      sanitizeCsvTextCell(t.externalId ?? "", true),
+      formatCsvNumber(t.elapsedSeconds),
+      formatCsvNumber(t.avgHeartRate),
+      formatCsvNumber(t.maxHeartRate),
+      formatCsvNumber(t.avgCadence),
+      formatCsvNumber(t.elevationGainM),
+      sanitizeCsvTextCell(t.shoeName ?? "", true),
+      formatCsvNumber(t.activeCalories),
+      formatCsvNumber(t.totalCalories),
     ]);
 
     return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");

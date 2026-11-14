@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { TafAttempt, LOCATION_LABELS } from "@/types";
+import { TafAttempt, LOCATION_LABELS, SOURCE_LABELS } from "@/types";
 import { formatTime } from "@/lib/formatting/time";
 import {
   Trophy,
@@ -16,6 +16,9 @@ import {
   ChevronUp,
   MapPin,
   FileText,
+  Upload,
+  HeartPulse,
+  Footprints,
 } from "lucide-react";
 
 interface TafAttemptCardProps {
@@ -37,13 +40,22 @@ export function TafAttemptCard({
   const isApproved = attempt.distanceMeters >= targetDistanceMeters;
   const deficitMeters = targetDistanceMeters - attempt.distanceMeters;
 
-  const formattedDate = new Date(attempt.testDate).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const parsedDate = attempt.testDate ? new Date(attempt.testDate) : null;
+  const formattedDate =
+    parsedDate && !Number.isNaN(parsedDate.getTime())
+      ? parsedDate.toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "--/--/----";
+
+  const safeSpeedKmh =
+    typeof attempt.speedKmh === "number" && Number.isFinite(attempt.speedKmh)
+      ? attempt.speedKmh
+      : 0;
 
   return (
     <div
@@ -59,14 +71,42 @@ export function TafAttemptCard({
 
       {/* Cabeçalho do Card */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs sm:text-sm font-medium text-[#8E9BB0]">
             {formattedDate}
           </span>
+          {attempt.source && attempt.source !== "manual" && (
+            <span
+              data-testid="taf-badge-source"
+              className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-950/60 text-indigo-300 border border-indigo-500/30"
+            >
+              <Upload className="w-3 h-3 text-indigo-400" />
+              {SOURCE_LABELS[attempt.source] || attempt.source}
+            </span>
+          )}
           {attempt.locationType && (
             <span className="inline-flex items-center gap-1 text-xs text-[#8E9BB0] bg-[#0B1020] px-2 py-0.5 rounded-full border border-[#1E2942]">
               <MapPin className="w-3 h-3 text-[#8E9BB0]" />
               {LOCATION_LABELS[attempt.locationType] || attempt.locationType}
+            </span>
+          )}
+          {attempt.avgHeartRate != null && (
+            <span
+              data-testid="taf-badge-hr"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold bg-rose-950/40 text-rose-300 px-2 py-0.5 rounded-full border border-rose-500/30"
+            >
+              <HeartPulse className="w-3 h-3 text-rose-400" />
+              {attempt.avgHeartRate} bpm
+              {attempt.maxHeartRate != null ? ` (máx ${attempt.maxHeartRate})` : ""}
+            </span>
+          )}
+          {attempt.shoeName && (
+            <span
+              data-testid="taf-badge-shoe"
+              className="inline-flex items-center gap-1 text-[11px] font-medium bg-[#0B1020] text-[#8E9BB0] px-2 py-0.5 rounded-full border border-[#1E2942]"
+            >
+              <Footprints className="w-3 h-3 text-[#B7F34A]" />
+              {attempt.shoeName}
             </span>
           )}
         </div>
@@ -132,7 +172,7 @@ export function TafAttemptCard({
         <div>
           <span className="text-xs text-[#8E9BB0]">Velocidade</span>
           <div className="text-lg sm:text-xl font-bold text-white">
-            {attempt.speedKmh.toFixed(2)}{" "}
+            {safeSpeedKmh.toFixed(2)}{" "}
             <span className="text-xs font-normal text-[#8E9BB0]">km/h</span>
           </div>
         </div>

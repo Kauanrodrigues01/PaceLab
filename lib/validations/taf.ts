@@ -3,11 +3,31 @@ import { z } from "zod";
 // ─── Enums & Sub-schemas ───────────────────────────────────────────────────────
 
 export const ActivityTypeEnum = z.enum(
-  ["corrida_continua", "corrida_intervalada", "caminhada"] as const,
+  [
+    "rodagem_leve",
+    "corrida_continua",
+    "tempo_run",
+    "corrida_intervalada",
+    "longao",
+    "caminhada",
+  ] as const,
   {
-    message: "Modalidade de treino inválida. Escolha entre Corrida Contínua, Intervalado ou Caminhada.",
+    message:
+      "Modalidade de treino inválida. Escolha entre Rodagem Leve, Corrida Contínua, Tempo Run, Intervalado, Longão ou Caminhada.",
   }
 );
+
+export const ActivitySourceEnum = z.enum(
+  ["manual", "gpx_upload", "fit_upload"] as const,
+  {
+    message:
+      "Origem de registro inválida. Escolha entre manual, gpx_upload ou fit_upload.",
+  }
+);
+
+export const DuplicatePolicyEnum = z.enum(["error", "update"] as const, {
+  message: "Política de duplicidade inválida. Use error ou update.",
+});
 
 export const LocationTypeEnum = z.enum(
   ["pista_400m", "rua_plana", "parque_praca", "esteira", "outro"] as const,
@@ -41,6 +61,29 @@ export const SplitDetailSchema = z.object({
     .int("A duração da parcial deve ser em segundos inteiros")
     .positive("A duração da parcial deve ser maior que zero"),
   paceFormatted: z.string().optional(),
+  distanceKm: z.coerce
+    .number()
+    .gt(0, "A distância da parcial deve ser maior que zero")
+    .max(1, "A distância da parcial não pode exceder 1 km")
+    .optional(),
+  paceSeconds: z.coerce
+    .number()
+    .int("O pace em segundos da parcial deve ser inteiro")
+    .positive("O pace em segundos da parcial deve ser maior que zero")
+    .optional(),
+  avgHeartRate: z.coerce
+    .number()
+    .int("A frequência cardíaca média da parcial deve ser inteira")
+    .min(30, "A FC média da parcial deve ser de no mínimo 30 bpm")
+    .max(250, "A FC média da parcial deve ser de no máximo 250 bpm")
+    .nullable()
+    .optional(),
+  elevationDiffM: z.coerce
+    .number()
+    .min(-1000, "A variação de elevação da parcial não pode ser menor que -1.000m")
+    .max(1000, "A variação de elevação da parcial não pode exceder 1.000m")
+    .nullable()
+    .optional(),
 });
 
 // ─── Metas do TAF (TafGoal) ────────────────────────────────────────────────────
@@ -178,9 +221,18 @@ export const TafGoalUpdateSchema = TafGoalInputSchema.partial();
 
 // ─── Simulados do TAF (TafAttempt) ─────────────────────────────────────────────
 
-export const CreateTafAttemptSchema = z.object({
+const CreateTafAttemptBaseSchema = z.object({
   id: z.string().optional(),
   userId: z.string().nullable().optional(),
+  source: ActivitySourceEnum.optional().default("manual"),
+  externalId: z
+    .string()
+    .trim()
+    .min(1, "O identificador externo não pode ser vazio")
+    .max(100, "O identificador externo não pode exceder 100 caracteres")
+    .nullable()
+    .optional(),
+  onDuplicate: DuplicatePolicyEnum.optional(),
   testDate: z
     .union([z.string(), z.date()])
     .optional()
@@ -204,6 +256,27 @@ export const CreateTafAttemptSchema = z.object({
   paceSeconds: z.coerce.number().int().positive().optional(),
   paceFormatted: z.string().optional(),
   locationType: LocationTypeEnum.nullable().optional(),
+  shoeName: z
+    .string()
+    .trim()
+    .max(100, "O nome do tênis não pode ter mais de 100 caracteres")
+    .nullable()
+    .optional()
+    .transform((val) => (val === "" ? null : val)),
+  avgHeartRate: z.coerce
+    .number()
+    .int("A frequência cardíaca média deve ser um número inteiro")
+    .min(30, "A frequência cardíaca média mínima é 30 bpm")
+    .max(250, "A frequência cardíaca média máxima é 250 bpm")
+    .nullable()
+    .optional(),
+  maxHeartRate: z.coerce
+    .number()
+    .int("A frequência cardíaca máxima deve ser um número inteiro")
+    .min(30, "A frequência cardíaca máxima mínima é 30 bpm")
+    .max(250, "A frequência cardíaca máxima máxima é 250 bpm")
+    .nullable()
+    .optional(),
   notes: z
     .string()
     .trim()
@@ -213,13 +286,54 @@ export const CreateTafAttemptSchema = z.object({
   laps: z.array(LapDetailSchema).optional().default([]),
 });
 
-export const UpdateTafAttemptSchema = CreateTafAttemptSchema.partial();
+function validateHeartRateRefinement(
+  val: { avgHeartRate?: number | null; maxHeartRate?: number | null },
+  ctx: z.RefinementCtx
+) {
+  if (
+    typeof val.avgHeartRate === "number" &&
+    typeof val.maxHeartRate === "number" &&
+    val.maxHeartRate < val.avgHeartRate
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["maxHeartRate"],
+      message: "A frequência cardíaca máxima não pode ser menor que a frequência cardíaca média",
+    });
+  }
+}
+
+export const CreateTafAttemptSchema = CreateTafAttemptBaseSchema.superRefine(
+  validateHeartRateRefinement
+);
+
+export const UpdateTafAttemptSchema = CreateTafAttemptBaseSchema.omit({
+  source: true,
+  externalId: true,
+  onDuplicate: true,
+})
+  .partial()
+  .superRefine(validateHeartRateRefinement);
 
 // ─── Diário de Treinos (TrainingSession) ────────────────────────────────────────
 
-export const CreateTrainingSessionSchema = z.object({
+const CreateTrainingSessionBaseSchema = z.object({
   id: z.string().optional(),
   userId: z.string().nullable().optional(),
+  source: ActivitySourceEnum.optional().default("manual"),
+  externalId: z
+    .string()
+    .trim()
+    .min(1, "O identificador externo não pode ser vazio")
+    .max(100, "O identificador externo não pode exceder 100 caracteres")
+    .nullable()
+    .optional(),
+  syncedToSheetsAt: z
+    .union([z.string(), z.date()])
+    .nullable()
+    .optional()
+    .transform((val) => (val ? new Date(val).toISOString() : null)),
+  onDuplicate: DuplicatePolicyEnum.optional(),
   sessionDate: z
     .union([z.string(), z.date()])
     .optional()
@@ -234,9 +348,50 @@ export const CreateTrainingSessionSchema = z.object({
     .int("A duração do treino deve ser em segundos inteiros")
     .min(30, "A duração do treino deve ser de pelo menos 30 segundos")
     .max(86400, "A duração máxima de um treino é de 24 horas"),
+  elapsedSeconds: z.coerce
+    .number()
+    .int("O tempo decorrido deve ser em segundos inteiros")
+    .min(30, "O tempo decorrido deve ser de pelo menos 30 segundos")
+    .max(86400, "O tempo decorrido máximo de um treino é de 24 horas")
+    .nullable()
+    .optional(),
   speedKmh: z.coerce.number().positive().optional(),
   paceSeconds: z.coerce.number().int().positive().optional(),
   paceFormatted: z.string().optional(),
+  avgHeartRate: z.coerce
+    .number()
+    .int("A frequência cardíaca média deve ser um número inteiro")
+    .min(30, "A frequência cardíaca média mínima é 30 bpm")
+    .max(250, "A frequência cardíaca média máxima é 250 bpm")
+    .nullable()
+    .optional(),
+  maxHeartRate: z.coerce
+    .number()
+    .int("A frequência cardíaca máxima deve ser um número inteiro")
+    .min(30, "A frequência cardíaca máxima mínima é 30 bpm")
+    .max(250, "A frequência cardíaca máxima máxima é 250 bpm")
+    .nullable()
+    .optional(),
+  elevationGainM: z.coerce
+    .number()
+    .min(0, "O ganho de elevação não pode ser negativo")
+    .max(10000, "O ganho de elevação máximo permitido é de 10.000 metros")
+    .nullable()
+    .optional(),
+  avgCadence: z.coerce
+    .number()
+    .int("A cadência média deve ser um número inteiro")
+    .min(30, "A cadência média mínima é 30 spm")
+    .max(300, "A cadência média máxima é 300 spm")
+    .nullable()
+    .optional(),
+  shoeName: z
+    .string()
+    .trim()
+    .max(100, "O nome do tênis não pode ter mais de 100 caracteres")
+    .nullable()
+    .optional()
+    .transform((val) => (val === "" ? null : val)),
   perceivedEffort: z.coerce
     .number()
     .int("O esforço percebido (RPE) deve ser um número inteiro")
@@ -265,7 +420,40 @@ export const CreateTrainingSessionSchema = z.object({
   calorieMetadata: z.any().nullable().optional(),
 });
 
-export const UpdateTrainingSessionSchema = CreateTrainingSessionSchema.partial();
+function validateTrainingSessionRefinements(
+  val: {
+    durationSeconds?: number;
+    elapsedSeconds?: number | null;
+    avgHeartRate?: number | null;
+    maxHeartRate?: number | null;
+  },
+  ctx: z.RefinementCtx
+) {
+  if (
+    typeof val.durationSeconds === "number" &&
+    typeof val.elapsedSeconds === "number" &&
+    val.elapsedSeconds < val.durationSeconds
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["elapsedSeconds"],
+      message: "O tempo decorrido total não pode ser menor que o tempo em movimento",
+    });
+  }
+  validateHeartRateRefinement(val, ctx);
+}
+
+export const CreateTrainingSessionSchema = CreateTrainingSessionBaseSchema.superRefine(
+  validateTrainingSessionRefinements
+);
+
+export const UpdateTrainingSessionSchema = CreateTrainingSessionBaseSchema.omit({
+  source: true,
+  externalId: true,
+  onDuplicate: true,
+})
+  .partial()
+  .superRefine(validateTrainingSessionRefinements);
 
 // ─── Perfil do Atleta (UserProfile) ──────────────────────────────────────────
 

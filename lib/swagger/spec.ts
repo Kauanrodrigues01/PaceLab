@@ -171,6 +171,9 @@ export const swaggerSpec = {
           "400": {
             $ref: "#/components/responses/ValidationError",
           },
+          "409": {
+            $ref: "#/components/responses/ConflictError",
+          },
           "500": {
             $ref: "#/components/responses/InternalError",
           },
@@ -305,10 +308,18 @@ export const swaggerSpec = {
           {
             name: "activityType",
             in: "query",
-            description: "Filtro opcional: corrida_continua, corrida_intervalada, caminhada",
+            description:
+              "Filtro opcional: rodagem_leve, corrida_continua, tempo_run, corrida_intervalada, longao, caminhada",
             schema: {
               type: "string",
-              enum: ["corrida_continua", "corrida_intervalada", "caminhada"],
+              enum: [
+                "rodagem_leve",
+                "corrida_continua",
+                "tempo_run",
+                "corrida_intervalada",
+                "longao",
+                "caminhada",
+              ],
             },
           },
         ],
@@ -332,7 +343,7 @@ export const swaggerSpec = {
         tags: ["Diário de Treinos"],
         summary: "Registrar nova sessão de treino",
         description:
-          "Grava o treino calculando ritmo, gasto calórico ativo e total segundo o Compêndio de Atividades Físicas 2024.",
+          "Grava o treino (manual ou importado via .GPX do Strava) calculando ritmo, gasto calórico ativo e total segundo o Compêndio de Atividades Físicas 2024.",
         requestBody: {
           required: true,
           content: {
@@ -356,6 +367,9 @@ export const swaggerSpec = {
           },
           "400": {
             $ref: "#/components/responses/ValidationError",
+          },
+          "409": {
+            $ref: "#/components/responses/ConflictError",
           },
           "500": {
             $ref: "#/components/responses/InternalError",
@@ -465,6 +479,102 @@ export const swaggerSpec = {
           },
           "500": {
             $ref: "#/components/responses/InternalError",
+          },
+        },
+      },
+    },
+
+    "/api/training-sessions/parse-activity": {
+      post: {
+        tags: ["Diário de Treinos"],
+        summary: "Analisar e mesclar arquivos de treino (.FIT prioritário + .GPX complementar/fallback)",
+        description:
+          "Recebe 1 ou 2 arquivos via `multipart/form-data` (`.fit` isolado, `.gpx` isolado ou `.fit` + `.gpx` do mesmo treino). Aplica prioridade absoluta do `.FIT` (`@garmin/fitsdk`) para telemetria, tempos, distância, splits e calorias, complementando com `<trk><name>` e `elevationGainM` do `.GPX` quando aplicável, e verifica duplicidade no banco (`alreadyExists`).",
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                properties: {
+                  files: {
+                    type: "array",
+                    items: { type: "string", format: "binary" },
+                    description: "1 ou 2 arquivos (.fit e/ou .gpx, máx. 4 MB cada).",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Atividade analisada com sucesso.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ActivityParsePreviewResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            $ref: "#/components/responses/ValidationError",
+          },
+          "413": {
+            description: "Arquivo excede o limite máximo de 4 MB.",
+          },
+          "422": {
+            description: "Erro semântico no arquivo .FIT/.GPX ou esporte incompatível.",
+          },
+          "500": {
+            $ref: "#/components/responses/InternalError",
+          },
+        },
+      },
+    },
+
+    "/api/taf/trainings/gpx-preview": {
+      post: {
+        tags: ["Diário de Treinos"],
+        summary: "Alias compatível para análise de arquivos .FIT / .GPX",
+        description:
+          "Rota espelho de `POST /api/training-sessions/parse-activity` mantida no namespace `/api/taf/trainings/*`.",
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                properties: {
+                  files: {
+                    type: "array",
+                    items: { type: "string", format: "binary" },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Atividade analisada com sucesso.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ActivityParsePreviewResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            $ref: "#/components/responses/ValidationError",
+          },
+          "413": {
+            description: "Arquivo excede o limite máximo de 4 MB.",
+          },
+          "422": {
+            description: "Erro semântico no arquivo .FIT/.GPX ou esporte incompatível.",
           },
         },
       },
@@ -674,6 +784,17 @@ export const swaggerSpec = {
           },
         },
       },
+      ConflictError: {
+        description:
+          "Conflito de duplicidade (ex.: arquivo .GPX já importado com o mesmo externalId).",
+        content: {
+          "application/json": {
+            schema: {
+              $ref: "#/components/schemas/ApiErrorResponse",
+            },
+          },
+        },
+      },
       InternalError: {
         description: "Erro interno do servidor.",
         content: {
@@ -793,6 +914,14 @@ export const swaggerSpec = {
           "paceFormatted",
         ],
         properties: {
+          source: {
+            type: "string",
+            enum: ["manual", "gpx_upload", "fit_upload"],
+            default: "manual",
+            example: "manual",
+          },
+          externalId: { type: "string", maxLength: 100, nullable: true },
+          onDuplicate: { type: "string", enum: ["error", "update"] },
           distanceMeters: { type: "integer", minimum: 100, maximum: 10000, example: 2450 },
           actualDurationSeconds: { type: "integer", minimum: 30, maximum: 7200, example: 720 },
           speedKmh: { type: "number", minimum: 1, maximum: 40, example: 12.25 },
@@ -803,7 +932,22 @@ export const swaggerSpec = {
             enum: ["pista_400m", "rua_plana", "parque_praca", "esteira", "outro"],
             example: "pista_400m",
           },
+          shoeName: { type: "string", maxLength: 100, nullable: true, example: "Nike Vaporfly 3" },
+          avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true, example: 172 },
+          maxHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true, example: 188 },
           notes: { type: "string", maxLength: 1000, nullable: true },
+          laps: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                lapNumber: { type: "integer", example: 1 },
+                distanceMeters: { type: "number", example: 400 },
+                durationSeconds: { type: "integer", example: 112 },
+                paceFormatted: { type: "string", example: "4:40" },
+              },
+            },
+          },
           testDate: { type: "string", format: "date-time" },
         },
       },
@@ -816,6 +960,9 @@ export const swaggerSpec = {
             type: "string",
             enum: ["pista_400m", "rua_plana", "parque_praca", "esteira", "outro"],
           },
+          shoeName: { type: "string", maxLength: 100, nullable: true },
+          avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true },
+          maxHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true },
         },
       },
       TafAttemptResponse: {
@@ -826,12 +973,30 @@ export const swaggerSpec = {
             type: "object",
             properties: {
               id: { type: "string" },
+              source: { type: "string", enum: ["manual", "gpx_upload", "fit_upload"], example: "manual" },
+              externalId: { type: "string", nullable: true },
               distanceMeters: { type: "integer", example: 2450 },
               actualDurationSeconds: { type: "integer", example: 720 },
               speedKmh: { type: "number", example: 12.25 },
               paceSeconds: { type: "integer", example: 294 },
               paceFormatted: { type: "string", example: "4:54" },
               locationType: { type: "string", example: "pista_400m" },
+              shoeName: { type: "string", nullable: true, example: "Nike Vaporfly 3" },
+              avgHeartRate: { type: "integer", nullable: true, example: 172 },
+              maxHeartRate: { type: "integer", nullable: true, example: 188 },
+              notes: { type: "string", nullable: true },
+              laps: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    lapNumber: { type: "integer", example: 1 },
+                    distanceMeters: { type: "number", example: 400 },
+                    durationSeconds: { type: "integer", example: 112 },
+                    paceFormatted: { type: "string", example: "4:40" },
+                  },
+                },
+              },
               testDate: { type: "string", format: "date-time" },
               isPersonalRecord: { type: "boolean", example: true },
               deficitTargetMeters: { type: "integer", example: 0 },
@@ -860,6 +1025,19 @@ export const swaggerSpec = {
         },
         required: ["success", "data", "timestamp"],
       },
+      SplitDetailSchema: {
+        type: "object",
+        required: ["kilometer", "durationSeconds"],
+        properties: {
+          kilometer: { type: "integer", minimum: 1, example: 1 },
+          distanceKm: { type: "number", minimum: 0.01, maximum: 1.0, example: 1.0 },
+          durationSeconds: { type: "integer", minimum: 1, example: 300 },
+          paceSeconds: { type: "integer", minimum: 1, example: 300 },
+          paceFormatted: { type: "string", example: "5:00" },
+          avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true, example: 162 },
+          elevationDiffM: { type: "number", nullable: true, example: 4.5 },
+        },
+      },
       CreateTrainingInput: {
         type: "object",
         required: [
@@ -871,28 +1049,76 @@ export const swaggerSpec = {
           "paceFormatted",
         ],
         properties: {
+          source: {
+            type: "string",
+            enum: ["manual", "gpx_upload", "fit_upload"],
+            default: "manual",
+            example: "manual",
+          },
+          externalId: { type: "string", maxLength: 100, nullable: true },
+          onDuplicate: { type: "string", enum: ["error", "update"] },
           activityType: {
             type: "string",
-            enum: ["corrida_continua", "corrida_intervalada", "caminhada"],
+            enum: [
+              "rodagem_leve",
+              "corrida_continua",
+              "tempo_run",
+              "corrida_intervalada",
+              "longao",
+              "caminhada",
+            ],
             example: "corrida_continua",
           },
-          distanceKm: { type: "number", minimum: 0.1, maximum: 100, example: 5.0 },
+          distanceKm: { type: "number", minimum: 0.05, maximum: 100, example: 5.0 },
           durationSeconds: { type: "integer", minimum: 30, maximum: 86400, example: 1500 },
+          elapsedSeconds: { type: "integer", minimum: 30, maximum: 86400, nullable: true, example: 1560 },
           speedKmh: { type: "number", example: 12.0 },
           paceSeconds: { type: "integer", example: 300 },
           paceFormatted: { type: "string", example: "5:00" },
+          avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true, example: 160 },
+          maxHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true, example: 178 },
+          elevationGainM: { type: "number", minimum: 0, maximum: 10000, nullable: true, example: 35.0 },
+          avgCadence: { type: "integer", minimum: 30, maximum: 300, nullable: true, example: 174 },
+          shoeName: { type: "string", maxLength: 100, nullable: true, example: "Nike Pegasus 40" },
           perceivedEffort: { type: "integer", minimum: 1, maximum: 10, nullable: true, example: 7 },
           bodyWeightKg: { type: "number", minimum: 30, maximum: 250, nullable: true, example: 75 },
           notes: { type: "string", maxLength: 1000, nullable: true },
+          splits: {
+            type: "array",
+            items: { $ref: "#/components/schemas/SplitDetailSchema" },
+          },
           sessionDate: { type: "string", format: "date-time" },
         },
       },
       UpdateTrainingInput: {
         type: "object",
         properties: {
-          distanceKm: { type: "number", minimum: 0.1, maximum: 100 },
+          activityType: {
+            type: "string",
+            enum: [
+              "rodagem_leve",
+              "corrida_continua",
+              "tempo_run",
+              "corrida_intervalada",
+              "longao",
+              "caminhada",
+            ],
+          },
+          distanceKm: { type: "number", minimum: 0.05, maximum: 100 },
+          durationSeconds: { type: "integer", minimum: 30, maximum: 86400 },
+          elapsedSeconds: { type: "integer", minimum: 30, maximum: 86400, nullable: true },
+          avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true },
+          maxHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true },
+          elevationGainM: { type: "number", minimum: 0, maximum: 10000, nullable: true },
+          avgCadence: { type: "integer", minimum: 30, maximum: 300, nullable: true },
+          shoeName: { type: "string", maxLength: 100, nullable: true },
           perceivedEffort: { type: "integer", minimum: 1, maximum: 10, nullable: true },
+          bodyWeightKg: { type: "number", minimum: 30, maximum: 250, nullable: true },
           notes: { type: "string", maxLength: 1000, nullable: true },
+          splits: {
+            type: "array",
+            items: { $ref: "#/components/schemas/SplitDetailSchema" },
+          },
         },
       },
       TrainingSessionResponse: {
@@ -903,13 +1129,25 @@ export const swaggerSpec = {
             type: "object",
             properties: {
               id: { type: "string" },
+              source: { type: "string", enum: ["manual", "gpx_upload", "fit_upload"], example: "manual" },
+              externalId: { type: "string", nullable: true },
               activityType: { type: "string", example: "corrida_continua" },
               distanceKm: { type: "number", example: 5.0 },
               durationSeconds: { type: "integer", example: 1500 },
+              elapsedSeconds: { type: "integer", nullable: true, example: 1560 },
               paceFormatted: { type: "string", example: "5:00" },
+              avgHeartRate: { type: "integer", nullable: true, example: 160 },
+              maxHeartRate: { type: "integer", nullable: true, example: 178 },
+              elevationGainM: { type: "number", nullable: true, example: 35.0 },
+              avgCadence: { type: "integer", nullable: true, example: 174 },
+              shoeName: { type: "string", nullable: true, example: "Nike Pegasus 40" },
               activeCalories: { type: "number", example: 312 },
               totalCalories: { type: "number", example: 345 },
               metValue: { type: "number", example: 11.5 },
+              splits: {
+                type: "array",
+                items: { $ref: "#/components/schemas/SplitDetailSchema" },
+              },
               sessionDate: { type: "string", format: "date-time" },
             },
           },
@@ -1005,6 +1243,82 @@ export const swaggerSpec = {
           data: {
             type: "array",
             items: { $ref: "#/components/schemas/WeightRecordResponse/properties/data" },
+          },
+          timestamp: { type: "string", format: "date-time" },
+        },
+        required: ["success", "data", "timestamp"],
+      },
+      ActivityParsePreviewResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              source: { type: "string", enum: ["fit_upload", "gpx_upload"], example: "fit_upload" },
+              filesUsed: {
+                type: "array",
+                items: { type: "string", enum: ["fit", "gpx"] },
+                example: ["fit", "gpx"],
+              },
+              name: { type: "string", nullable: true, example: "Rodagem Matinal" },
+              sourceActivityKind: { type: "string", enum: ["run", "walk", "unknown"] },
+              isIndoor: { type: "boolean", example: false },
+              startedAt: { type: "string", format: "date-time" },
+              distanceKm: { type: "number", example: 5.0 },
+              durationSeconds: { type: "integer", example: 1500 },
+              elapsedSeconds: { type: "integer", example: 1525 },
+              speedKmh: { type: "number", example: 12.0 },
+              paceSeconds: { type: "integer", example: 300 },
+              paceFormatted: { type: "string", example: "5:00" },
+              avgHeartRate: { type: "integer", nullable: true, example: 162 },
+              maxHeartRate: { type: "integer", nullable: true, example: 179 },
+              avgCadence: { type: "integer", nullable: true, example: 174 },
+              elevationGainM: { type: "number", nullable: true, example: 32 },
+              activeCalories: { type: "integer", nullable: true, example: 365 },
+              externalId: { type: "string", example: "fit_a1b2c3d4..." },
+              alreadyExists: { type: "boolean", example: false },
+              existingTrainingId: { type: "string", nullable: true, example: null },
+              alreadyExistsAttempt: { type: "boolean", example: false },
+              existingAttemptId: { type: "string", nullable: true, example: null },
+              tafWindow: {
+                type: "object",
+                nullable: true,
+                description:
+                  "Melhor janela contínua de 12 minutos (720s) extraída automaticamente para importação como Simulado TAF",
+                properties: {
+                  targetDurationSeconds: { type: "integer", example: 720 },
+                  actualDurationSeconds: { type: "integer", example: 720 },
+                  distanceMeters: { type: "integer", example: 2580 },
+                  speedKmh: { type: "number", example: 12.9 },
+                  paceSeconds: { type: "integer", example: 279 },
+                  paceFormatted: { type: "string", example: "4:39" },
+                  avgHeartRate: { type: "integer", nullable: true, example: 174 },
+                  maxHeartRate: { type: "integer", nullable: true, example: 189 },
+                  windowStartOffsetSeconds: { type: "number", example: 120 },
+                  windowEndOffsetSeconds: { type: "number", example: 840 },
+                  isShorterThanTarget: { type: "boolean", example: false },
+                  laps: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        lapNumber: { type: "integer", example: 1 },
+                        distanceMeters: { type: "number", example: 400 },
+                        durationSeconds: { type: "integer", example: 112 },
+                        paceFormatted: { type: "string", example: "4:40" },
+                      },
+                    },
+                  },
+                },
+              },
+              suggestedActivityType: { type: "string", nullable: true, example: "corrida_continua" },
+              suggestedNotes: { type: "string", example: "Rodagem Matinal" },
+              allowedActivityTypes: {
+                type: "array",
+                items: { type: "string" },
+              },
+            },
           },
           timestamp: { type: "string", format: "date-time" },
         },

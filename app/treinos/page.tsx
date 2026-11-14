@@ -2,17 +2,19 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { TrainingSession } from "@/types";
+import { TafAttempt, TrainingSession } from "@/types";
 import { tafService } from "@/lib/services/tafService";
 import { formatPace } from "@/lib/formatting/time";
 import { parseSafeDate } from "@/lib/math/evolution";
 import { TrainingForm } from "@/components/meu-taf/TrainingForm";
 import { TrainingList } from "@/components/meu-taf/TrainingList";
+import { GpxImportPanel } from "@/components/treinos/GpxImportPanel";
 import { TrainingEvolutionDashboard } from "@/components/treinos/TrainingEvolutionDashboard";
 import { Button } from "@/components/ui/Button";
 import {
   Activity,
   Plus,
+  Upload,
   TrendingUp,
   Clock,
   HeartPulse,
@@ -25,6 +27,7 @@ import {
 } from "lucide-react";
 
 export type TreinosTab = "diario" | "graficos";
+export type TrainingEntryMode = "manual" | "import";
 
 const TRAININGS_CACHE_KEY = "pacelab_cache_trainings";
 
@@ -54,6 +57,7 @@ export default function TreinosPage() {
   const [trainings, setTrainings] = useState<TrainingSession[]>([]);
   const [editingTraining, setEditingTraining] = useState<TrainingSession | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<TrainingEntryMode>("manual");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -148,6 +152,7 @@ export default function TreinosPage() {
   // Iniciar edição
   const handleEdit = (session: TrainingSession) => {
     setEditingTraining(session);
+    setFormMode("manual");
     setIsFormOpen(true);
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -158,6 +163,40 @@ export default function TreinosPage() {
   const handleCancelEdit = () => {
     setEditingTraining(null);
     setIsFormOpen(false);
+  };
+
+  // Callback ao importar treino via .FIT / .GPX
+  const handleImportedTraining = (saved: TrainingSession, isUpdated = false) => {
+    setTrainings((prev) => {
+      const index = prev.findIndex((t) => t.id === saved.id);
+      const updated =
+        index >= 0
+          ? prev.map((t) => (t.id === saved.id ? saved : t))
+          : [saved, ...prev];
+      setCachedTrainings(updated);
+      return updated;
+    });
+
+    setEditingTraining(null);
+    setIsFormOpen(false);
+    setFormMode("manual");
+    showToast(
+      isUpdated
+        ? "Treino existente atualizado com sucesso!"
+        : "Treino importado do Strava com sucesso!"
+    );
+  };
+
+  // Callback ao importar Simulado TAF via .FIT / .GPX no Diário de Treinos
+  const handleImportedAttempt = (saved: TafAttempt, isUpdated = false) => {
+    setEditingTraining(null);
+    setIsFormOpen(false);
+    setFormMode("manual");
+    showToast(
+      isUpdated
+        ? `Simulado TAF existente (${saved.distanceMeters}m) atualizado no Meu TAF!`
+        : `Simulado TAF (${saved.distanceMeters}m) salvo no histórico do Meu TAF!`
+    );
   };
 
   // Excluir treino
@@ -302,17 +341,73 @@ export default function TreinosPage() {
         <div className="flex flex-wrap items-center gap-2.5">
           <Button
             onClick={() => {
-              if (isFormOpen && !editingTraining) {
+              if (
+                activeTab === "diario" &&
+                isFormOpen &&
+                !editingTraining &&
+                formMode === "manual"
+              ) {
                 setIsFormOpen(false);
               } else {
+                if (activeTab !== "diario") {
+                  handleTabChange("diario");
+                }
                 setEditingTraining(null);
+                setFormMode("manual");
                 setIsFormOpen(true);
               }
             }}
-            icon={isFormOpen && !editingTraining ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            icon={
+              activeTab === "diario" &&
+              isFormOpen &&
+              !editingTraining &&
+              formMode === "manual" ? (
+                <X className="w-4 h-4" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )
+            }
           >
-            {isFormOpen && !editingTraining ? "Fechar Formulário" : "Registrar Treino"}
+            {activeTab === "diario" &&
+            isFormOpen &&
+            !editingTraining &&
+            formMode === "manual"
+              ? "Fechar Formulário"
+              : "Registrar Treino"}
           </Button>
+
+          <button
+            type="button"
+            data-testid="open-import-panel-btn"
+            onClick={() => {
+              if (
+                activeTab === "diario" &&
+                isFormOpen &&
+                !editingTraining &&
+                formMode === "import"
+              ) {
+                setIsFormOpen(false);
+              } else {
+                if (activeTab !== "diario") {
+                  handleTabChange("diario");
+                }
+                setEditingTraining(null);
+                setFormMode("import");
+                setIsFormOpen(true);
+              }
+            }}
+            className={`inline-flex items-center justify-center font-bold transition-all duration-150 select-none active:scale-[0.98] border text-xs px-3.5 py-2.5 rounded-xl gap-1.5 cursor-pointer shadow-2xs ${
+              activeTab === "diario" &&
+              isFormOpen &&
+              !editingTraining &&
+              formMode === "import"
+                ? "bg-orange-500 text-white border-orange-500"
+                : "border-orange-500/40 bg-orange-950/30 hover:bg-orange-950/60 text-orange-300"
+            }`}
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Importar .FIT / .GPX</span>
+          </button>
 
           <Link
             href="/calculadora"
@@ -523,14 +618,65 @@ export default function TreinosPage() {
             </div>
           </div>
 
-          {/* Formulário de Registro / Edição (exibido quando aberto ou editando) */}
+          {/* Formulário de Registro / Importação / Edição (exibido quando aberto ou editando) */}
           {isFormOpen && (
-            <div className="pt-2 animate-in fade-in slide-in-from-top-4 duration-200">
-              <TrainingForm
-                editingTraining={editingTraining}
-                onSave={handleSaveTraining}
-                onCancelEdit={handleCancelEdit}
-              />
+            <div className="pt-2 space-y-3 animate-in fade-in slide-in-from-top-4 duration-200">
+              {!editingTraining && (
+                <div
+                  role="tablist"
+                  aria-label="Modo de registro de treino"
+                  data-testid="training-entry-mode-switcher"
+                  className="inline-flex items-center p-1 bg-[#131A2E] border border-[#1E2942] rounded-2xl"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={formMode === "manual"}
+                    data-testid="mode-manual-btn"
+                    onClick={() => setFormMode("manual")}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      formMode === "manual"
+                        ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                        : "text-[#8E9BB0] hover:text-white"
+                    }`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Registro Manual</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={formMode === "import"}
+                    data-testid="mode-import-btn"
+                    onClick={() => setFormMode("import")}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      formMode === "import"
+                        ? "bg-orange-500 text-white shadow-xs"
+                        : "text-[#8E9BB0] hover:text-white"
+                    }`}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Importar .FIT / .GPX (Strava)</span>
+                  </button>
+                </div>
+              )}
+
+              {editingTraining || formMode === "manual" ? (
+                <TrainingForm
+                  editingTraining={editingTraining}
+                  onSave={handleSaveTraining}
+                  onCancelEdit={handleCancelEdit}
+                />
+              ) : (
+                <GpxImportPanel
+                  onImported={handleImportedTraining}
+                  onAttemptImported={handleImportedAttempt}
+                  onCancel={() => {
+                    setIsFormOpen(false);
+                    setFormMode("manual");
+                  }}
+                />
+              )}
             </div>
           )}
 

@@ -13,11 +13,22 @@ export async function PUT(
     const body = await request.json();
     const validated = UpdateTafAttemptSchema.parse(body);
 
+    const hasRawField = (key: string) =>
+      Boolean(
+        body &&
+          typeof body === "object" &&
+          Object.prototype.hasOwnProperty.call(body, key) &&
+          (body as Record<string, unknown>)[key] !== undefined
+      );
+
     const updated = await prisma.tafAttempt.update({
       where: { id },
       data: {
-        ...(validated.testDate ? { testDate: new Date(validated.testDate) } : {}),
-        ...(validated.targetDurationSeconds !== undefined
+        ...(hasRawField("testDate") && validated.testDate
+          ? { testDate: new Date(validated.testDate) }
+          : {}),
+        ...(hasRawField("targetDurationSeconds") &&
+        validated.targetDurationSeconds !== undefined
           ? { targetDurationSeconds: validated.targetDurationSeconds }
           : {}),
         ...(validated.actualDurationSeconds !== undefined
@@ -34,8 +45,19 @@ export async function PUT(
         ...(validated.locationType !== undefined
           ? { locationType: validated.locationType || null }
           : {}),
+        ...(hasRawField("shoeName") && validated.shoeName !== undefined
+          ? { shoeName: validated.shoeName }
+          : {}),
+        ...(validated.avgHeartRate !== undefined
+          ? { avgHeartRate: validated.avgHeartRate }
+          : {}),
+        ...(validated.maxHeartRate !== undefined
+          ? { maxHeartRate: validated.maxHeartRate }
+          : {}),
         ...(validated.notes !== undefined ? { notes: validated.notes || null } : {}),
-        ...(validated.laps !== undefined ? { laps: validated.laps || [] } : {}),
+        ...(hasRawField("laps") && validated.laps !== undefined
+          ? { laps: validated.laps || [] }
+          : {}),
       },
     });
 

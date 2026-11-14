@@ -305,6 +305,149 @@ describe("Validações Zod do TAF (Fase 1 - Eixo B)", () => {
         }).success
       ).toBe(false);
     });
+
+    it("aceita todos os 6 valores válidos de ActivityType (incluindo rodagem_leve, tempo_run e longao)", () => {
+      for (const act of [
+        "rodagem_leve",
+        "corrida_continua",
+        "tempo_run",
+        "corrida_intervalada",
+        "longao",
+        "caminhada",
+      ] as const) {
+        const res = CreateTrainingSessionSchema.safeParse({
+          activityType: act,
+          distanceKm: 8,
+          durationSeconds: 2400,
+        });
+        expect(res.success).toBe(true);
+        if (res.success) {
+          expect(res.data.activityType).toBe(act);
+          expect(res.data.source).toBe("manual");
+        }
+      }
+    });
+
+    it("valida novos campos de telemetria GPX, splits estendidos (com residual < 1 km) e source gpx_upload", () => {
+      const res = CreateTrainingSessionSchema.safeParse({
+        source: "gpx_upload",
+        externalId: "gpx_9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        activityType: "tempo_run",
+        distanceKm: 5.42,
+        durationSeconds: 1500,
+        elapsedSeconds: 1620,
+        speedKmh: 13.01,
+        paceSeconds: 277,
+        paceFormatted: "4:37",
+        avgHeartRate: 165,
+        maxHeartRate: 184,
+        elevationGainM: 42.5,
+        avgCadence: 176,
+        shoeName: "Nike Vaporfly 3",
+        splits: [
+          {
+            kilometer: 1,
+            distanceKm: 1,
+            durationSeconds: 280,
+            paceSeconds: 280,
+            paceFormatted: "4:40",
+            avgHeartRate: 160,
+            elevationDiffM: 8.2,
+          },
+          {
+            kilometer: 6,
+            distanceKm: 0.42,
+            durationSeconds: 115,
+            paceSeconds: 274,
+            paceFormatted: "4:34",
+            avgHeartRate: 175,
+            elevationDiffM: -3.5,
+          },
+        ],
+      });
+
+      expect(res.success).toBe(true);
+      if (res.success) {
+        expect(res.data.source).toBe("gpx_upload");
+        expect(res.data.elapsedSeconds).toBe(1620);
+        expect(res.data.avgHeartRate).toBe(165);
+        expect(res.data.maxHeartRate).toBe(184);
+        expect(res.data.elevationGainM).toBe(42.5);
+        expect(res.data.avgCadence).toBe(176);
+        expect(res.data.shoeName).toBe("Nike Vaporfly 3");
+        expect(res.data.splits[1].distanceKm).toBe(0.42);
+      }
+
+      const fitRes = CreateTrainingSessionSchema.safeParse({
+        source: "fit_upload",
+        externalId: "fit_9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        activityType: "corrida_intervalada",
+        distanceKm: 6.0,
+        durationSeconds: 1680,
+      });
+      expect(fitRes.success).toBe(true);
+      if (fitRes.success) {
+        expect(fitRes.data.source).toBe("fit_upload");
+      }
+    });
+
+    it("rejeita elapsedSeconds menor que durationSeconds ou maxHeartRate menor que avgHeartRate", () => {
+      const badElapsed = CreateTrainingSessionSchema.safeParse({
+        activityType: "rodagem_leve",
+        distanceKm: 5,
+        durationSeconds: 1500,
+        elapsedSeconds: 1200,
+      });
+      expect(badElapsed.success).toBe(false);
+      if (!badElapsed.success) {
+        expect(formatZodErrors(badElapsed.error).some((e) => e.field === "elapsedSeconds")).toBe(
+          true
+        );
+      }
+
+      const badHr = CreateTrainingSessionSchema.safeParse({
+        activityType: "longao",
+        distanceKm: 15,
+        durationSeconds: 4500,
+        avgHeartRate: 175,
+        maxHeartRate: 160,
+      });
+      expect(badHr.success).toBe(false);
+      if (!badHr.success) {
+        expect(formatZodErrors(badHr.error).some((e) => e.field === "maxHeartRate")).toBe(true);
+      }
+    });
+
+    it("rejeita valores fora de faixa em avgCadence, elevationGainM, shoeName e SplitDetail", () => {
+      expect(
+        CreateTrainingSessionSchema.safeParse({
+          distanceKm: 5,
+          durationSeconds: 1500,
+          avgCadence: 10,
+        }).success
+      ).toBe(false);
+      expect(
+        CreateTrainingSessionSchema.safeParse({
+          distanceKm: 5,
+          durationSeconds: 1500,
+          elevationGainM: -5,
+        }).success
+      ).toBe(false);
+      expect(
+        CreateTrainingSessionSchema.safeParse({
+          distanceKm: 5,
+          durationSeconds: 1500,
+          shoeName: "x".repeat(101),
+        }).success
+      ).toBe(false);
+      expect(
+        CreateTrainingSessionSchema.safeParse({
+          distanceKm: 5,
+          durationSeconds: 1500,
+          splits: [{ kilometer: 1, durationSeconds: 300, distanceKm: 1.5 }],
+        }).success
+      ).toBe(false);
+    });
   });
 
   describe("LocationTypeEnum e CreateTafAttemptSchema", () => {
@@ -338,14 +481,20 @@ describe("Validações Zod do TAF (Fase 1 - Eixo B)", () => {
       expect(partialAttempt.distanceMeters).toBeUndefined();
     });
 
-    it("permite atualizar campos isolados de uma sessão de treino", () => {
+    it("permite atualizar campos isolados de uma sessão de treino e ignora source/externalId (A16)", () => {
       const partialTraining = UpdateTrainingSessionSchema.parse({
         perceivedEffort: 9,
         notes: "Treino ajustado pelo treinador",
+        shoeName: "Adidas Adios Pro 3",
+        source: "gpx_upload",
+        externalId: "gpx_tentativa_mutacao",
       });
       expect(partialTraining.perceivedEffort).toBe(9);
       expect(partialTraining.notes).toBe("Treino ajustado pelo treinador");
+      expect(partialTraining.shoeName).toBe("Adidas Adios Pro 3");
       expect(partialTraining.distanceKm).toBeUndefined();
+      expect("source" in partialTraining).toBe(false);
+      expect("externalId" in partialTraining).toBe(false);
     });
   });
 

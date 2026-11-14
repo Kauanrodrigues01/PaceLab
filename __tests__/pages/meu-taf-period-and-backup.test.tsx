@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MeuTafPage from "@/app/meu-taf/page";
-import { tafService } from "@/lib/services/tafService";
+import { tafService, TafApiError } from "@/lib/services/tafService";
 import { setupMockTafApi } from "@/test/helpers/mockTafApi";
 
 describe("MeuTafPage - Fase F (Comparador de Períodos & Configuração de Meta / Backup)", () => {
@@ -355,6 +355,62 @@ describe("MeuTafPage - Fase F (Comparador de Períodos & Configuração de Meta 
       await waitFor(() => {
         expect(screen.getByTestId("toast-notification")).toHaveTextContent(
           /Backup restaurado com sucesso: 1 simulados e 0 treinos carregados!/i
+        );
+      });
+    });
+
+    it("restaura backup v3 ignorando itens duplicados (409) com aviso amigável no toast", async () => {
+      const user = userEvent.setup();
+      vi.spyOn(tafService, "saveTraining").mockRejectedValueOnce(
+        new TafApiError("Esta atividade já foi importada", 409)
+      );
+
+      render(<MeuTafPage />);
+
+      const tabMetas = await screen.findByRole("button", {
+        name: /Meta & Banco/i,
+      });
+      await user.click(tabMetas);
+
+      const fileInput = screen.getByTestId("backup-file-input") as HTMLInputElement;
+      const backupV3Content = JSON.stringify({
+        version: 3,
+        appName: "PaceLab",
+        goal: { targetDistanceMeters: 2400, targetDurationMinutes: 12 },
+        attempts: [
+          {
+            id: "att-v3-ok",
+            source: "fit_upload",
+            externalId: "fit_unique_1",
+            testDate: "2026-11-12T08:00:00Z",
+            targetDurationSeconds: 720,
+            actualDurationSeconds: 720,
+            distanceMeters: 2600,
+          },
+        ],
+        trainings: [
+          {
+            id: "tr-v3-dup",
+            source: "gpx_upload",
+            externalId: "gpx_dup_1",
+            sessionDate: "2026-11-11T08:00:00Z",
+            activityType: "corrida_continua",
+            distanceKm: 5,
+            durationSeconds: 1500,
+          },
+        ],
+      });
+
+      const file = new File([backupV3Content], "pacelab-v3.json", {
+        type: "application/json",
+      });
+      file.text = vi.fn().mockResolvedValue(backupV3Content);
+
+      await user.upload(fileInput, file);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("toast-notification")).toHaveTextContent(
+          /Backup restaurado com sucesso: 1 simulados e 0 treinos carregados! \(1 duplicado ignorado\)/i
         );
       });
     });

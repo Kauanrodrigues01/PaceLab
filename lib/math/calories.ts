@@ -121,7 +121,7 @@ export function getMetForSpeedAndActivity(
     return interpolateMet(COMPENDIUM_WALKING_NODES, speedKmh);
   }
 
-  // Corrida contínua ou intervalada
+  // Modalidades de corrida (rodagem_leve, corrida_continua, tempo_run, corrida_intervalada, longao)
   return interpolateMet(COMPENDIUM_RUNNING_NODES, speedKmh);
 }
 
@@ -192,6 +192,51 @@ export function estimateTrainingCalories({
     version: "2024.1",
     weightUsedKg: weightKg,
     durationMinutes: Number((durationSeconds / 60).toFixed(1)),
+  };
+}
+
+export interface CaloriePersistencePayload {
+  activeCalories: number | null;
+  totalCalories: number | null;
+  metValue: number | null;
+  calorieMethod: string | null;
+  calorieSource: string | null;
+  calorieMetadata: {
+    compendiumCode: string;
+    activityDescription: string;
+    version: string;
+  } | null;
+}
+
+/**
+ * Monta o payload padronizado de calorias para persistência em TrainingSession
+ * (compartilhado entre o formulário manual e a importação de GPX — Decisão D8).
+ */
+export function buildCaloriePayload(
+  estimate: CalorieResult | null | undefined
+): CaloriePersistencePayload {
+  if (!estimate) {
+    return {
+      activeCalories: null,
+      totalCalories: null,
+      metValue: null,
+      calorieMethod: null,
+      calorieSource: null,
+      calorieMetadata: null,
+    };
+  }
+
+  return {
+    activeCalories: estimate.activeCalories,
+    totalCalories: estimate.totalCalories,
+    metValue: estimate.metValue,
+    calorieMethod: estimate.method,
+    calorieSource: "auto_calculated",
+    calorieMetadata: {
+      compendiumCode: estimate.compendiumCode,
+      activityDescription: estimate.compendiumDescription,
+      version: estimate.version,
+    },
   };
 }
 

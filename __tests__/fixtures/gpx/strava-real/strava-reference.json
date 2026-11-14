@@ -1,0 +1,28 @@
+{
+  "Voltando.gpx": {
+    "scenario": "Arquivo Real Exportado do Strava — Caminhada + Trote 'Voltando' (1,87 km)",
+    "stravaScreen": {
+      "distanceKm": 1.87,
+      "movingSeconds": 1188,
+      "elapsedSeconds": 1206,
+      "paceFormatted": "10:33",
+      "paceSeconds": 633,
+      "avgHeartRate": null,
+      "maxHeartRate": null,
+      "avgCadence": null,
+      "elevationGainM": 3,
+      "splits": [
+        {
+          "kilometer": 1,
+          "paceFormatted": "13:24",
+          "paceSeconds": 804
+        },
+        {
+          "kilometer": 2,
+          "paceFormatted": "7:18",
+          "paceSeconds": 438
+        }
+      ]
+    }
+  }
+}

@@ -1,9 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
-import { TrainingSession, ActivityType } from "@/types";
+import React, { useMemo, useState } from "react";
+import { TrainingSession } from "@/types";
+import { ACTIVITY_CONFIG } from "@/lib/activity";
 import { formatTime } from "@/lib/formatting/time";
+import { analyzeSplits } from "@/lib/math/splitsAnalysis";
+import { SplitsInsights } from "../treinos/SplitsInsights";
+import { SplitsPaceChart } from "../treinos/SplitsPaceChart";
+import { SplitsTable } from "../treinos/SplitsTable";
 import {
+  BarChart3,
   Clock,
   Gauge,
   Edit2,
@@ -12,48 +18,21 @@ import {
   ChevronUp,
   FileText,
   Flame,
-  Zap,
-  Footprints,
   Scale,
+  HeartPulse,
+  Mountain,
+  Footprints,
+  Upload,
 } from "lucide-react";
+
+export { ACTIVITY_CONFIG };
 
 interface TrainingCardProps {
   training: TrainingSession;
   onEdit: (training: TrainingSession) => void;
   onDelete: (id: string) => void;
+  onViewDetails?: (training: TrainingSession) => void;
 }
-
-export const ACTIVITY_CONFIG: Record<
-  ActivityType,
-  {
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    badgeClass: string;
-    borderClass: string;
-  }
-> = {
-  corrida_continua: {
-    label: "Corrida Contínua",
-    icon: Flame,
-    badgeClass:
-      "bg-[#B7F34A]/10 text-[#B7F34A] border-[#B7F34A]/30",
-    borderClass: "border-l-[#B7F34A]",
-  },
-  corrida_intervalada: {
-    label: "Intervalado / Tiros",
-    icon: Zap,
-    badgeClass:
-      "bg-amber-950/40 text-amber-300 border-amber-500/30",
-    borderClass: "border-l-amber-400",
-  },
-  caminhada: {
-    label: "Caminhada",
-    icon: Footprints,
-    badgeClass:
-      "bg-emerald-950/40 text-emerald-300 border-emerald-500/30",
-    borderClass: "border-l-emerald-400",
-  },
-};
 
 export function getRpeBadgeInfo(rpe?: number | null) {
   if (!rpe || rpe < 1) return null;
@@ -83,21 +62,34 @@ export function getRpeBadgeInfo(rpe?: number | null) {
   };
 }
 
-export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) {
+export function TrainingCard({
+  training,
+  onEdit,
+  onDelete,
+  onViewDetails,
+}: TrainingCardProps) {
   const [showSplits, setShowSplits] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const splitsAnalysis = useMemo(
+    () => analyzeSplits(training.splits ?? []),
+    [training.splits]
+  );
 
   const config = ACTIVITY_CONFIG[training.activityType] || ACTIVITY_CONFIG.corrida_continua;
   const ActivityIcon = config.icon;
   const rpeInfo = getRpeBadgeInfo(training.perceivedEffort);
 
-  const formattedDate = new Date(training.sessionDate).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const parsedSessionDate = new Date(training.sessionDate);
+  const formattedDate = Number.isNaN(parsedSessionDate.getTime())
+    ? training.sessionDate || "Data não informada"
+    : parsedSessionDate.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
   return (
     <div
@@ -106,7 +98,7 @@ export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) 
     >
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs sm:text-sm font-medium text-[#8E9BB0]">
             {formattedDate}
           </span>
@@ -116,9 +108,19 @@ export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) 
             <ActivityIcon className="w-3.5 h-3.5" />
             {config.label}
           </span>
+
+          {(training.source === "fit_upload" || training.source === "gpx_upload") && (
+            <span
+              data-testid="badge-source"
+              className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-orange-950/50 text-orange-300 border border-orange-500/30"
+            >
+              <Upload className="w-3 h-3 text-orange-400" />
+              {training.source === "fit_upload" ? "Strava FIT" : "Strava GPX"}
+            </span>
+          )}
         </div>
 
-        {/* Badges de RPE, Peso e Calorias */}
+        {/* Badges de RPE, Telemetria, Peso e Calorias */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {rpeInfo && (
             <span
@@ -126,6 +128,49 @@ export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) 
               className={`inline-flex items-center text-xs font-bold px-2.5 py-0.5 rounded-full border ${rpeInfo.class}`}
             >
               {rpeInfo.label}
+            </span>
+          )}
+
+          {(training.avgHeartRate != null || training.maxHeartRate != null) && (
+            <span
+              data-testid="badge-hr"
+              className="inline-flex items-center gap-1 text-xs font-semibold bg-rose-950/40 text-rose-300 px-2 py-0.5 rounded-full border border-rose-500/30"
+            >
+              <HeartPulse className="w-3 h-3 text-rose-400" />
+              {training.avgHeartRate != null ? training.avgHeartRate : "—"}
+              {training.maxHeartRate != null ? `/${training.maxHeartRate}` : ""} bpm
+            </span>
+          )}
+
+          {training.elevationGainM != null && (
+            <span
+              data-testid="badge-elevation"
+              className="inline-flex items-center gap-1 text-xs font-semibold bg-emerald-950/40 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30"
+            >
+              <Mountain className="w-3 h-3 text-emerald-400" />+
+              {Number.isInteger(training.elevationGainM)
+                ? training.elevationGainM
+                : training.elevationGainM.toFixed(1)}{" "}
+              m
+            </span>
+          )}
+
+          {training.avgCadence != null && (
+            <span
+              data-testid="badge-cadence"
+              className="inline-flex items-center gap-1 text-xs font-semibold bg-cyan-950/40 text-cyan-300 px-2 py-0.5 rounded-full border border-cyan-500/30"
+            >
+              <Footprints className="w-3 h-3 text-cyan-400" />
+              {training.avgCadence} spm
+            </span>
+          )}
+
+          {training.shoeName && (
+            <span
+              data-testid="badge-shoe"
+              className="inline-flex items-center gap-1 text-xs font-semibold bg-[#0B1020] text-[#8E9BB0] px-2 py-0.5 rounded-full border border-[#1E2942]"
+            >
+              👟 {training.shoeName}
             </span>
           )}
 
@@ -142,7 +187,7 @@ export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) 
           {training.activeCalories !== undefined && training.activeCalories !== null && (
             <span
               data-testid="badge-calories"
-              title={`Calorias Totais: ${training.totalCalories ?? training.activeCalories} kcal • MET: ${training.metValue !== undefined && training.metValue !== null ? training.metValue.toFixed(1) : "--"} • Compêndio 2024`}
+              title={`Calorias Totais: ${training.totalCalories ?? training.activeCalories} kcal • MET: ${training.metValue !== undefined && training.metValue !== null ? training.metValue.toFixed(1) : "--"} • ${training.calorieSource === "device_fit" ? "Dispositivo (.FIT)" : "Compêndio 2024"}`}
               className="inline-flex items-center gap-1 text-xs font-bold bg-amber-950/40 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-500/30"
             >
               <Flame className="w-3 h-3 text-amber-400 fill-amber-400" />
@@ -182,7 +227,9 @@ export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) 
         <div>
           <span className="text-xs text-[#8E9BB0]">Velocidade</span>
           <div className="text-lg sm:text-xl font-bold text-white">
-            {training.speedKmh.toFixed(2)}{" "}
+            {training.speedKmh != null && Number.isFinite(training.speedKmh)
+              ? training.speedKmh.toFixed(2)
+              : "—"}{" "}
             <span className="text-xs font-normal text-[#8E9BB0]">km/h</span>
           </div>
         </div>
@@ -196,8 +243,20 @@ export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) 
             : "Sessão registrada"}
         </div>
 
-        {/* Ações de Edição e Exclusão */}
+        {/* Ações de Detalhes, Edição e Exclusão */}
         <div className="flex items-center gap-1">
+          {onViewDetails && (
+            <button
+              type="button"
+              data-testid="training-details-btn"
+              onClick={() => onViewDetails(training)}
+              title="Ver análise completa e detalhes do treino"
+              aria-label="Ver detalhes do treino"
+              className="p-1.5 text-[#8E9BB0] hover:text-[#B7F34A] hover:bg-[#1E2942] rounded-lg transition-colors"
+            >
+              <BarChart3 className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={() => onEdit(training)}
             title="Editar este treino"
@@ -239,20 +298,22 @@ export function TrainingCard({ training, onEdit, onDelete }: TrainingCardProps) 
           </button>
 
           {showSplits && (
-            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {training.splits.map((split) => (
-                <div
-                  key={split.kilometer}
-                  className="bg-[#0B1020]/60 border border-[#1E2942] p-2 rounded-lg text-xs flex justify-between items-center"
-                >
-                  <span className="font-medium text-[#8E9BB0]">
-                    Km {split.kilometer}:
-                  </span>
-                  <span className="font-bold text-[#B7F34A]">
-                    {split.paceFormatted}/km
-                  </span>
+            <div className="mt-3 space-y-3" data-testid="training-card-splits-panel">
+              <SplitsInsights analysis={splitsAnalysis} compact />
+              <SplitsPaceChart analysis={splitsAnalysis} compact />
+              <SplitsTable analysis={splitsAnalysis} compact />
+              {onViewDetails && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => onViewDetails(training)}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#B7F34A] hover:underline"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    Abrir análise completa e telemetria
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>

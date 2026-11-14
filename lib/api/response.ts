@@ -68,13 +68,47 @@ export function apiError(
   );
 }
 
+/**
+ * Cria uma resposta HTTP 409 Conflict padronizada (ex: duplicidade de GPX / externalId)
+ */
+export function apiConflict(
+  message = "Este arquivo .GPX já foi importado",
+  details?: FormattedZodError[] | Record<string, unknown> | unknown
+): NextResponse<ApiResponse<null>> {
+  return apiError(message, 409, details);
+}
+
+/**
+ * Cria uma resposta HTTP 413 Payload Too Large padronizada (ex: arquivo GPX > 4 MB)
+ */
+export function apiPayloadTooLarge(
+  message = "Arquivo excede o limite máximo permitido (4 MB)",
+  details?: FormattedZodError[] | Record<string, unknown> | unknown
+): NextResponse<ApiResponse<null>> {
+  return apiError(message, 413, details);
+}
+
+/**
+ * Cria uma resposta HTTP 422 Unprocessable Entity padronizada (ex: erro semântico no GPX)
+ */
+export function apiUnprocessable(
+  message: string,
+  details?: FormattedZodError[] | Record<string, unknown> | unknown
+): NextResponse<ApiResponse<null>> {
+  return apiError(message, 422, details);
+}
+
 // ─── Classe de Erro Customizado ────────────────────────────────────────────────
 
 export class AppError extends Error {
   statusCode: number;
-  details?: FormattedZodError[];
+  details?: FormattedZodError[] | Record<string, unknown> | unknown;
 
-  constructor(message: string, statusCode = 400, details?: FormattedZodError[]) {
+  constructor(
+    message: string,
+    statusCode = 400,
+    details?: FormattedZodError[] | Record<string, unknown> | unknown
+  ) {
     super(message);
     this.name = "AppError";
     this.statusCode = statusCode;
@@ -107,6 +141,22 @@ export async function withApiHandler<T>(
         return apiError("Registro não encontrado no banco de dados", 404);
       }
       if (error.code === "P2002") {
+        const rawTarget = error.meta?.target;
+        const targetStr = Array.isArray(rawTarget)
+          ? rawTarget.join(",")
+          : typeof rawTarget === "string"
+            ? rawTarget
+            : "";
+        if (
+          targetStr.includes("external_id") ||
+          targetStr.includes("externalId") ||
+          error.message.includes("external_id") ||
+          error.message.includes("externalId")
+        ) {
+          return apiConflict("Este arquivo .GPX já foi importado", {
+            code: "DUPLICATE_EXTERNAL_ID",
+          });
+        }
         return apiError("Conflito: já existe um registro com estes dados únicos", 409);
       }
       return apiError("Falha na operação com o banco de dados", 500);

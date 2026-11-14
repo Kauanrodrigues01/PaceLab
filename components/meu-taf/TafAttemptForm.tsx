@@ -69,9 +69,13 @@ export function TafAttemptForm({
   // Preenche formulário caso entre em modo de edição
   useEffect(() => {
     if (editingAttempt) {
-      const d = new Date(editingAttempt.testDate);
-      const offset = d.getTimezoneOffset() * 60000;
-      setTestDate(new Date(d.getTime() - offset).toISOString().slice(0, 16));
+      const parsedDate = new Date(editingAttempt.testDate);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        const offset = parsedDate.getTimezoneOffset() * 60000;
+        setTestDate(
+          new Date(parsedDate.getTime() - offset).toISOString().slice(0, 16)
+        );
+      }
 
       const totalSec = editingAttempt.actualDurationSeconds;
       setMinutesInput(String(Math.floor(totalSec / 60)));
@@ -222,16 +226,30 @@ export function TafAttemptForm({
     setIsSubmitting(true);
 
     try {
+      const parsedTestDate = new Date(testDate);
+      const safeTestDateIso = Number.isNaN(parsedTestDate.getTime())
+        ? editingAttempt?.testDate || new Date().toISOString()
+        : parsedTestDate.toISOString();
+
       const attemptToSave: TafAttempt = {
         id: editingAttempt ? editingAttempt.id : `taf_${Date.now()}`,
-        testDate: new Date(testDate).toISOString(),
-        targetDurationSeconds: totalDurationSeconds === 720 ? 720 : totalDurationSeconds,
+        source: editingAttempt ? editingAttempt.source ?? "manual" : "manual",
+        externalId: editingAttempt ? editingAttempt.externalId ?? null : null,
+        testDate: safeTestDateIso,
+        targetDurationSeconds: editingAttempt
+          ? editingAttempt.targetDurationSeconds
+          : totalDurationSeconds === 720
+            ? 720
+            : totalDurationSeconds,
         actualDurationSeconds: totalDurationSeconds,
         distanceMeters: finalDistanceMeters,
         speedKmh: Number(liveSpeedKmh.toFixed(2)),
         paceSeconds: Math.round(livePaceSeconds),
         paceFormatted: livePaceFormatted,
         locationType,
+        shoeName: editingAttempt ? editingAttempt.shoeName ?? null : null,
+        avgHeartRate: editingAttempt ? editingAttempt.avgHeartRate ?? null : null,
+        maxHeartRate: editingAttempt ? editingAttempt.maxHeartRate ?? null : null,
         notes: notes.trim() || null,
         laps: enableLaps && laps.length > 0 ? laps : [],
         createdAt: editingAttempt ? editingAttempt.createdAt : new Date().toISOString(),

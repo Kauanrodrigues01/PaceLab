@@ -4,6 +4,9 @@ import { Prisma } from "@prisma/client";
 import {
   apiSuccess,
   apiError,
+  apiConflict,
+  apiPayloadTooLarge,
+  apiUnprocessable,
   AppError,
   withApiHandler,
 } from "@/lib/api/response";
@@ -137,6 +140,41 @@ describe("Utilitários de Resposta da API (Fase 2 - Eixo B)", () => {
       const json = await res.json();
       expect(json.success).toBe(false);
       expect(json.error).toContain("Conflito");
+    });
+
+    it("captura P2002 em external_id e retorna 409 amigável de GPX duplicado", async () => {
+      const prismaError = new Prisma.PrismaClientKnownRequestError(
+        "Unique constraint failed on the fields: (`external_id`)",
+        {
+          code: "P2002",
+          clientVersion: "6.0.0",
+          meta: { target: ["external_id"] },
+        }
+      );
+
+      const res = await withApiHandler(async () => {
+        throw prismaError;
+      });
+      expect(res.status).toBe(409);
+
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toBe("Este arquivo .GPX já foi importado");
+      expect(json.details).toEqual({ code: "DUPLICATE_EXTERNAL_ID" });
+    });
+
+    it("helpers apiConflict (409), apiPayloadTooLarge (413) e apiUnprocessable (422) retornam os status esperados", async () => {
+      const r409 = apiConflict("Arquivo duplicado", { existingId: "tr-1" });
+      expect(r409.status).toBe(409);
+      expect((await r409.json()).details).toEqual({ existingId: "tr-1" });
+
+      const r413 = apiPayloadTooLarge();
+      expect(r413.status).toBe(413);
+      expect((await r413.json()).error).toContain("4 MB");
+
+      const r422 = apiUnprocessable("GPX sem pontos de trajeto", { code: "NO_TRACKPOINTS" });
+      expect(r422.status).toBe(422);
+      expect((await r422.json()).details).toEqual({ code: "NO_TRACKPOINTS" });
     });
 
     it("captura AppError e retorna o status code customizado", async () => {

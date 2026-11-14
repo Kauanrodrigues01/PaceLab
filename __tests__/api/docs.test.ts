@@ -23,6 +23,8 @@ describe("Documentação Swagger / OpenAPI 3.0 (/api/docs/spec)", () => {
       "/api/taf/attempts/{id}",
       "/api/taf/trainings",
       "/api/taf/trainings/{id}",
+      "/api/training-sessions/parse-activity",
+      "/api/taf/trainings/gpx-preview",
       "/api/profile",
       "/api/profile/weight",
       "/api/profile/weight/{id}",
@@ -68,15 +70,38 @@ describe("Documentação Swagger / OpenAPI 3.0 (/api/docs/spec)", () => {
     expect(paths["/api/taf/health"]).toHaveProperty("get");
   });
 
-  it("contém schemas para metas multimodais e diário de treinos com calorias", () => {
-    const schemas = swaggerSpec.components.schemas as Record<string, unknown>;
+  it("contém schemas para metas multimodais e diário de treinos com calorias e telemetria GPX", () => {
+    const schemas = swaggerSpec.components.schemas as Record<string, Record<string, unknown>>;
 
     expect(schemas).toHaveProperty("TafGoalInput");
     expect(schemas).toHaveProperty("TafGoalResponse");
     expect(schemas).toHaveProperty("CreateTrainingInput");
     expect(schemas).toHaveProperty("TrainingSessionResponse");
+    expect(schemas).toHaveProperty("SplitDetailSchema");
     expect(schemas).toHaveProperty("ProfileInput");
     expect(schemas).toHaveProperty("ProfileResponse");
     expect(schemas).toHaveProperty("WeightInput");
+
+    const trainingProps = schemas.CreateTrainingInput.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(trainingProps.activityType.enum).toEqual([
+      "rodagem_leve",
+      "corrida_continua",
+      "tempo_run",
+      "corrida_intervalada",
+      "longao",
+      "caminhada",
+    ]);
+    expect(trainingProps).toHaveProperty("source");
+    expect(trainingProps).toHaveProperty("externalId");
+    expect(trainingProps).toHaveProperty("elapsedSeconds");
+    expect(trainingProps).toHaveProperty("avgHeartRate");
+    expect(trainingProps).toHaveProperty("maxHeartRate");
+    expect(trainingProps).toHaveProperty("elevationGainM");
+    expect(trainingProps).toHaveProperty("avgCadence");
+    expect(trainingProps).toHaveProperty("shoeName");
+    expect(swaggerSpec.components.responses).toHaveProperty("ConflictError");
   });
 });

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { TafAttempt, TrainingSession, TafGoalConfig } from "@/types";
+import { ACTIVITY_COLORS, ACTIVITY_LABELS, ACTIVITY_FORM_OPTIONS } from "@/lib/activity";
 import {
   getPersonalRecord,
   processTafAttempts,
@@ -41,19 +42,6 @@ interface EvolutionDashboardProps {
   trainings: TrainingSession[];
   goal: TafGoalConfig;
 }
-
-// Cores por modalidade para o Gráfico B
-const ACTIVITY_COLORS: Record<string, string> = {
-  corrida_continua: "#B7F34A", // verde-lima oficial
-  corrida_intervalada: "#f59e0b", // âmbar
-  caminhada: "#38bdf8", // azul-celeste
-};
-
-const ACTIVITY_LABELS: Record<string, string> = {
-  corrida_continua: "Corrida Contínua",
-  corrida_intervalada: "Intervalado / Tiros",
-  caminhada: "Caminhada",
-};
 
 export function EvolutionDashboard({
   attempts,
@@ -545,18 +533,15 @@ export function EvolutionDashboard({
 
           {/* Legenda de cores das modalidades */}
           <div className="mt-3 pt-3 border-t border-[#1E2942] flex items-center justify-center gap-3 flex-wrap text-[11px] font-semibold text-[#8E9BB0]">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#B7F34A]" /> Corrida
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Intervalado
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-sky-400" /> Caminhada
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> Simulado TAF
-            </span>
+            {ACTIVITY_FORM_OPTIONS.map((item) => (
+              <span key={item.type} className="flex items-center gap-1.5">
+                <span
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />{" "}
+                {item.shortLabel}
+              </span>
+            ))}
           </div>
         </div>
 

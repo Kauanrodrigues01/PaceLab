@@ -11,11 +11,21 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "postinstall": "prisma generate",
-    "db:check": "node --env-file=.env scripts/check-db.mjs"
+    "db:check": "node --env-file=.env scripts/check-db.mjs",
+    "gpx:inspect": "tsx scripts/gpx-inspect.mjs",
+    "gpx:test:synthetic": "tsx scripts/gpx-inspect.mjs --synthetic-suite",
+    "gpx:test:real": "tsx scripts/gpx-inspect.mjs --real-suite",
+    "gpx:gen-fixtures": "node scripts/gen-gpx-fixture.mjs --generate-all",
+    "fit:inspect": "tsx scripts/fit-inspect.mjs",
+    "fit:test:synthetic": "tsx scripts/fit-inspect.mjs --synthetic-suite",
+    "fit:test:real": "tsx scripts/fit-inspect.mjs --real-suite",
+    "fit:gen-fixtures": "node scripts/gen-fit-fixture.mjs --generate-all"
   },
   "dependencies": {
+    "@garmin/fitsdk": "^21.221.0",
     "@prisma/client": "^6.19.3",
     "@supabase/supabase-js": "^2.109.0",
+    "fast-xml-parser": "^5.12.1",
     "lucide-react": "^0.441.0",
     "next": "14.2.35",
     "next-themes": "^0.3.0",
@@ -41,6 +51,7 @@
     "postcss": "^8",
     "prisma": "^6.19.3",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^1.6.0"
   }

@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { tafService, DEFAULT_GOAL } from "@/lib/services/tafService";
+import {
+  tafService,
+  DEFAULT_GOAL,
+  TafApiError,
+} from "@/lib/services/tafService";
+import {
+  CreateTafAttemptSchema,
+  CreateTrainingSessionSchema,
+} from "@/lib/validations/taf";
 import { TafAttempt, TrainingSession } from "@/types";
 
 describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
@@ -468,6 +476,390 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
       const csvTrainings = tafService.exportTrainingsCsv([training]);
       expect(csvTrainings).toContain("Modalidade,Distancia_Km");
       expect(csvTrainings).toContain("corrida_continua,5.00");
+    });
+  });
+
+  describe("Parsing de Atividade (.FIT / .GPX — parseActivity & parseGpx)", () => {
+    it("envia FormData para POST /api/training-sessions/parse-activity sem definir Content-Type manual e desenvelopa resposta", async () => {
+      const mockPreview = {
+        source: "fit_upload",
+        filesUsed: ["fit", "gpx"],
+        name: "Treino Forte",
+        distanceKm: 5,
+        durationSeconds: 1500,
+        paceFormatted: "5:00",
+        alreadyExists: false,
+      };
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: mockPreview }),
+      });
+
+      const blobFit = new Blob(["fit-bytes"], { type: "application/octet-stream" });
+      const blobGpx = new Blob(["<gpx></gpx>"], { type: "application/gpx+xml" });
+
+      const result = await tafService.parseActivity([blobFit, blobGpx]);
+
+      expect(result).toEqual(mockPreview);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      const [calledUrl, calledInit] = vi.mocked(global.fetch).mock.calls[0];
+      expect(calledUrl).toBe("/api/training-sessions/parse-activity");
+      expect(calledInit?.method).toBe("POST");
+      expect(calledInit?.body).toBeInstanceOf(FormData);
+      expect(calledInit?.headers).toBeUndefined();
+    });
+
+    it("lança erro amigável quando parseGpx / parseActivity recebe status !ok (ex: 422)", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        json: async () => ({
+          success: false,
+          error: "Modalidade \"cycling\" não é suportada.",
+        }),
+      });
+
+      const blob = new Blob(["bad"], { type: "application/octet-stream" });
+      await expect(tafService.parseGpx(blob)).rejects.toThrow(
+        'Modalidade "cycling" não é suportada.'
+      );
+    });
+  });
+
+  describe("Backup v3, retrocompatibilidade, 409 Conflict e CSV seguro (Fase 10)", () => {
+    it("exporta backup v3 preservando origem FIT/GPX, externalId, telemetria, calorias e splits", () => {
+      const attempt: TafAttempt = {
+        id: "att-v3",
+        source: "fit_upload",
+        externalId: "fit_abc123",
+        testDate: "2026-11-10T07:00:00Z",
+        targetDurationSeconds: 720,
+        actualDurationSeconds: 720,
+        distanceMeters: 2650,
+        speedKmh: 13.25,
+        paceSeconds: 272,
+        paceFormatted: "4:32",
+        locationType: "pista_400m",
+        shoeName: "Nike Pegasus 41",
+        avgHeartRate: 171,
+        maxHeartRate: 186,
+        laps: [
+          {
+            lapNumber: 1,
+            distanceMeters: 400,
+            durationSeconds: 108,
+            paceFormatted: "4:30",
+          },
+        ],
+        createdAt: "2026-11-10T07:15:00Z",
+        updatedAt: "2026-11-10T07:15:00Z",
+      };
+
+      const training: TrainingSession = {
+        id: "tr-v3",
+        source: "gpx_upload",
+        externalId: "gpx_def456",
+        sessionDate: "2026-11-11T06:30:00Z",
+        activityType: "tempo_run",
+        distanceKm: 8.5,
+        durationSeconds: 2380,
+        elapsedSeconds: 2450,
+        speedKmh: 12.86,
+        paceSeconds: 280,
+        paceFormatted: "4:40",
+        avgHeartRate: 164,
+        maxHeartRate: 178,
+        avgCadence: 180,
+        elevationGainM: 42,
+        shoeName: "Olympikus Corre 4",
+        activeCalories: 580,
+        totalCalories: 640,
+        splits: [
+          {
+            kilometer: 1,
+            durationSeconds: 280,
+            paceFormatted: "4:40",
+            avgHeartRate: 158,
+            elevationDiffM: 6,
+          },
+        ],
+        createdAt: "2026-11-11T07:20:00Z",
+        updatedAt: "2026-11-11T07:20:00Z",
+      };
+
+      const jsonStr = tafService.exportBackupJson(DEFAULT_GOAL, [attempt], [training]);
+      const parsed = JSON.parse(jsonStr);
+
+      expect(parsed.version).toBe(3);
+      expect(parsed.appName).toBe("PaceLab");
+      expect(parsed.attempts[0].externalId).toBe("fit_abc123");
+      expect(parsed.attempts[0].laps).toHaveLength(1);
+      expect(parsed.trainings[0].source).toBe("gpx_upload");
+      expect(parsed.trainings[0].avgCadence).toBe(180);
+      expect(parsed.trainings[0].totalCalories).toBe(640);
+      expect(parsed.trainings[0].splits).toHaveLength(1);
+    });
+
+    it("importa backups legados v1/v2 normalizando campos ausentes sem perder registros", async () => {
+      const saveGoalSpy = vi.spyOn(tafService, "saveGoal").mockResolvedValue(DEFAULT_GOAL);
+      const saveAttemptSpy = vi
+        .spyOn(tafService, "saveAttempt")
+        .mockResolvedValue({} as TafAttempt);
+      const saveTrainingSpy = vi
+        .spyOn(tafService, "saveTraining")
+        .mockResolvedValue({} as TrainingSession);
+
+      const legacyBackup = JSON.stringify({
+        version: 1,
+        goal: DEFAULT_GOAL,
+        attempts: [
+          {
+            id: "att-v1",
+            testDate: "2025-05-01T08:00:00Z",
+            targetDurationSeconds: 720,
+            actualDurationSeconds: 720,
+            distanceMeters: 2200,
+          },
+        ],
+        trainings: [
+          {
+            id: "tr-v1",
+            sessionDate: "2025-05-02T08:00:00Z",
+            activityType: "corrida_continua",
+            distanceKm: 5,
+            durationSeconds: 1800,
+          },
+        ],
+      });
+
+      const res = await tafService.importBackupJson(legacyBackup);
+      expect(res.success).toBe(true);
+      expect(res.version).toBe(1);
+      expect(res.attemptsCount).toBe(1);
+      expect(res.trainingsCount).toBe(1);
+      expect(res.skippedCount).toBe(0);
+      expect(saveGoalSpy).toHaveBeenCalledTimes(1);
+      expect(saveAttemptSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "att-v1",
+          source: "manual",
+          externalId: null,
+          laps: [],
+        }),
+        false
+      );
+      expect(saveTrainingSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "tr-v1",
+          source: "manual",
+          externalId: null,
+          splits: [],
+        }),
+        false
+      );
+    });
+
+    it("tolera conflito 409 (externalId duplicado) e erros pontuais sem abortar nem inflar contagem", async () => {
+      vi.spyOn(tafService, "saveGoal").mockResolvedValue(DEFAULT_GOAL);
+      vi.spyOn(tafService, "saveAttempt")
+        .mockRejectedValueOnce(new TafApiError("Esta atividade já foi importada", 409))
+        .mockResolvedValueOnce({} as TafAttempt);
+      vi.spyOn(tafService, "saveTraining")
+        .mockRejectedValueOnce(new Error("Erro 500 transitório"))
+        .mockResolvedValueOnce({} as TrainingSession);
+
+      const v3Backup = JSON.stringify({
+        version: 3,
+        appName: "PaceLab",
+        attempts: [
+          {
+            id: "att-dup",
+            source: "fit_upload",
+            externalId: "fit_dup_1",
+            distanceMeters: 2500,
+            actualDurationSeconds: 720,
+          },
+          {
+            id: "att-ok",
+            source: "manual",
+            distanceMeters: 2450,
+            actualDurationSeconds: 720,
+          },
+        ],
+        trainings: [
+          {
+            id: "tr-fail",
+            source: "gpx_upload",
+            externalId: "gpx_1",
+            distanceKm: 4,
+            durationSeconds: 1200,
+          },
+          {
+            id: "tr-ok",
+            source: "gpx_upload",
+            externalId: "gpx_2",
+            distanceKm: 6,
+            durationSeconds: 1800,
+          },
+        ],
+      });
+
+      const res = await tafService.importBackupJson(v3Backup);
+      expect(res.success).toBe(true);
+      expect(res.attemptsCount).toBe(1);
+      expect(res.trainingsCount).toBe(1);
+      expect(res.skippedCount).toBe(1);
+      expect(res.failedCount).toBe(1);
+    });
+
+    it("rejeita JSON array ou objeto sem estrutura PaceLab", async () => {
+      const arrayRes = await tafService.importBackupJson("[1, 2, 3]");
+      expect(arrayRes.success).toBe(false);
+
+      const emptyObjRes = await tafService.importBackupJson('{"foo":"bar"}');
+      expect(emptyObjRes.success).toBe(false);
+    });
+
+    it("exporta CSV com novas colunas após colunas legadas e neutraliza CSV Formula Injection", () => {
+      const attempts: TafAttempt[] = [
+        {
+          id: "att-sec",
+          source: "fit_upload",
+          externalId: "=IMPORTXML(\"http://evil\")",
+          testDate: "2026-11-10T07:00:00Z",
+          targetDurationSeconds: 720,
+          actualDurationSeconds: 720,
+          distanceMeters: 2600,
+          speedKmh: 13.0,
+          paceSeconds: 277,
+          paceFormatted: "4:37",
+          locationType: "pista_400m",
+          shoeName: "+cmd|'/C calc'!A0",
+          avgHeartRate: 170,
+          maxHeartRate: 184,
+          notes: "@SUM(1+1)*cmd\nsegunda linha",
+          laps: [{ lapNumber: 1, distanceMeters: 400, durationSeconds: 110 }],
+          createdAt: "2026-11-10T07:15:00Z",
+          updatedAt: "2026-11-10T07:15:00Z",
+        },
+      ];
+
+      const trainings: TrainingSession[] = [
+        {
+          id: "tr-sec",
+          source: "gpx_upload",
+          externalId: "gpx_safe_1",
+          sessionDate: "2026-11-11T06:00:00Z",
+          activityType: "corrida_continua",
+          distanceKm: 10,
+          durationSeconds: 3000,
+          elapsedSeconds: 3120,
+          speedKmh: 12.0,
+          paceSeconds: 300,
+          paceFormatted: "5:00",
+          avgHeartRate: 162,
+          maxHeartRate: 175,
+          avgCadence: 178,
+          elevationGainM: 85,
+          shoeName: "-1+1",
+          perceivedEffort: 7,
+          bodyWeightKg: 74,
+          notes: "=HYPERLINK(\"http://evil\",\"clique\")",
+          activeCalories: 610,
+          totalCalories: 700,
+          createdAt: "2026-11-11T07:00:00Z",
+          updatedAt: "2026-11-11T07:00:00Z",
+        },
+      ];
+
+      const csvAttempts = tafService.exportAttemptsCsv(attempts);
+      const [attHeader, attRow] = csvAttempts.split("\n");
+      expect(attHeader).toBe(
+        "ID,Data,Duracao_Segundos,Distancia_Metros,Pace_Formatado,Velocidade_Kmh,Local,Notas,Origem,ID_Externo,Tenis,FC_Media_Bpm,FC_Max_Bpm,Voltas_400m"
+      );
+      expect(attRow).toContain(`"'@SUM(1+1)*cmd segunda linha"`);
+      expect(attRow).toContain(`"'=IMPORTXML(""http://evil"")"`);
+      expect(attRow).toContain(`"'+cmd|'/C calc'!A0"`);
+      expect(attRow).toContain(",fit_upload,");
+      expect(attRow).toContain(",170,184,1");
+
+      const csvTrainings = tafService.exportTrainingsCsv(trainings);
+      const [trHeader, trRow] = csvTrainings.split("\n");
+      expect(trHeader).toBe(
+        "ID,Data,Modalidade,Distancia_Km,Duracao_Segundos,Pace_Formatado,Velocidade_Kmh,RPE_Esforco,Peso_Kg,Notas,Origem,ID_Externo,Tempo_Decorrido_Segundos,FC_Media_Bpm,FC_Max_Bpm,Cadencia_Media_Spm,Ganho_Elevacao_M,Tenis,Calorias_Ativas,Calorias_Totais"
+      );
+      expect(trRow).toContain(`"'=HYPERLINK(""http://evil"",""clique"")"`);
+      expect(trRow).toContain(`"'-1+1"`);
+      expect(trRow).toContain(",gpx_upload,\"gpx_safe_1\",3120,162,175,178,85,");
+      expect(trRow).toContain(",610,700");
+
+      // Verifica proteção adicional contra espaços iniciais antes de fórmula
+      const csvSpaceFormula = tafService.exportTrainingsCsv([
+        {
+          ...trainings[0],
+          shoeName: "  =CMD()",
+          notes: "\t@SUM(A1:A2)",
+        },
+      ]);
+      expect(csvSpaceFormula).toContain(`"'  =CMD()"`);
+      expect(csvSpaceFormula).toContain(`"'\t@SUM(A1:A2)"`);
+    });
+
+    it("normaliza backups v1/v3 sujos para passarem 100% pelos schemas Zod reais das rotas POST", async () => {
+      vi.spyOn(tafService, "saveGoal").mockResolvedValue(DEFAULT_GOAL);
+
+      const attemptSpy = vi
+        .spyOn(tafService, "saveAttempt")
+        .mockImplementation(async (payload) => {
+          const parsed = CreateTafAttemptSchema.parse(payload);
+          return { ...payload, ...parsed } as unknown as TafAttempt;
+        });
+
+      const trainingSpy = vi
+        .spyOn(tafService, "saveTraining")
+        .mockImplementation(async (payload) => {
+          const parsed = CreateTrainingSessionSchema.parse(payload);
+          return { ...payload, ...parsed } as unknown as TrainingSession;
+        });
+
+      const dirtyLegacyJson = JSON.stringify({
+        version: 1,
+        attempts: [
+          {
+            id: "att-dirty-v1",
+            testDate: "data-corrompida",
+            distanceMeters: 2450.4,
+            actualDurationSeconds: 720.2,
+            locationType: "",
+            avgHeartRate: 0,
+            maxHeartRate: 0,
+          },
+        ],
+        trainings: [
+          {
+            id: "tr-dirty-v1",
+            sessionDate: "",
+            activityType: "modalidade_extinta",
+            distanceKm: 6.25,
+            durationSeconds: 1800,
+            elapsedSeconds: 1200, // menor que durationSeconds -> sanitizado
+            avgHeartRate: 168,
+            maxHeartRate: 150, // menor que avgHeartRate -> corrigido
+            avgCadence: 0, // zero legado -> null
+            activeCalories: 0, // zero -> null
+            totalCalories: null,
+          },
+        ],
+      });
+
+      const res = await tafService.importBackupJson(dirtyLegacyJson);
+      expect(res.success).toBe(true);
+      expect(res.attemptsCount).toBe(1);
+      expect(res.trainingsCount).toBe(1);
+      expect(res.failedCount).toBe(0);
+      expect(attemptSpy).toHaveBeenCalledTimes(1);
+      expect(trainingSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

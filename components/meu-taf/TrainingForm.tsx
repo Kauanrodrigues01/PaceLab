@@ -2,20 +2,25 @@
 
 import React, { useState, useEffect } from "react";
 import { TrainingSession, ActivityType, SplitDetail } from "@/types";
+import { ACTIVITY_FORM_OPTIONS } from "@/lib/activity";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import { formatPace } from "@/lib/formatting/time";
-import { estimateTrainingCalories } from "@/lib/math/calories";
+import { estimateTrainingCalories, buildCaloriePayload } from "@/lib/math/calories";
 import { profileService } from "@/lib/services/profileService";
 import {
   Flame,
-  Zap,
-  Footprints,
   Activity,
   Plus,
   AlertCircle,
   X,
   Scale,
+  ChevronDown,
+  ChevronUp,
+  Heart,
+  Mountain,
+  Footprints,
 } from "lucide-react";
+import { SOURCE_LABELS } from "@/types";
 
 interface TrainingFormProps {
   editingTraining?: TrainingSession | null;
@@ -23,11 +28,7 @@ interface TrainingFormProps {
   onCancelEdit?: () => void;
 }
 
-const ACTIVITIES: { type: ActivityType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { type: "corrida_continua", label: "Corrida Contínua", icon: Flame },
-  { type: "corrida_intervalada", label: "Intervalado / Tiros", icon: Zap },
-  { type: "caminhada", label: "Caminhada", icon: Footprints },
-];
+const ACTIVITIES = ACTIVITY_FORM_OPTIONS;
 
 const DISTANCE_SHORTCUTS_KM = [2.3, 3.0, 5.0, 8.0, 10.0, 15.0, 21.1];
 
@@ -66,11 +67,22 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
   const [enableSplits, setEnableSplits] = useState(false);
   const [splits, setSplits] = useState<SplitDetail[]>([]);
 
+  // Dados Avançados / Telemetria Opcional (fechado por padrão — 7.A.1)
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [shoeName, setShoeName] = useState("");
+  const [avgHeartRateInput, setAvgHeartRateInput] = useState("");
+  const [maxHeartRateInput, setMaxHeartRateInput] = useState("");
+  const [elevationGainInput, setElevationGainInput] = useState("");
+  const [avgCadenceInput, setAvgCadenceInput] = useState("");
+  const [elapsedSecondsInput, setElapsedSecondsInput] = useState("");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Carrega dados se estiver editando
   useEffect(() => {
+    let mounted = true;
+
     if (editingTraining) {
       const d = new Date(editingTraining.sessionDate);
       const offset = d.getTimezoneOffset() * 60000;
@@ -97,6 +109,32 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       );
 
       setNotes(editingTraining.notes || "");
+      setShoeName(editingTraining.shoeName || "");
+      setAvgHeartRateInput(
+        editingTraining.avgHeartRate !== undefined && editingTraining.avgHeartRate !== null
+          ? String(editingTraining.avgHeartRate)
+          : ""
+      );
+      setMaxHeartRateInput(
+        editingTraining.maxHeartRate !== undefined && editingTraining.maxHeartRate !== null
+          ? String(editingTraining.maxHeartRate)
+          : ""
+      );
+      setElevationGainInput(
+        editingTraining.elevationGainM !== undefined && editingTraining.elevationGainM !== null
+          ? String(editingTraining.elevationGainM)
+          : ""
+      );
+      setAvgCadenceInput(
+        editingTraining.avgCadence !== undefined && editingTraining.avgCadence !== null
+          ? String(editingTraining.avgCadence)
+          : ""
+      );
+      setElapsedSecondsInput(
+        editingTraining.elapsedSeconds !== undefined && editingTraining.elapsedSeconds !== null
+          ? String(editingTraining.elapsedSeconds)
+          : ""
+      );
 
       if (editingTraining.splits && editingTraining.splits.length > 0) {
         setEnableSplits(true);
@@ -114,11 +152,19 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       setSecondsInput("30");
       setPerceivedEffort(6);
       setNotes("");
+      setShoeName("");
+      setAvgHeartRateInput("");
+      setMaxHeartRateInput("");
+      setElevationGainInput("");
+      setAvgCadenceInput("");
+      setElapsedSecondsInput("");
+      setShowAdvanced(false);
       setEnableSplits(false);
       setSplits([]);
       profileService
         .getProfile()
         .then((prof) => {
+          if (!mounted) return;
           if (prof?.currentWeightKg) {
             setBodyWeightKg(String(prof.currentWeightKg));
           } else {
@@ -126,9 +172,14 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
           }
         })
         .catch(() => {
+          if (!mounted) return;
           setBodyWeightKg("");
         });
     }
+
+    return () => {
+      mounted = false;
+    };
   }, [editingTraining]);
 
   // Conversão segura de inputs para cálculo em tempo real
@@ -217,15 +268,18 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
 
   const handleSplitDurationChange = (index: number, newSec: number) => {
     setSplits((prev) =>
-      prev.map((s, i) =>
-        i === index
-          ? {
-              ...s,
-              durationSeconds: Math.max(1, newSec),
-              paceFormatted: formatPace(Math.max(1, newSec)),
-            }
-          : s
-      )
+      prev.map((s, i) => {
+        if (i !== index) return s;
+        const safeDur = Math.max(1, newSec);
+        const splitDist = s.distanceKm && s.distanceKm > 0 ? s.distanceKm : 1;
+        const paceSec = Math.round(safeDur / splitDist);
+        return {
+          ...s,
+          durationSeconds: safeDur,
+          paceSeconds: paceSec,
+          paceFormatted: formatPace(paceSec),
+        };
+      })
     );
   };
 
@@ -259,31 +313,72 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
     setIsSubmitting(true);
 
     try {
+      const parseOptionalInt = (raw: string): number | null => {
+        const s = raw.trim();
+        if (!s) return null;
+        const n = parseInt(s, 10);
+        return Number.isFinite(n) && n > 0 ? n : null;
+      };
+
+      const parseOptionalFloat = (raw: string): number | null => {
+        const s = raw.trim().replace(",", ".");
+        if (!s) return null;
+        const n = parseFloat(s);
+        return Number.isFinite(n) && n >= 0 ? Number(n.toFixed(1)) : null;
+      };
+
+      const avgHeartRate = parseOptionalInt(avgHeartRateInput);
+      const maxHeartRate = parseOptionalInt(maxHeartRateInput);
+      const elevationGainM = parseOptionalFloat(elevationGainInput);
+      const avgCadence = parseOptionalInt(avgCadenceInput);
+      const elapsedSeconds = parseOptionalInt(elapsedSecondsInput);
+
       const sessionToSave: TrainingSession = {
         id: editingTraining ? editingTraining.id : `trn_${Date.now()}`,
+        ...(editingTraining?.source ? { source: editingTraining.source } : {}),
+        ...(editingTraining?.externalId ? { externalId: editingTraining.externalId } : {}),
         sessionDate: new Date(sessionDate).toISOString(),
         activityType,
         distanceKm: Number(finalDistanceKm.toFixed(3)),
         durationSeconds: totalDurationSeconds,
+        elapsedSeconds:
+          elapsedSeconds !== null
+            ? Math.max(totalDurationSeconds, elapsedSeconds)
+            : editingTraining?.elapsedSeconds ?? null,
         speedKmh: Number(liveSpeedKmh.toFixed(2)),
         paceSeconds: Math.round(livePaceSeconds),
         paceFormatted: livePaceFormatted,
+        avgHeartRate,
+        maxHeartRate:
+          avgHeartRate !== null && maxHeartRate !== null
+            ? Math.max(avgHeartRate, maxHeartRate)
+            : maxHeartRate,
+        elevationGainM,
+        avgCadence,
+        shoeName: shoeName.trim() || null,
         perceivedEffort: perceivedEffort,
         bodyWeightKg: parsedWeight,
         notes: notes.trim() || null,
-        splits: enableSplits && splits.length > 0 ? splits : [],
-        activeCalories: calorieEstimate ? calorieEstimate.activeCalories : null,
-        totalCalories: calorieEstimate ? calorieEstimate.totalCalories : null,
-        metValue: calorieEstimate ? calorieEstimate.metValue : null,
-        calorieMethod: calorieEstimate ? calorieEstimate.method : null,
-        calorieSource: calorieEstimate ? "auto_calculated" : null,
-        calorieMetadata: calorieEstimate
+        splits:
+          enableSplits && splits.length > 0
+            ? splits
+            : editingTraining?.splits && editingTraining.splits.length > 0
+              ? editingTraining.splits
+              : [],
+        ...(!calorieEstimate &&
+        editingTraining?.calorieSource === "device_fit" &&
+        editingTraining.activeCalories != null
           ? {
-              compendiumCode: calorieEstimate.compendiumCode,
-              activityDescription: calorieEstimate.compendiumDescription,
-              version: calorieEstimate.version,
+              activeCalories: editingTraining.activeCalories,
+              totalCalories:
+                editingTraining.totalCalories ?? editingTraining.activeCalories,
+              metValue: editingTraining.metValue ?? null,
+              calorieMethod:
+                editingTraining.calorieMethod ?? "garmin_fit_device",
+              calorieSource: editingTraining.calorieSource,
+              calorieMetadata: editingTraining.calorieMetadata ?? null,
             }
-          : null,
+          : buildCaloriePayload(calorieEstimate)),
         createdAt: editingTraining ? editingTraining.createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -352,7 +447,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
         <label className="block text-xs font-bold text-[#8E9BB0] mb-2">
           Tipo de Atividade
         </label>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {ACTIVITIES.map((act) => {
             const Icon = act.icon;
             const isSelected = activityType === act.type;
@@ -739,7 +834,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
                     <input
                       type="number"
                       min="1"
-                      max="1200"
+                      max="7200"
                       value={s.durationSeconds}
                       onChange={(e) =>
                         handleSplitDurationChange(idx, Number(e.target.value))
@@ -767,6 +862,145 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
           placeholder="Ex: Treino progressivo na Beira-Mar, hidratação no km 4, tênis de amortecimento, pernas leves."
           className="w-full p-3 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] resize-none"
         />
+      </div>
+
+      {/* Seção Expansível: Dados Avançados / Telemetria (Fechada por padrão — 7.A.1) */}
+      <div className="mb-5 border border-[#1E2942] rounded-2xl p-4 bg-[#0B1020]/60">
+        <button
+          type="button"
+          data-testid="toggle-advanced-telemetry"
+          onClick={() => setShowAdvanced((prev) => !prev)}
+          className="w-full flex items-center justify-between text-xs font-bold text-white hover:text-[#B7F34A] transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <Heart className="w-4 h-4 text-rose-400" />
+            Dados Avançados / Telemetria (Opcional)
+          </span>
+          {showAdvanced ? (
+            <ChevronUp className="w-4 h-4 text-[#8E9BB0]" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-[#8E9BB0]" />
+          )}
+        </button>
+
+        {showAdvanced && (
+          <div
+            data-testid="advanced-telemetry-panel"
+            className="mt-4 pt-3 border-t border-[#1E2942] space-y-4"
+          >
+            {editingTraining?.source && editingTraining.source !== "manual" && (
+              <div className="flex flex-wrap items-center gap-2 text-xs bg-[#131A2E] border border-[#1E2942] p-2.5 rounded-xl">
+                <span className="text-[#8E9BB0] font-semibold">Origem (somente leitura):</span>
+                <span className="font-bold text-[#B7F34A]">
+                  {SOURCE_LABELS[editingTraining.source]}
+                </span>
+                {editingTraining.externalId && (
+                  <span className="text-[11px] font-mono text-[#8E9BB0]">
+                    ({editingTraining.externalId.slice(0, 18)}...)
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-[#8E9BB0] mb-1 flex items-center gap-1">
+                  <Footprints className="w-3.5 h-3.5 text-[#B7F34A]" />
+                  Tênis Utilizado
+                </label>
+                <input
+                  type="text"
+                  data-testid="advanced-shoe-input"
+                  placeholder="Ex: Olympikus Corre 3"
+                  value={shoeName}
+                  onChange={(e) => setShoeName(e.target.value)}
+                  className="w-full h-10 px-3 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#8E9BB0] mb-1">
+                  FC Média (bpm)
+                </label>
+                <input
+                  type="number"
+                  min="30"
+                  max="250"
+                  data-testid="advanced-avg-hr-input"
+                  placeholder="Ex: 158"
+                  value={avgHeartRateInput}
+                  onChange={(e) => setAvgHeartRateInput(e.target.value)}
+                  className="w-full h-10 px-3 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#8E9BB0] mb-1">
+                  FC Máxima (bpm)
+                </label>
+                <input
+                  type="number"
+                  min="30"
+                  max="250"
+                  data-testid="advanced-max-hr-input"
+                  placeholder="Ex: 178"
+                  value={maxHeartRateInput}
+                  onChange={(e) => setMaxHeartRateInput(e.target.value)}
+                  className="w-full h-10 px-3 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#8E9BB0] mb-1 flex items-center gap-1">
+                  <Mountain className="w-3.5 h-3.5 text-emerald-400" />
+                  Ganho de Elevação D+ (m)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="10000"
+                  step="0.1"
+                  data-testid="advanced-elevation-input"
+                  placeholder="Ex: 35"
+                  value={elevationGainInput}
+                  onChange={(e) => setElevationGainInput(e.target.value)}
+                  className="w-full h-10 px-3 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#8E9BB0] mb-1">
+                  Cadência Média (spm)
+                </label>
+                <input
+                  type="number"
+                  min="30"
+                  max="300"
+                  data-testid="advanced-cadence-input"
+                  placeholder="Ex: 174"
+                  value={avgCadenceInput}
+                  onChange={(e) => setAvgCadenceInput(e.target.value)}
+                  className="w-full h-10 px-3 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#8E9BB0] mb-1">
+                  Tempo Decorrido Total (seg)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  data-testid="advanced-elapsed-input"
+                  placeholder="Ex: 1620"
+                  value={elapsedSecondsInput}
+                  onChange={(e) => setElapsedSecondsInput(e.target.value)}
+                  className="w-full h-10 px-3 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A]"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Botão de Envio */}

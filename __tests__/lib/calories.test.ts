@@ -4,6 +4,7 @@ import {
   calcCalories,
   estimateTrainingCalories,
   calcIntervalCalories,
+  buildCaloriePayload,
   COMPENDIUM_REST_NODE,
 } from "@/lib/math/calories";
 import { IntervalSession } from "@/types";
@@ -219,6 +220,76 @@ describe("Motor Matemático de Calorias — Compêndio de 2024 (Fase 1)", () => 
 
       const zeroWeight = calcIntervalCalories(emptySession, 0);
       expect(zeroWeight.totalCalories).toBe(0);
+    });
+  });
+
+  describe("Novas Modalidades de Corrida (Fase 2) & buildCaloriePayload (D8)", () => {
+    it("aplica a tabela de corrida do Compêndio 2024 para rodagem_leve, tempo_run e longao", () => {
+      const refContinua = estimateTrainingCalories({
+        activityType: "corrida_continua",
+        speedKmh: 12.0,
+        durationSeconds: 1800,
+        weightKg: 75,
+      });
+
+      for (const runType of ["rodagem_leve", "tempo_run", "longao"] as const) {
+        const res = estimateTrainingCalories({
+          activityType: runType,
+          speedKmh: 12.0,
+          durationSeconds: 1800,
+          weightKg: 75,
+        });
+        expect(res.metValue).toBe(refContinua.metValue);
+        expect(res.activeCalories).toBe(refContinua.activeCalories);
+        expect(res.totalCalories).toBe(refContinua.totalCalories);
+        expect(res.compendiumCode).toBe(refContinua.compendiumCode);
+      }
+
+      const walk = estimateTrainingCalories({
+        activityType: "caminhada",
+        speedKmh: 6.0,
+        durationSeconds: 1800,
+        weightKg: 75,
+      });
+      const lightRun = estimateTrainingCalories({
+        activityType: "rodagem_leve",
+        speedKmh: 6.0,
+        durationSeconds: 1800,
+        weightKg: 75,
+      });
+      expect(lightRun.metValue).toBeGreaterThan(walk.metValue);
+    });
+
+    it("buildCaloriePayload gera payload idêntico para formulário manual e import GPX (e nulos quando sem peso)", () => {
+      expect(buildCaloriePayload(null)).toEqual({
+        activeCalories: null,
+        totalCalories: null,
+        metValue: null,
+        calorieMethod: null,
+        calorieSource: null,
+        calorieMetadata: null,
+      });
+
+      const estimate = estimateTrainingCalories({
+        activityType: "tempo_run",
+        speedKmh: 12.9,
+        durationSeconds: 1500,
+        weightKg: 72,
+      });
+      const payload = buildCaloriePayload(estimate);
+
+      expect(payload).toEqual({
+        activeCalories: estimate.activeCalories,
+        totalCalories: estimate.totalCalories,
+        metValue: estimate.metValue,
+        calorieMethod: "compendium_2024_met",
+        calorieSource: "auto_calculated",
+        calorieMetadata: {
+          compendiumCode: estimate.compendiumCode,
+          activityDescription: estimate.compendiumDescription,
+          version: "2024.1",
+        },
+      });
     });
   });
 });

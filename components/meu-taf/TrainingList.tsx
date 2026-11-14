@@ -1,8 +1,15 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { TrainingSession, ActivityType, ACTIVITY_LABELS } from "@/types";
+import {
+  TrainingSession,
+  ActivityType,
+  ActivitySource,
+  ACTIVITY_TYPES,
+  ACTIVITY_LABELS,
+} from "@/types";
 import { TrainingCard } from "./TrainingCard";
+import { TrainingDetailModal } from "../treinos/TrainingDetailModal";
 import { formatPace, formatTime } from "@/lib/formatting/time";
 import { parseSafeDate } from "@/lib/math/evolution";
 import {
@@ -34,21 +41,32 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [activityFilter, setActivityFilter] = useState<"all" | ActivityType>("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | ActivitySource>("all");
   const [rpeFilter, setRpeFilter] = useState<RpeFilter>("all");
   const [sortOption, setSortOption] = useState<SortOption>("date-desc");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTrainingForDetails, setSelectedTrainingForDetails] =
+    useState<TrainingSession | null>(null);
 
-  // Aplica filtros de modalidade, data, sessões, RPE, busca e ordenação
+  // Aplica filtros de modalidade, origem, data, sessões, RPE, busca e ordenação
   const filteredTrainings = useMemo(() => {
     const now = new Date();
     const nowTime = now.getTime();
     const query = searchQuery.toLowerCase().trim();
 
-    // 1. Filtros básicos de atributos: Modalidade, RPE e Busca Textual
+    // 1. Filtros básicos de atributos: Modalidade, Origem, RPE e Busca Textual
     let list = trainings.filter((t) => {
       // Modalidade
       if (activityFilter !== "all" && t.activityType !== activityFilter) {
         return false;
+      }
+
+      // Origem (Manual / FIT / GPX)
+      if (sourceFilter !== "all") {
+        const currentSource: ActivitySource = t.source ?? "manual";
+        if (currentSource !== sourceFilter) {
+          return false;
+        }
       }
 
       // Intensidade (RPE)
@@ -60,12 +78,13 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
         if (rpeFilter === "maximo" && (rpe < 9 || rpe > 10)) return false;
       }
 
-      // Busca textual (notas, modalidade ou rpe)
+      // Busca textual (notas, tênis, modalidade ou rpe)
       if (query) {
         const notesMatch = t.notes?.toLowerCase().includes(query) ?? false;
+        const shoeMatch = t.shoeName?.toLowerCase().includes(query) ?? false;
         const activityMatch = ACTIVITY_LABELS[t.activityType]?.toLowerCase().includes(query) ?? false;
         const rpeMatch = t.perceivedEffort ? `rpe ${t.perceivedEffort}`.includes(query) : false;
-        if (!notesMatch && !activityMatch && !rpeMatch) {
+        if (!notesMatch && !shoeMatch && !activityMatch && !rpeMatch) {
           return false;
         }
       }
@@ -144,6 +163,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
   }, [
     trainings,
     activityFilter,
+    sourceFilter,
     rpeFilter,
     searchQuery,
     filterMode,
@@ -161,11 +181,12 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
       filterMode === "sessions" ||
       filterMode === "custom" ||
       activityFilter !== "all" ||
+      sourceFilter !== "all" ||
       rpeFilter !== "all" ||
       sortOption !== "date-desc" ||
       searchQuery.trim().length > 0
     );
-  }, [filterMode, periodFilter, activityFilter, rpeFilter, sortOption, searchQuery]);
+  }, [filterMode, periodFilter, activityFilter, sourceFilter, rpeFilter, sortOption, searchQuery]);
 
   // Reset geral dos filtros
   const handleResetFilters = () => {
@@ -175,6 +196,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
     setStartDate("");
     setEndDate("");
     setActivityFilter("all");
+    setSourceFilter("all");
     setRpeFilter("all");
     setSortOption("date-desc");
     setSearchQuery("");
@@ -428,9 +450,11 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
               className="h-9 px-3 text-xs font-semibold rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-hidden focus:border-[#B7F34A] w-full sm:w-auto"
             >
               <option value="all">Todas as Modalidades</option>
-              <option value="corrida_continua">Corrida Contínua</option>
-              <option value="corrida_intervalada">Intervalado / Tiros</option>
-              <option value="caminhada">Caminhada</option>
+              {ACTIVITY_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {ACTIVITY_LABELS[type]}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -537,7 +561,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             <Search className="w-3.5 h-3.5 text-[#8E9BB0] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Buscar por notas..."
+              placeholder="Buscar por notas ou tênis..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-8 pr-7 h-9 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white placeholder-[#8E9BB0] focus:outline-hidden focus:border-[#B7F34A] font-medium"
@@ -552,6 +576,64 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
               </button>
             )}
           </div>
+        </div>
+
+        {/* Linha 4: Filtro Rápido por Origem (Manual / Strava FIT / Strava GPX) */}
+        <div
+          data-testid="list-filter-source"
+          className="flex items-center gap-1 p-1 bg-[#0B1020] rounded-xl border border-[#1E2942] overflow-x-auto text-[11px] w-fit max-w-full"
+        >
+          <span className="text-[#8E9BB0] text-[10px] font-bold px-1.5 uppercase shrink-0">
+            Origem:
+          </span>
+          <button
+            type="button"
+            data-testid="filter-source-all"
+            onClick={() => setSourceFilter("all")}
+            className={`px-2 py-0.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
+              sourceFilter === "all"
+                ? "bg-[#B7F34A] text-[#0B1020]"
+                : "text-[#8E9BB0] hover:text-white"
+            }`}
+          >
+            Qualquer origem
+          </button>
+          <button
+            type="button"
+            data-testid="filter-source-manual"
+            onClick={() => setSourceFilter("manual")}
+            className={`px-2 py-0.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
+              sourceFilter === "manual"
+                ? "bg-[#B7F34A] text-[#0B1020]"
+                : "text-[#8E9BB0] hover:text-white"
+            }`}
+          >
+            Manual
+          </button>
+          <button
+            type="button"
+            data-testid="filter-source-fit"
+            onClick={() => setSourceFilter("fit_upload")}
+            className={`px-2 py-0.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
+              sourceFilter === "fit_upload"
+                ? "bg-orange-500 text-white"
+                : "text-[#8E9BB0] hover:text-white"
+            }`}
+          >
+            Strava FIT
+          </button>
+          <button
+            type="button"
+            data-testid="filter-source-gpx"
+            onClick={() => setSourceFilter("gpx_upload")}
+            className={`px-2 py-0.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
+              sourceFilter === "gpx_upload"
+                ? "bg-orange-500 text-white"
+                : "text-[#8E9BB0] hover:text-white"
+            }`}
+          >
+            Strava GPX
+          </button>
         </div>
 
         {/* Resumo Rápido de Volume Acumulado do Filtro */}
@@ -631,10 +713,21 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
               training={session}
               onEdit={onEdit}
               onDelete={onDelete}
+              onViewDetails={(t) => setSelectedTrainingForDetails(t)}
             />
           ))}
         </div>
       )}
+
+      <TrainingDetailModal
+        training={selectedTrainingForDetails}
+        isOpen={Boolean(selectedTrainingForDetails)}
+        onClose={() => setSelectedTrainingForDetails(null)}
+        onEdit={(t) => {
+          setSelectedTrainingForDetails(null);
+          onEdit(t);
+        }}
+      />
     </div>
   );
 }
