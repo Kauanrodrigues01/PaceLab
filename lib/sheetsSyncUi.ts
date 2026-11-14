@@ -1,5 +1,6 @@
 import type {
   ActivitySource,
+  BatchImportSummary,
   TafAttempt,
   TrainingSession,
 } from "@/types";
@@ -14,6 +15,29 @@ export interface SheetsSyncBadgeInfo {
 
 const SHEETS_NOT_CONFIGURED_MESSAGE =
   "Integração com Google Sheets não configurada neste ambiente. Defina GOOGLE_SHEETS_SPREADSHEET_ID e GOOGLE_CREDENTIALS_BASE64 no .env conforme o README.md.";
+
+let clientRecordFallbackSeq = 0;
+
+/**
+ * Gera um identificador único no cliente (`trn_...`, `att_...` ou `grp_...`) resistente a colisões
+ * em salvamentos consecutivos ou em lote no mesmo milissegundo.
+ */
+export function generateClientRecordId(prefix: "trn" | "att" | "grp"): string {
+  const randomUuid =
+    typeof globalThis !== "undefined" &&
+    globalThis.crypto &&
+    typeof globalThis.crypto.randomUUID === "function"
+      ? globalThis.crypto.randomUUID()
+      : null;
+
+  if (randomUuid) {
+    return `${prefix}_${randomUuid}`;
+  }
+
+  clientRecordFallbackSeq = (clientRecordFallbackSeq + 1) % 1_000_000;
+  const randomPart = Math.random().toString(36).slice(2, 10).padEnd(4, "0");
+  return `${prefix}_${Date.now()}_${clientRecordFallbackSeq}_${randomPart}`;
+}
 
 /**
  * Formata o rótulo e o tooltip de status de sincronização para um card individual.
@@ -148,11 +172,10 @@ export function buildMirroredTrainingFromAttempt(params: {
     calorieMetadata = null,
   } = params;
 
-  const uniqueSuffix = Math.random().toString(36).slice(2, 6);
   const nowIso = new Date().toISOString();
 
   return {
-    id: `trn_${Date.now()}_${uniqueSuffix}`,
+    id: generateClientRecordId("trn"),
     source,
     externalId,
     sessionDate: attempt.testDate,
@@ -206,4 +229,74 @@ export function clearCrossPageSheetsCaches(
       // Ignorado defensivamente
     }
   }
+}
+
+/**
+ * Formata a mensagem e severidade de toast único após importação em massa de treinos/simulados.
+ */
+export function formatBatchImportToast(summary: BatchImportSummary): {
+  message: string;
+  type: "success" | "error";
+} {
+  const targetLabel =
+    summary.target === "training" ? "treino(s)" : "simulado(s) TAF";
+  const parts: string[] = [];
+
+  if (summary.savedCount > 0) {
+    parts.push(`${summary.savedCount} novo(s)`);
+  }
+  if (summary.updatedCount > 0) {
+    parts.push(`${summary.updatedCount} atualizado(s)`);
+  }
+  if (summary.skippedCount > 0) {
+    parts.push(`${summary.skippedCount} pulado(s)`);
+  }
+  if (summary.mirroredCount > 0) {
+    parts.push(`${summary.mirroredCount} espelhado(s) no Diário`);
+  }
+
+  const baseCountText =
+    parts.length > 0
+      ? `${parts.join(", ")} (${targetLabel})`
+      : `${summary.totalItems} ${targetLabel} processado(s)`;
+
+  if (summary.failedCount > 0) {
+    return {
+      type: "error",
+      message: `Lote concluído com ${summary.failedCount} falha(s): ${baseCountText}. Revise os itens em vermelho e tente novamente.`,
+    };
+  }
+
+  if (summary.aborted) {
+    return {
+      type: "error",
+      message: `Importação em massa interrompida: ${baseCountText}.`,
+    };
+  }
+
+  if (summary.mirrorFailedCount > 0) {
+    return {
+      type: "error",
+      message: `${baseCountText}, mas ${summary.mirrorFailedCount} espelho(s) no Diário falharam.`,
+    };
+  }
+
+  if (summary.sheetsSyncWarning) {
+    return {
+      type: "error",
+      message: `${baseCountText} salvos no banco, mas o envio para o Google Sheets falhou: ${summary.sheetsSyncWarning}`,
+    };
+  }
+
+  if (summary.sheetsSynced) {
+    return {
+      type: "success",
+      message: `Lote importado: ${baseCountText} • Google Sheets sincronizado!`,
+    };
+  }
+
+  return {
+    type: "success",
+    message: `Lote importado: ${baseCountText}.`,
+  };
 }

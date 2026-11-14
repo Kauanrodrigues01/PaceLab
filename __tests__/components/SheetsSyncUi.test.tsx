@@ -20,6 +20,7 @@ import { tafService, TafApiError, DEFAULT_GOAL } from "@/lib/services/tafService
 import { profileService } from "@/lib/services/profileService";
 import {
   clearCrossPageSheetsCaches,
+  formatBatchImportToast,
   formatSheetsSyncBadge,
   formatSheetsSyncReportSummary,
   getSheetsSyncErrorMessage,
@@ -1044,6 +1045,88 @@ describe("Fase 6 — Frontend & UX: Sincronização Google Sheets", () => {
 
       const toast = await screen.findByTestId("toast-notification");
       expect(toast).toHaveClass("max-w-[calc(100vw-2rem)]");
+    });
+
+    it("formata todos os cenários de formatBatchImportToast (sucesso, Sheets synced, warning Sheets, abort e falhas)", () => {
+      const base = {
+        target: "training" as const,
+        duplicatePolicy: "skip" as const,
+        totalItems: 3,
+        savedCount: 2,
+        updatedCount: 1,
+        skippedCount: 0,
+        failedCount: 0,
+        mirroredCount: 0,
+        mirrorSkippedCount: 0,
+        mirrorFailedCount: 0,
+        sheetsSynced: true,
+        sheetsSyncWarning: null,
+        aborted: false,
+      };
+
+      expect(formatBatchImportToast(base)).toEqual({
+        type: "success",
+        message:
+          "Lote importado: 2 novo(s), 1 atualizado(s) (treino(s)) • Google Sheets sincronizado!",
+      });
+
+      expect(
+        formatBatchImportToast({
+          ...base,
+          target: "taf_attempt",
+          updatedCount: 0,
+          skippedCount: 1,
+          mirroredCount: 2,
+          sheetsSynced: false,
+        })
+      ).toEqual({
+        type: "success",
+        message:
+          "Lote importado: 2 novo(s), 1 pulado(s), 2 espelhado(s) no Diário (simulado(s) TAF).",
+      });
+
+      expect(
+        formatBatchImportToast({
+          ...base,
+          sheetsSynced: false,
+          sheetsSyncWarning: "Cota excedida",
+        })
+      ).toMatchObject({
+        type: "error",
+        message: expect.stringContaining("Google Sheets falhou: Cota excedida"),
+      });
+
+      expect(
+        formatBatchImportToast({
+          ...base,
+          mirrorFailedCount: 1,
+        })
+      ).toMatchObject({
+        type: "error",
+        message: expect.stringContaining("1 espelho(s) no Diário falharam"),
+      });
+
+      expect(
+        formatBatchImportToast({
+          ...base,
+          aborted: true,
+        })
+      ).toMatchObject({
+        type: "error",
+        message: expect.stringContaining("interrompida"),
+      });
+
+      expect(
+        formatBatchImportToast({
+          ...base,
+          failedCount: 2,
+          savedCount: 0,
+          updatedCount: 0,
+        })
+      ).toMatchObject({
+        type: "error",
+        message: expect.stringContaining("2 falha(s)"),
+      });
     });
   });
 });

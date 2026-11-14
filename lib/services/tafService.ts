@@ -515,7 +515,8 @@ export const tafService = {
 
   // ─── Importação / Preview Unificado de Arquivos (.FIT Prioritário + .GPX) ──
   async parseActivity(
-    files: File | Blob | Array<File | Blob>
+    files: File | Blob | Array<File | Blob>,
+    options?: { signal?: AbortSignal }
   ): Promise<ActivityParsePreview> {
     const fileList = Array.isArray(files) ? files : [files];
     const formData = new FormData();
@@ -527,6 +528,7 @@ export const tafService = {
     const res = await fetch("/api/training-sessions/parse-activity", {
       method: "POST",
       body: formData,
+      ...(options?.signal ? { signal: options.signal } : {}),
     });
 
     if (!res.ok) {
