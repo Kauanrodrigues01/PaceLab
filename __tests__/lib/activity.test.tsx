@@ -34,7 +34,7 @@ describe("Completude de Contratos e Dicionários de ActivityType & ActivitySourc
   });
 
   it("mantém ActivitySource alinhado entre TypeScript, Zod e SOURCE_LABELS", () => {
-    expect(ACTIVITY_SOURCES).toEqual(["manual", "gpx_upload", "fit_upload"]);
+    expect(ACTIVITY_SOURCES).toEqual(["manual", "gpx_upload", "fit_upload", "sheets"]);
     expect(ActivitySourceEnum.options).toEqual([...ACTIVITY_SOURCES]);
 
     for (const src of ACTIVITY_SOURCES) {

@@ -1,8 +1,13 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { TafGoalConfig, TafAttempt, TrainingSession } from "@/types";
+import type { SheetsSyncReport, SheetsSyncStatus } from "@/lib/googleSheets/types";
 import { tafService } from "@/lib/services/tafService";
+import {
+  formatSheetsSyncReportSummary,
+  getSheetsSyncErrorMessage,
+} from "@/lib/sheetsSyncUi";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import { formatTime } from "@/lib/formatting/time";
 import {
@@ -15,6 +20,9 @@ import {
   FileJson,
   ShieldAlert,
   Save,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 
 interface GoalAndBackupSettingsProps {
@@ -23,6 +31,7 @@ interface GoalAndBackupSettingsProps {
   trainings: TrainingSession[];
   onGoalSaved: (updatedGoal: TafGoalConfig) => void;
   onDataRefreshed: () => void;
+  onSheetsSynced?: (report: SheetsSyncReport) => void | Promise<void>;
   showToast: (message: string, type?: "success" | "error") => void;
 }
 
@@ -32,6 +41,7 @@ export function GoalAndBackupSettings({
   trainings,
   onGoalSaved,
   onDataRefreshed,
+  onSheetsSynced,
   showToast,
 }: GoalAndBackupSettingsProps) {
   // Estado da Meta
@@ -39,6 +49,13 @@ export function GoalAndBackupSettings({
   const [durationMinutes, setDurationMinutes] = useState(goal.targetDurationMinutes || 12);
   const [examDate, setExamDate] = useState(goal.targetExamDate || "");
   const [isSavingGoal, setIsSavingGoal] = useState(false);
+
+  // Sincroniza campos locais quando a meta externa é atualizada (ex.: sync com Sheets ou restore)
+  useEffect(() => {
+    setDistanceMeters(goal.targetDistanceMeters || 2300);
+    setDurationMinutes(goal.targetDurationMinutes || 12);
+    setExamDate(goal.targetExamDate || "");
+  }, [goal.targetDistanceMeters, goal.targetDurationMinutes, goal.targetExamDate]);
 
   // Status do Banco
   const [dbStatus, setDbStatus] = useState<{
@@ -52,6 +69,79 @@ export function GoalAndBackupSettings({
   // Importação de arquivo
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
+
+  // Sincronização Google Sheets
+  const [sheetsStatus, setSheetsStatus] = useState<SheetsSyncStatus | null>(null);
+  const [isLoadingSheetsStatus, setIsLoadingSheetsStatus] = useState(false);
+  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+  const [confirmFullBackfill, setConfirmFullBackfill] = useState(false);
+
+  const loadSheetsStatus = useCallback(async () => {
+    setIsLoadingSheetsStatus(true);
+    try {
+      const status = await tafService.getSheetsSyncStatus();
+      setSheetsStatus(status);
+    } catch {
+      setSheetsStatus(null);
+    } finally {
+      setIsLoadingSheetsStatus(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoadingSheetsStatus(true);
+    tafService
+      .getSheetsSyncStatus()
+      .then((status) => {
+        if (!cancelled) {
+          setSheetsStatus(status);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSheetsStatus(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingSheetsStatus(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const runSheetsSync = async (options: {
+    direction: "bidirectional" | "push";
+    forceFullResync: boolean;
+  }) => {
+    if (isSyncingSheets) return;
+    setIsSyncingSheets(true);
+    setConfirmFullBackfill(false);
+    try {
+      const report = await tafService.syncGoogleSheets(options);
+      if (onSheetsSynced) {
+        await onSheetsSynced(report);
+      } else {
+        onDataRefreshed();
+      }
+      await loadSheetsStatus();
+      showToast(formatSheetsSyncReportSummary(report), "success");
+    } catch (err) {
+      showToast(
+        getSheetsSyncErrorMessage(
+          err,
+          "Erro ao sincronizar dados com o Google Sheets."
+        ),
+        "error"
+      );
+    } finally {
+      setIsSyncingSheets(false);
+    }
+  };
 
   // Cálculo dos Ritmos Necessários para a Meta Atual
   const distanceKm = distanceMeters / 1000;
@@ -209,6 +299,7 @@ export function GoalAndBackupSettings({
           `Backup restaurado com sucesso: ${res.attemptsCount} simulados e ${res.trainingsCount} treinos carregados!${skippedMsg}`
         );
         onDataRefreshed();
+        await loadSheetsStatus();
       } else {
         showToast(res.error || "Arquivo de backup inválido.", "error");
       }
@@ -445,6 +536,143 @@ export function GoalAndBackupSettings({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ─── Seção 2.5: Sincronização Google Sheets (Treinos_Corrida) ─── */}
+      <div
+        data-testid="sheets-sync-settings-card"
+        className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-7 shadow-sm"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 mb-5 border-b border-[#1E2942]">
+          <div>
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+              Sincronização Google Sheets (Treinos_Corrida)
+            </h3>
+            <p className="text-xs text-[#8E9BB0] mt-0.5">
+              Integração bidirecional com as abas Log_Treinos, Simulados_TAF e Perfil_e_Metas.
+            </p>
+          </div>
+
+          <span
+            data-testid="sheets-config-status"
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border self-start sm:self-auto ${
+              sheetsStatus?.configured
+                ? "bg-emerald-950/50 text-emerald-300 border-emerald-500/30"
+                : "bg-amber-950/40 text-amber-300 border-amber-500/30"
+            }`}
+          >
+            {sheetsStatus?.configured ? (
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            ) : (
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+            )}
+            {isLoadingSheetsStatus && sheetsStatus === null
+              ? "Verificando..."
+              : sheetsStatus?.configured
+              ? "Configurada"
+              : "Não configurada"}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-[#0B1020]/60 border border-[#1E2942] mb-5 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-white">
+            <Clock className="w-4 h-4 text-[#B7F34A]" />
+            <span>Status de Pendências de Envio</span>
+          </div>
+          {sheetsStatus ? (
+            <p
+              data-testid="sheets-pending-summary"
+              className="text-xs text-[#8E9BB0]"
+            >
+              Pendências aguardando envio:{" "}
+              <strong className="text-white">
+                {sheetsStatus.totalPendingCount}
+              </strong>{" "}
+              ({sheetsStatus.pendingTrainingsCount} treino(s) no Diário,{" "}
+              {sheetsStatus.pendingAttemptsCount} simulado(s) TAF).
+            </p>
+          ) : (
+            <p
+              data-testid="sheets-pending-summary"
+              className="text-xs text-[#8E9BB0]"
+            >
+              Consulte ou inicie a sincronização manual com a planilha Google Sheets.
+            </p>
+          )}
+          {sheetsStatus?.error && (
+            <p className="text-[11px] text-amber-300">{sheetsStatus.error}</p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            data-testid="settings-sync-sheets-btn"
+            onClick={() =>
+              runSheetsSync({
+                direction: "bidirectional",
+                forceFullResync: false,
+              })
+            }
+            disabled={isSyncingSheets}
+            className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-[#0B1020] font-black text-xs rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${isSyncingSheets ? "animate-spin" : ""}`}
+            />
+            {isSyncingSheets
+              ? "Sincronizando Planilha..."
+              : "Sincronizar Agora (Bidirecional)"}
+          </button>
+
+          <button
+            type="button"
+            data-testid="settings-backfill-sheets-btn"
+            onClick={() => setConfirmFullBackfill(true)}
+            disabled={isSyncingSheets}
+            className="px-4 py-2.5 bg-[#0B1020] hover:bg-[#1E2942] border border-[#1E2942] text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <Upload className="w-3.5 h-3.5 text-amber-400" />
+            Reenviar Histórico Completo (Full Backfill)
+          </button>
+        </div>
+
+        {confirmFullBackfill && (
+          <div
+            data-testid="confirm-full-backfill-panel"
+            className="mt-4 p-4 rounded-2xl bg-amber-950/30 border border-amber-500/40 space-y-3"
+          >
+            <p className="text-xs text-amber-100 leading-relaxed">
+              <strong>Confirmar Full Backfill:</strong> esta ação reenviará todo o histórico de treinos, simulados TAF e perfil do banco para a planilha <code className="font-mono">Treinos_Corrida</code>, atualizando linhas existentes por ID sem apagar seus registros no banco.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                data-testid="confirm-full-backfill-btn"
+                onClick={() =>
+                  runSheetsSync({
+                    direction: "push",
+                    forceFullResync: true,
+                  })
+                }
+                disabled={isSyncingSheets}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-[#0B1020] font-black text-xs rounded-xl transition-colors disabled:opacity-50"
+              >
+                Confirmar Reenvio Completo
+              </button>
+              <button
+                type="button"
+                data-testid="cancel-full-backfill-btn"
+                onClick={() => setConfirmFullBackfill(false)}
+                disabled={isSyncingSheets}
+                className="px-3.5 py-2 bg-[#0B1020] hover:bg-[#1E2942] border border-[#1E2942] text-[#8E9BB0] hover:text-white font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── Seção 3: Backup & Exportação de Dados ─── */}

@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { safeAutoSync, syncProfileAndGoalToSheet } from "@/lib/googleSheets";
 import { TafGoalInputSchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 import type { TafGoal } from "@prisma/client";
 
@@ -83,6 +85,8 @@ export async function POST(request: Request) {
         data: goalData,
       });
     }
+
+    await safeAutoSync(() => syncProfileAndGoalToSheet());
 
     return apiSuccess(savedGoal);
   });

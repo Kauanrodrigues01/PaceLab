@@ -23,9 +23,11 @@
   },
   "dependencies": {
     "@garmin/fitsdk": "^21.221.0",
+    "@googleapis/sheets": "^14.0.0",
     "@prisma/client": "^6.19.3",
     "@supabase/supabase-js": "^2.109.0",
     "fast-xml-parser": "^5.12.1",
+    "google-auth-library": "^10.9.1",
     "lucide-react": "^0.441.0",
     "next": "14.2.35",
     "next-themes": "^0.3.0",

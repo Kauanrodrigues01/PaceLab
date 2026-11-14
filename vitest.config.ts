@@ -7,6 +7,10 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    env: {
+      GOOGLE_SHEETS_SPREADSHEET_ID: '',
+      GOOGLE_CREDENTIALS_BASE64: '',
+    },
     setupFiles: ['./vitest.setup.ts'],
     include: ['**/__tests__/**/*.{ts,tsx}', '**/*.{test,spec}.{ts,tsx}'],
     coverage: {

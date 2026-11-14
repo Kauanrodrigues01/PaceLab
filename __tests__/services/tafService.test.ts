@@ -647,7 +647,8 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
           externalId: null,
           laps: [],
         }),
-        false
+        false,
+        { skipSheetsSync: true }
       );
       expect(saveTrainingSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -656,7 +657,8 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
           externalId: null,
           splits: [],
         }),
-        false
+        false,
+        { skipSheetsSync: true }
       );
     });
 
@@ -860,6 +862,227 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
       expect(res.failedCount).toBe(0);
       expect(attemptSpy).toHaveBeenCalledTimes(1);
       expect(trainingSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("importBackupJson preserva source='sheets' e redefine syncedToSheetsAt como null", async () => {
+      vi.spyOn(tafService, "saveGoal").mockResolvedValue(DEFAULT_GOAL);
+
+      const savedAttempts: TafAttempt[] = [];
+      const savedTrainings: TrainingSession[] = [];
+
+      vi.spyOn(tafService, "saveAttempt").mockImplementation(async (payload) => {
+        const parsed = CreateTafAttemptSchema.parse(payload);
+        savedAttempts.push({ ...payload, ...parsed } as unknown as TafAttempt);
+        return payload;
+      });
+
+      vi.spyOn(tafService, "saveTraining").mockImplementation(async (payload) => {
+        const parsed = CreateTrainingSessionSchema.parse(payload);
+        savedTrainings.push({ ...payload, ...parsed } as unknown as TrainingSession);
+        return payload;
+      });
+
+      const backupJson = JSON.stringify({
+        version: 3,
+        attempts: [
+          {
+            id: "att-sheets-1",
+            source: "sheets",
+            syncedToSheetsAt: "2026-11-10T10:00:00.000Z",
+            distanceMeters: 2550,
+            actualDurationSeconds: 720,
+          },
+        ],
+        trainings: [
+          {
+            id: "tr-sheets-1",
+            source: "sheets",
+            syncedToSheetsAt: "2026-11-10T10:00:00.000Z",
+            activityType: "tempo_run",
+            distanceKm: 5.5,
+            durationSeconds: 1650,
+          },
+        ],
+      });
+
+      const res = await tafService.importBackupJson(backupJson);
+      expect(res.success).toBe(true);
+      expect(res.attemptsCount).toBe(1);
+      expect(res.trainingsCount).toBe(1);
+      expect(res.failedCount).toBe(0);
+      expect(savedAttempts[0]?.source).toBe("sheets");
+      expect(savedAttempts[0]?.syncedToSheetsAt).toBeNull();
+      expect(savedTrainings[0]?.source).toBe("sheets");
+      expect(savedTrainings[0]?.syncedToSheetsAt).toBeNull();
+    });
+  });
+
+  describe("Sincronização Google Sheets e Restauração em Lote (Fase 5)", () => {
+    it("getSheetsSyncStatus retorna status desenvelopado e degrada graciosamente quando offline/erro", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            configured: true,
+            pendingTrainingsCount: 2,
+            pendingAttemptsCount: 1,
+            totalPendingCount: 3,
+          },
+        }),
+      });
+
+      const okStatus = await tafService.getSheetsSyncStatus();
+      expect(okStatus).toEqual({
+        configured: true,
+        pendingTrainingsCount: 2,
+        pendingAttemptsCount: 1,
+        totalPendingCount: 3,
+      });
+
+      global.fetch = vi.fn().mockRejectedValueOnce(new Error("Network offline"));
+      const fallbackStatus = await tafService.getSheetsSyncStatus();
+      expect(fallbackStatus).toEqual({
+        configured: false,
+        error: "Network offline",
+        pendingTrainingsCount: 0,
+        pendingAttemptsCount: 0,
+        totalPendingCount: 0,
+      });
+    });
+
+    it("syncGoogleSheets envia direction/forceFullResync e propaga TafApiError com status HTTP em falhas", async () => {
+      const mockReport = {
+        direction: "bidirectional",
+        forceFullResync: false,
+        pulledUpdated: 0,
+        pulledCreated: 1,
+        pulledLinked: 0,
+        pushedAppended: 2,
+        pushedUpdated: 0,
+        tafPulledUpdated: 0,
+        tafPulledCreated: 0,
+        tafPulledLinked: 0,
+        tafPushedAppended: 1,
+        tafPushedUpdated: 0,
+        profileSynced: true,
+        skipped: 0,
+        warnings: [],
+        durationMs: 120,
+        syncedAt: "2026-11-14T16:10:00.000Z",
+      };
+
+      const fetchMock = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: mockReport }),
+      });
+      global.fetch = fetchMock;
+
+      const report = await tafService.syncGoogleSheets({
+        direction: "push",
+        forceFullResync: true,
+      });
+      expect(report).toEqual(mockReport);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/sync/sheets",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ direction: "push", forceFullResync: true }),
+        })
+      );
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({
+          success: false,
+          error: "Integração com Google Sheets não configurada",
+          details: { code: "SHEETS_NOT_CONFIGURED" },
+        }),
+      });
+      await expect(tafService.syncGoogleSheets()).rejects.toMatchObject({
+        name: "TafApiError",
+        status: 503,
+        code: "SHEETS_NOT_CONFIGURED",
+      });
+    });
+
+    it("importBackupJson envia ?skipSheetsSync=true no loop e executa 1 push único ao final quando ativo", async () => {
+      const fetchCalls: Array<{ url: string; method: string; body?: string }> = [];
+      global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        fetchCalls.push({
+          url,
+          method,
+          body: typeof init?.body === "string" ? init.body : undefined,
+        });
+
+        if (url === "/api/sync/sheets" && method === "GET") {
+          return {
+            ok: true,
+            json: async () => ({
+              success: true,
+              data: {
+                configured: true,
+                pendingTrainingsCount: 1,
+                pendingAttemptsCount: 1,
+                totalPendingCount: 2,
+              },
+            }),
+          } as Response;
+        }
+
+        return {
+          ok: true,
+          json: async () => ({ success: true, data: {} }),
+        } as Response;
+      });
+
+      const backupJson = JSON.stringify({
+        version: 3,
+        attempts: [
+          {
+            id: "att-batch-1",
+            actualDurationSeconds: 720,
+            distanceMeters: 2500,
+          },
+        ],
+        trainings: [
+          {
+            id: "trn-batch-1",
+            activityType: "rodagem_leve",
+            distanceKm: 5,
+            durationSeconds: 1800,
+          },
+        ],
+      });
+
+      const res = await tafService.importBackupJson(backupJson);
+      expect(res.success).toBe(true);
+      expect(res.attemptsCount).toBe(1);
+      expect(res.trainingsCount).toBe(1);
+
+      expect(
+        fetchCalls.some(
+          (call) =>
+            call.method === "POST" && call.url === "/api/taf/attempts?skipSheetsSync=true"
+        )
+      ).toBe(true);
+      expect(
+        fetchCalls.some(
+          (call) =>
+            call.method === "POST" && call.url === "/api/taf/trainings?skipSheetsSync=true"
+        )
+      ).toBe(true);
+
+      const finalSyncCalls = fetchCalls.filter(
+        (call) => call.method === "POST" && call.url === "/api/sync/sheets"
+      );
+      expect(finalSyncCalls).toHaveLength(1);
+      expect(finalSyncCalls[0]?.body).toBe(
+        JSON.stringify({ direction: "push", forceFullResync: false })
+      );
     });
   });
 });

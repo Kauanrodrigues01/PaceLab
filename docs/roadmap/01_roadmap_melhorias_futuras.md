@@ -22,8 +22,8 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 | Tabela no Banco | Modelo Prisma | Onde é Usado | O que Armazena |
 | :--- | :--- | :--- | :--- |
 | **`taf_goals`** | `TafGoal` | `/meu-taf` (Configurações e KPIs) | Meta oficial do concurso (distância alvo: ex. 2.300 m, tempo limite: 12 min e data prevista do edital). |
-| **`taf_attempts`** | `TafAttempt` | `/meu-taf` (Simulados 12 Min, Gráficos e Comparador) | Histórico completo de simulados de 12 min (metros percorridos, tempo real, pace, velocidade, parciais em voltas de 400m e notas de pista). |
-| **`training_sessions`** | `TrainingSession` | `/meu-taf` (Diário de Treinos, Gráficos e Comparador) | Diário de treinos (quilômetros, tempo, pace, modalidade, esforço percebido na escala RPE de 1 a 10, peso corporal em kg, calorias ativas/totais, valor MET e parciais por km). |
+| **`taf_attempts`** | `TafAttempt` | `/meu-taf` (Simulados 12 Min, Gráficos e Comparador) | Histórico completo de simulados de 12 min (metros percorridos, tempo real, pace, velocidade, parciais em voltas de 400m, notas de pista e estado de sincronização com Google Sheets: `source` + `synced_to_sheets_at`). |
+| **`training_sessions`** | `TrainingSession` | `/meu-taf` (Diário de Treinos, Gráficos e Comparador) | Diário de treinos (quilômetros, tempo, pace, modalidade, esforço percebido na escala RPE de 1 a 10, peso corporal em kg, calorias ativas/totais, valor MET, parciais por km, origem `manual`/`gpx_upload`/`fit_upload`/`sheets` e rastreamento de sincronização com Google Sheets via `synced_to_sheets_at`). |
 | **`user_profiles`** | `UserProfile` | `/perfil`, `/meu-taf`, `/treinos`, Modais | Perfil biométrico do atleta (altura em cm, peso atual em kg, data de nascimento, sexo biológico e data da última pesagem). |
 | **`weight_records`** | `WeightRecord` | `/perfil` (Gráficos e Histórico) | Histórico temporal de pesagens corporais com data, peso em kg e origem do registro (`manual`, `prompt_semanal`, `treino`). |
 
@@ -187,7 +187,7 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 
 ### Eixo B.6: Importação Unificada `.FIT` (Prioritário) + `.GPX` (Strava/Garmin), Janela TAF 12 min, Análise de Splits & Backup v3 — ✅ Concluído e Homologado (Fases 0–11)
 
-> **Status:** Todas as fases implementadas, homologadas e validadas em produção (`PQ0`–`PQ11`; Fase 5 marcada como `SKIP`). Migrations aplicadas no Supabase com zero drift e ensaio ponta a ponta aprovado. Plano detalhado em [docs/plans/11_plan_importacao_gpx_strava_e_evolucao_schema.md](../plans/11_plan_importacao_gpx_strava_e_evolucao_schema.md).
+> **Status:** Todas as fases implementadas, homologadas e validadas em produção (`PQ0`–`PQ11`; Fase 5 marcada como `SKIP`). Migrations aplicadas no Supabase com zero drift e ensaio ponta a ponta aprovado. Plano detalhado em [docs/plans/executed/11_plan_importacao_gpx_strava_e_evolucao_schema.md](../plans/executed/11_plan_importacao_gpx_strava_e_evolucao_schema.md).
 
 #### B.6.1. Schema Relacional, Tipos e Contratos API com Anti-Duplicação (✅ Implementado)
 - **Schema & Migrations:** Evolução de `TrainingSession` e `TafAttempt` em `prisma/schema.prisma` com rastreabilidade de origem (`source: "manual" | "gpx_upload" | "fit_upload"`), chave única `externalId`, telemetria (`elapsedSeconds`, `avgHeartRate`, `maxHeartRate`, `avgCadence`, `elevationGainM`, `shoeName`), `splits`/`laps` estruturados em JSON e suporte expandido em `ActivityType`.
@@ -203,6 +203,20 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 - **Melhor Janela Contínua de 12 min TAF (`lib/activityParser/window.ts`):** Algoritmo `O(N)` de dois ponteiros sobre séries de `.FIT`/`.GPX` para localizar automaticamente os 12 minutos de maior distância, computar pace/velocidade/FC e gerar voltas parciais de 400 m em `TafAttempt` (exibidas nos cards e formulário de edição do `/meu-taf`).
 - **Análise de Splits (`/treinos`):** Componentes `SplitsTable.tsx`, `SplitsPaceChart.tsx` e `SplitsInsights.tsx` para inspeção quilômetro a quilômetro, comparação pace x FC e métricas automáticas de split negativo/variabilidade.
 - **Backup v3 & CSV Seguros:** `exportBackupJson` evoluído para `version: 3` com suporte integral a `fit_upload`/`gpx_upload`; `importBackupJson` retrocompatível (v1/v2/v3) e tolerante a conflitos `409 Conflict`; `exportAttemptsCsv` e `exportTrainingsCsv` ampliados mantendo ordem de colunas legadas e proteção contra CSV Formula Injection.
+
+---
+
+### Eixo B.7: Sincronização Completa e Bidirecional PostgreSQL ↔ Google Sheets (`Treinos_Corrida`) — ✅ Concluído e Validado (Fases 0–7)
+
+> **Plano executado:** [`docs/plans/executed/12_plan_sincronizacao_google_sheets.md`](../plans/executed/12_plan_sincronizacao_google_sheets.md)
+
+- **Autenticação Serverless & Schema de Rastreamento:** Cliente singleton seguro baseado em `@googleapis/sheets` + `google-auth-library` com credencial de *Service Account* via Base64 (`GOOGLE_CREDENTIALS_BASE64`) e `GOOGLE_SHEETS_SPREADSHEET_ID` (zero escrita em disco e isolamento estrito *server-side*). Migração aditiva adicionando `sheets` em `activity_source` e `synced_to_sheets_at` em `taf_attempts`.
+- **Arquitetura 3 Abas & Mappers Puros:** Planilha estruturada automaticamente em `Log_Treinos` (15 colunas), `Simulados_TAF` (10 colunas) e `Perfil_e_Metas` (9 colunas), com *auto-provisionamento* idempotente de cabeçalhos, sanitização anti-*Formula Injection* em células textuais, conversão precisa de distância/tempo/pace/telemetria e cálculo calórico automático (Compêndio 2024) ao importar treinos do Sheets.
+- **Motor Bidirecional Idempotente:**
+  - *PostgreSQL → Google Sheets (Push):* *Upsert* por coluna `ID` sem duplicar linhas, atualização determinística da aba `Perfil_e_Metas` e remoção sincronizada ao excluir registros.
+  - *Google Sheets → PostgreSQL (Pull):* Criação de treinos inseridos manualmente na planilha (geração automática de ID + gravação de retorno na coluna `ID`) e atualização segura de edições manuais sem deleção em cascata.
+  - *Resiliência Best-Effort:* Mutações em `/api/taf/trainings`, `/api/taf/attempts`, `/api/taf/goals`, `/api/profile` e `/api/profile/weight` espelham automaticamente sem bloquear a gravação principal no PostgreSQL caso haja indisponibilidade externa, marcando pendências para reenvio posterior.
+- **Endpoint `/api/sync/sheets`, OpenAPI & UI:** Rotas `GET` (diagnóstico e contagens pendentes sem expor segredos) e `POST` (modos `bidirectional`, `push`, `pull` + `forceFullResync`) documentadas em `/docs`, botões de sincronização em `/treinos` e `/meu-taf` (`Meta & Banco`), *backfill* completo e badges discretos de status por item.
 
 ---
 

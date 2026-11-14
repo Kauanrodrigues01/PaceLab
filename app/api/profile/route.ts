@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { safeAutoSync, syncProfileAndGoalToSheet } from "@/lib/googleSheets";
 import { UserProfileInputSchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET() {
   return withApiHandler(async () => {
@@ -92,6 +94,8 @@ export async function PUT(request: Request) {
         },
       });
     }
+
+    await safeAutoSync(() => syncProfileAndGoalToSheet());
 
     return apiSuccess(profile);
   });

@@ -10,6 +10,15 @@ import {
   TrainingSession,
   TafGoalConfig,
 } from "@/types";
+import type {
+  SheetsSyncOptions,
+  SheetsSyncReport,
+  SheetsSyncStatus,
+} from "@/lib/googleSheets/types";
+
+export interface SaveRecordOptions {
+  skipSheetsSync?: boolean;
+}
 
 export const DEFAULT_GOAL: TafGoalConfig = {
   institutionName: "Edital Padrão",
@@ -42,11 +51,13 @@ export interface TrainingPaginationOptions extends TafPaginationOptions {
 
 export class TafApiError extends Error {
   readonly status: number;
+  readonly code?: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = "TafApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -196,6 +207,7 @@ function normalizeAttemptFromBackup(
       typeof raw.externalId === "string" && raw.externalId.trim().length > 0
         ? raw.externalId.trim()
         : null,
+    syncedToSheetsAt: null,
     laps: Array.isArray(raw.laps) ? (raw.laps as TafAttempt["laps"]) : [],
   };
 }
@@ -243,6 +255,7 @@ function normalizeTrainingFromBackup(
       typeof raw.externalId === "string" && raw.externalId.trim().length > 0
         ? raw.externalId.trim()
         : null,
+    syncedToSheetsAt: null,
     splits: Array.isArray(raw.splits)
       ? (raw.splits as TrainingSession["splits"])
       : [],
@@ -288,33 +301,52 @@ function unwrapApiResponse<T>(payload: unknown): T {
   return payload as T;
 }
 
-async function extractErrorMessage(
+interface ApiErrorPayload {
+  error?: string;
+  details?: Array<{ field?: string; message?: string }> | { code?: unknown };
+}
+
+async function extractApiErrorInfo(
   res: Response,
   fallbackMessage: string
-): Promise<string> {
+): Promise<{ message: string; code?: string }> {
   try {
-    const errData = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      details?: Array<{ field?: string; message?: string }>;
-    };
+    const errData = (await res.json().catch(() => ({}))) as ApiErrorPayload;
+    const code =
+      errData.details &&
+      !Array.isArray(errData.details) &&
+      typeof errData.details === "object" &&
+      typeof (errData.details as { code?: unknown }).code === "string"
+        ? (errData.details as { code: string }).code
+        : undefined;
 
     if (Array.isArray(errData.details) && errData.details.length > 0) {
       const messages = errData.details
         .map((d) => d.message)
         .filter((msg): msg is string => Boolean(msg));
       if (messages.length > 0) {
-        return messages.join("; ");
+        return { message: messages.join("; "), code };
       }
     }
 
     if (errData.error) {
-      return errData.error;
+      return { message: errData.error, code };
     }
+
+    return { message: fallbackMessage, code };
   } catch {
     // Falha silenciosa no parsing, mantém fallback
   }
 
-  return fallbackMessage;
+  return { message: fallbackMessage };
+}
+
+async function extractErrorMessage(
+  res: Response,
+  fallbackMessage: string
+): Promise<string> {
+  const { message } = await extractApiErrorInfo(res, fallbackMessage);
+  return message;
 }
 
 // ─── Serviço de Persistência Direta no Supabase (PostgreSQL via Prisma API) ───
@@ -371,10 +403,15 @@ export const tafService = {
     return unwrapApiResponse<TafAttempt[]>(json);
   },
 
-  async saveAttempt(attempt: TafAttempt, isUpdate = false): Promise<TafAttempt> {
-    const url = isUpdate
+  async saveAttempt(
+    attempt: TafAttempt,
+    isUpdate = false,
+    options?: SaveRecordOptions
+  ): Promise<TafAttempt> {
+    const baseUrl = isUpdate
       ? `/api/taf/attempts/${encodeURIComponent(attempt.id)}`
       : "/api/taf/attempts";
+    const url = options?.skipSheetsSync ? `${baseUrl}?skipSheetsSync=true` : baseUrl;
     const method = isUpdate ? "PUT" : "POST";
 
     const res = await fetch(url, {
@@ -384,11 +421,11 @@ export const tafService = {
     });
 
     if (!res.ok) {
-      const message = await extractErrorMessage(
+      const { message, code } = await extractApiErrorInfo(
         res,
         "Erro ao salvar simulado no banco de dados"
       );
-      throw new TafApiError(message, res.status);
+      throw new TafApiError(message, res.status, code);
     }
 
     const json = await res.json();
@@ -431,10 +468,15 @@ export const tafService = {
     return unwrapApiResponse<TrainingSession[]>(json);
   },
 
-  async saveTraining(training: TrainingSession, isUpdate = false): Promise<TrainingSession> {
-    const url = isUpdate
+  async saveTraining(
+    training: TrainingSession,
+    isUpdate = false,
+    options?: SaveRecordOptions
+  ): Promise<TrainingSession> {
+    const baseUrl = isUpdate
       ? `/api/taf/trainings/${encodeURIComponent(training.id)}`
       : "/api/taf/trainings";
+    const url = options?.skipSheetsSync ? `${baseUrl}?skipSheetsSync=true` : baseUrl;
     const method = isUpdate ? "PUT" : "POST";
 
     const res = await fetch(url, {
@@ -444,11 +486,11 @@ export const tafService = {
     });
 
     if (!res.ok) {
-      const message = await extractErrorMessage(
+      const { message, code } = await extractApiErrorInfo(
         res,
         "Erro ao salvar treino no banco de dados"
       );
-      throw new TafApiError(message, res.status);
+      throw new TafApiError(message, res.status, code);
     }
 
     const json = await res.json();
@@ -511,6 +553,7 @@ export const tafService = {
     orm: string;
     database?: string;
     latencyMs?: number;
+    sheetsConfigured?: boolean;
     error?: string;
   }> {
     try {
@@ -524,6 +567,9 @@ export const tafService = {
         orm: "Prisma",
         database: data?.database as string | undefined,
         latencyMs: data?.latencyMs as number | undefined,
+        ...(typeof data?.sheetsConfigured === "boolean"
+          ? { sheetsConfigured: data.sheetsConfigured }
+          : {}),
         error: (data?.error as string | undefined) || (raw?.error as string | undefined),
       };
     } catch (err) {
@@ -533,6 +579,68 @@ export const tafService = {
         error: err instanceof Error ? err.message : "Sem conexão de rede com o banco",
       };
     }
+  },
+
+  // ─── Sincronização Bidirecional Google Sheets ───────────────────────────────
+  async getSheetsSyncStatus(): Promise<SheetsSyncStatus> {
+    try {
+      const res = await fetch("/api/sync/sheets", { cache: "no-store" });
+      if (!res.ok) {
+        const message = await extractErrorMessage(
+          res,
+          "Não foi possível consultar o status do Google Sheets"
+        );
+        return {
+          configured: false,
+          error: message,
+          pendingTrainingsCount: 0,
+          pendingAttemptsCount: 0,
+          totalPendingCount: 0,
+        };
+      }
+      const json = await res.json();
+      const data = unwrapApiResponse<SheetsSyncStatus>(json);
+      return {
+        configured: Boolean(data?.configured),
+        ...(data?.error ? { error: data.error } : {}),
+        pendingTrainingsCount: data?.pendingTrainingsCount ?? 0,
+        pendingAttemptsCount: data?.pendingAttemptsCount ?? 0,
+        totalPendingCount: data?.totalPendingCount ?? 0,
+      };
+    } catch (err) {
+      return {
+        configured: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : "Erro de rede ao consultar status do Google Sheets",
+        pendingTrainingsCount: 0,
+        pendingAttemptsCount: 0,
+        totalPendingCount: 0,
+      };
+    }
+  },
+
+  async syncGoogleSheets(options: SheetsSyncOptions = {}): Promise<SheetsSyncReport> {
+    const res = await fetch("/api/sync/sheets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        direction: options.direction ?? "bidirectional",
+        forceFullResync: Boolean(options.forceFullResync),
+      }),
+    });
+
+    if (!res.ok) {
+      const { message, code } = await extractApiErrorInfo(
+        res,
+        "Erro ao sincronizar dados com o Google Sheets"
+      );
+      throw new TafApiError(message, res.status, code);
+    }
+
+    const json = await res.json();
+    return unwrapApiResponse<SheetsSyncReport>(json);
   },
 
   // ─── Backup & Exportação (JSON / CSV) ──────────────────────────────────────
@@ -587,9 +695,17 @@ export const tafService = {
       let trainingsCount = 0;
       let skippedCount = 0;
       let failedCount = 0;
+      let goalSaved = false;
 
-      if (record.goal && typeof record.goal === "object") {
-        await this.saveGoal(record.goal as TafGoalConfig).catch(() => null);
+      if (
+        record.goal &&
+        typeof record.goal === "object" &&
+        !Array.isArray(record.goal)
+      ) {
+        const savedGoal = await this.saveGoal(record.goal as TafGoalConfig).catch(
+          () => null
+        );
+        goalSaved = Boolean(savedGoal);
       }
 
       if (Array.isArray(record.attempts)) {
@@ -603,7 +719,9 @@ export const tafService = {
             att.actualDurationSeconds > 0
           ) {
             try {
-              await this.saveAttempt(normalizeAttemptFromBackup(att), false);
+              await this.saveAttempt(normalizeAttemptFromBackup(att), false, {
+                skipSheetsSync: true,
+              });
               attemptsCount++;
             } catch (err) {
               if (isDuplicateConflictError(err)) {
@@ -627,7 +745,9 @@ export const tafService = {
             tr.durationSeconds > 0
           ) {
             try {
-              await this.saveTraining(normalizeTrainingFromBackup(tr), false);
+              await this.saveTraining(normalizeTrainingFromBackup(tr), false, {
+                skipSheetsSync: true,
+              });
               trainingsCount++;
             } catch (err) {
               if (isDuplicateConflictError(err)) {
@@ -637,6 +757,16 @@ export const tafService = {
               }
             }
           }
+        }
+      }
+
+      if (attemptsCount > 0 || trainingsCount > 0 || goalSaved) {
+        const sheetsStatus = await this.getSheetsSyncStatus().catch(() => null);
+        if (sheetsStatus?.configured) {
+          await this.syncGoogleSheets({
+            direction: "push",
+            forceFullResync: false,
+          }).catch(() => null);
         }
       }
 

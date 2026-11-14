@@ -634,6 +634,18 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
           >
             Strava GPX
           </button>
+          <button
+            type="button"
+            data-testid="filter-source-sheets"
+            onClick={() => setSourceFilter("sheets")}
+            className={`px-2 py-0.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
+              sourceFilter === "sheets"
+                ? "bg-emerald-500 text-[#0B1020]"
+                : "text-[#8E9BB0] hover:text-white"
+            }`}
+          >
+            Google Sheets
+          </button>
         </div>
 
         {/* Resumo Rápido de Volume Acumulado do Filtro */}

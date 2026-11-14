@@ -93,7 +93,11 @@ export function parseTime(str: string): Seconds {
   }
 
   const trimmed = str.trim();
-  const parts = trimmed.split(":").map((p) => Number(p));
+  const rawParts = trimmed.split(":");
+  if (rawParts.some((p) => p.trim().length === 0)) {
+    throw new Error(`Formato de tempo inválido: "${str}"`);
+  }
+  const parts = rawParts.map((p) => Number(p));
 
   if (parts.some((p) => isNaN(p) || p < 0 || !Number.isInteger(p))) {
     throw new Error(`Formato de tempo inválido: "${str}"`);

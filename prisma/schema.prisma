@@ -25,6 +25,7 @@ enum ActivitySource {
   manual
   gpx_upload
   fit_upload
+  sheets
 
   @@map("activity_source")
 }
@@ -81,6 +82,7 @@ model TafAttempt {
   userId                String?        @map("user_id")
   source                ActivitySource @default(manual) @map("source")
   externalId            String?        @unique @map("external_id")
+  syncedToSheetsAt      DateTime?      @map("synced_to_sheets_at")
   testDate              DateTime       @default(now()) @map("test_date")
   targetDurationSeconds Int            @default(720) @map("target_duration_seconds")
   actualDurationSeconds Int            @map("actual_duration_seconds")

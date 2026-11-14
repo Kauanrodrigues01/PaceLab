@@ -121,6 +121,12 @@ describe("parseTime", () => {
   it("rejeita caracteres não numéricos", () => {
     expect(() => parseTime("abc")).toThrow();
   });
+
+  it("rejeita segmentos vazios entre dois-pontos como '00::12'", () => {
+    expect(() => parseTime("00::12")).toThrow();
+    expect(() => parseTime(":12:00")).toThrow();
+    expect(() => parseTime("12:00:")).toThrow();
+  });
 });
 
 describe("formatDecimal", () => {

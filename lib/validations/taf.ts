@@ -2,6 +2,24 @@ import { z } from "zod";
 
 // ─── Enums & Sub-schemas ───────────────────────────────────────────────────────
 
+const SyncedToSheetsAtSchema = z
+  .union([z.string(), z.date()])
+  .nullable()
+  .optional()
+  .refine(
+    (val) => {
+      if (val === undefined || val === null || val === "") return true;
+      const d = val instanceof Date ? val : new Date(val);
+      return !Number.isNaN(d.getTime());
+    },
+    { message: "Data de sincronização inválida" }
+  )
+  .transform((val) => {
+    if (val === undefined) return undefined;
+    if (val === null || val === "") return null;
+    return (val instanceof Date ? val : new Date(val)).toISOString();
+  });
+
 export const ActivityTypeEnum = z.enum(
   [
     "rodagem_leve",
@@ -18,10 +36,10 @@ export const ActivityTypeEnum = z.enum(
 );
 
 export const ActivitySourceEnum = z.enum(
-  ["manual", "gpx_upload", "fit_upload"] as const,
+  ["manual", "gpx_upload", "fit_upload", "sheets"] as const,
   {
     message:
-      "Origem de registro inválida. Escolha entre manual, gpx_upload ou fit_upload.",
+      "Origem de registro inválida. Escolha entre manual, gpx_upload, fit_upload ou sheets.",
   }
 );
 
@@ -232,6 +250,7 @@ const CreateTafAttemptBaseSchema = z.object({
     .max(100, "O identificador externo não pode exceder 100 caracteres")
     .nullable()
     .optional(),
+  syncedToSheetsAt: SyncedToSheetsAtSchema,
   onDuplicate: DuplicatePolicyEnum.optional(),
   testDate: z
     .union([z.string(), z.date()])
@@ -328,11 +347,7 @@ const CreateTrainingSessionBaseSchema = z.object({
     .max(100, "O identificador externo não pode exceder 100 caracteres")
     .nullable()
     .optional(),
-  syncedToSheetsAt: z
-    .union([z.string(), z.date()])
-    .nullable()
-    .optional()
-    .transform((val) => (val ? new Date(val).toISOString() : null)),
+  syncedToSheetsAt: SyncedToSheetsAtSchema,
   onDuplicate: DuplicatePolicyEnum.optional(),
   sessionDate: z
     .union([z.string(), z.date()])
@@ -523,6 +538,26 @@ export const PaginationQuerySchema = z.object({
   activityType: ActivityTypeEnum.optional(),
 });
 
+// ─── Sincronização Google Sheets ───────────────────────────────────────────────
+
+export const SheetsSyncDirectionEnum = z.enum(
+  ["bidirectional", "push", "pull"] as const,
+  {
+    message:
+      "Direção de sincronização inválida. Escolha entre bidirectional, push ou pull.",
+  }
+);
+
+export const SheetsSyncRequestSchema = z
+  .object({
+    direction: SheetsSyncDirectionEnum.optional().default("bidirectional"),
+    forceFullResync: z.boolean().optional().default(false),
+  })
+  .default({
+    direction: "bidirectional",
+    forceFullResync: false,
+  });
+
 // ─── Formatador de Erros do Zod ───────────────────────────────────────────────
 
 export interface FormattedZodError {
@@ -551,3 +586,4 @@ export type UserProfileInput = z.infer<typeof UserProfileInputSchema>;
 export type UpdateUserProfileInput = z.infer<typeof UpdateUserProfileSchema>;
 export type CreateWeightRecordInput = z.infer<typeof CreateWeightRecordSchema>;
 export type PaginationQueryInput = z.infer<typeof PaginationQuerySchema>;
+export type SheetsSyncRequestInput = z.infer<typeof SheetsSyncRequestSchema>;

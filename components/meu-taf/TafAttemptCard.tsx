@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { TafAttempt, LOCATION_LABELS, SOURCE_LABELS } from "@/types";
 import { formatTime } from "@/lib/formatting/time";
+import { SheetsSyncBadge } from "./SheetsSyncBadge";
 import {
   Trophy,
   CheckCircle2,
@@ -15,6 +16,7 @@ import {
   ChevronDown,
   ChevronUp,
   MapPin,
+  FileSpreadsheet,
   FileText,
   Upload,
   HeartPulse,
@@ -78,9 +80,17 @@ export function TafAttemptCard({
           {attempt.source && attempt.source !== "manual" && (
             <span
               data-testid="taf-badge-source"
-              className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-950/60 text-indigo-300 border border-indigo-500/30"
+              className={
+                attempt.source === "sheets"
+                  ? "inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-950/50 text-emerald-300 border border-emerald-500/30"
+                  : "inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-950/60 text-indigo-300 border border-indigo-500/30"
+              }
             >
-              <Upload className="w-3 h-3 text-indigo-400" />
+              {attempt.source === "sheets" ? (
+                <FileSpreadsheet className="w-3 h-3 text-emerald-400" aria-hidden="true" />
+              ) : (
+                <Upload className="w-3 h-3 text-indigo-400" />
+              )}
               {SOURCE_LABELS[attempt.source] || attempt.source}
             </span>
           )}
@@ -113,6 +123,7 @@ export function TafAttemptCard({
 
         {/* Badges de Destaque */}
         <div className="flex items-center gap-1.5 flex-wrap">
+          <SheetsSyncBadge syncedToSheetsAt={attempt.syncedToSheetsAt} />
           {attempt.isPersonalRecord && (
             <span
               data-testid="badge-record"

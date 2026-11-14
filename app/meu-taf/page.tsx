@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { TafAttempt, TafGoalConfig, TrainingSession } from "@/types";
+import type { SheetsSyncReport } from "@/lib/googleSheets/types";
 import { tafService, DEFAULT_GOAL } from "@/lib/services/tafService";
+import { clearCrossPageSheetsCaches } from "@/lib/sheetsSyncUi";
 import { getPersonalRecord, processTafAttempts } from "@/lib/math/evolution";
 import { TafAttemptForm } from "@/components/meu-taf/TafAttemptForm";
 import { TafAttemptList } from "@/components/meu-taf/TafAttemptList";
@@ -95,6 +97,7 @@ export default function MeuTafPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [notification, setNotification] = useState<{
     type: "success" | "error";
@@ -156,13 +159,34 @@ export default function MeuTafPage() {
   }, [loadData]);
 
   // Mensagem temporária
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
-  };
+  const showToast = useCallback(
+    (message: string, type: "success" | "error" = "success") => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      setNotification({ message, type });
+      toastTimeoutRef.current = setTimeout(() => {
+        setNotification(null);
+        toastTimeoutRef.current = null;
+      }, 4000);
+    },
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Callback ao importar Simulado TAF via .FIT / .GPX diretamente na aba Meu TAF
-  const handleImportedAttempt = (saved: TafAttempt, isUpdated = false) => {
+  const handleImportedAttempt = (
+    saved: TafAttempt,
+    isUpdated = false,
+    meta?: { mirrored?: boolean; mirrorError?: string | null }
+  ) => {
     setAttempts((prev) => {
       const index = prev.findIndex((a) => a.id === saved.id);
       const updated =
@@ -178,6 +202,17 @@ export default function MeuTafPage() {
     });
     setEditingAttempt(null);
     setShowImportPanel(false);
+    if (meta?.mirrorError) {
+      showToast(
+        `Simulado TAF salvo, mas falha ao espelhar no Diário: ${meta.mirrorError}`,
+        "error"
+      );
+      return;
+    }
+    if (meta?.mirrored) {
+      showToast("Simulado TAF importado e espelhado no Diário com sucesso!");
+      return;
+    }
     showToast(
       isUpdated
         ? "Simulado TAF existente atualizado com sucesso!"
@@ -185,8 +220,8 @@ export default function MeuTafPage() {
     );
   };
 
-  // Callback caso usuário mude o seletor interno para Treino do Diário
-  const handleImportedTraining = (saved: TrainingSession, isUpdated = false) => {
+  // Atualiza treinos no estado e no cache local para gráficos/comparador/backup
+  const upsertTrainingInState = useCallback((saved: TrainingSession) => {
     setTrainings((prev) => {
       const index = prev.findIndex((t) => t.id === saved.id);
       const updated =
@@ -200,6 +235,11 @@ export default function MeuTafPage() {
       }
       return updated;
     });
+  }, []);
+
+  // Callback caso usuário mude o seletor interno para Treino do Diário
+  const handleImportedTraining = (saved: TrainingSession, isUpdated = false) => {
+    upsertTrainingInState(saved);
     setShowImportPanel(false);
     showToast(
       isUpdated
@@ -207,6 +247,32 @@ export default function MeuTafPage() {
         : "Treino importado para o Diário com sucesso!"
     );
   };
+
+  // Espelha um simulado TAF opcionalmente no Diário de Treinos
+  const handleMirroredTrainingSave = async (mirrored: TrainingSession) => {
+    try {
+      const saved = await tafService.saveTraining(mirrored, false);
+      upsertTrainingInState(saved);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Erro ao registrar cópia no Diário de Treinos";
+      showToast(
+        `Simulado salvo, mas falha ao espelhar no Diário: ${msg}`,
+        "error"
+      );
+    }
+  };
+
+  // Invalida caches locais (inclusive de /treinos) e recarrega dados após sincronização com Google Sheets
+  const handleSheetsSynced = useCallback(
+    async (report: SheetsSyncReport) => {
+      clearCrossPageSheetsCaches({ includeGoal: report.profileSynced });
+      await loadData();
+    },
+    [loadData]
+  );
 
   // Salvar tentativa
   const handleSaveAttempt = async (attempt: TafAttempt) => {
@@ -670,6 +736,7 @@ export default function MeuTafPage() {
               defaultSaveAs="taf_attempt"
               onAttemptImported={handleImportedAttempt}
               onImported={handleImportedTraining}
+              onMirroredTraining={upsertTrainingInState}
               onCancel={() => setShowImportPanel(false)}
             />
           )}
@@ -684,6 +751,7 @@ export default function MeuTafPage() {
             lastAttemptSameDuration={latest12mAttempt}
             editingAttempt={editingAttempt}
             onSave={handleSaveAttempt}
+            onAlsoSaveTraining={handleMirroredTrainingSave}
             onCancelEdit={() => setEditingAttempt(null)}
           />
 
@@ -726,6 +794,7 @@ export default function MeuTafPage() {
           trainings={trainings}
           onGoalSaved={(savedGoal) => setGoal(savedGoal)}
           onDataRefreshed={loadData}
+          onSheetsSynced={handleSheetsSynced}
           showToast={showToast}
         />
       )}
