@@ -1,9 +1,12 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withApiHandler, apiSuccess, apiConflict } from "@/lib/api/response";
+import { shouldSkipSheetsSync, syncRecordWithSheets } from "@/lib/api/sheetsSync";
+import { syncTafAttemptToSheet } from "@/lib/googleSheets";
 import { CreateTafAttemptSchema, PaginationQuerySchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   return withApiHandler(async () => {
@@ -40,6 +43,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return withApiHandler(async () => {
+    const skipSheetsSync = shouldSkipSheetsSync(request);
     const body = await request.json();
     const validated = CreateTafAttemptSchema.parse(body);
 
@@ -58,6 +62,9 @@ export async function POST(request: Request) {
       userId: validated.userId || null,
       source: validated.source ?? "manual",
       externalId: validated.externalId ?? null,
+      syncedToSheetsAt: validated.syncedToSheetsAt
+        ? new Date(validated.syncedToSheetsAt)
+        : null,
       testDate: new Date(validated.testDate),
       targetDurationSeconds: validated.targetDurationSeconds,
       actualDurationSeconds: validated.actualDurationSeconds,
@@ -119,7 +126,13 @@ export async function POST(request: Request) {
           },
         });
 
-        return apiSuccess(updated, 200);
+        const syncedUpdated = await syncRecordWithSheets(
+          updated,
+          () => syncTafAttemptToSheet(updated),
+          { skip: skipSheetsSync }
+        );
+
+        return apiSuccess(syncedUpdated, 200);
       }
     }
 
@@ -137,7 +150,13 @@ export async function POST(request: Request) {
             data: attemptData,
           });
 
-      return apiSuccess(created, 201);
+      const syncedCreated = await syncRecordWithSheets(
+        created,
+        () => syncTafAttemptToSheet(created),
+        { skip: skipSheetsSync }
+      );
+
+      return apiSuccess(syncedCreated, 201);
     } catch (err) {
       if (
         validated.externalId &&

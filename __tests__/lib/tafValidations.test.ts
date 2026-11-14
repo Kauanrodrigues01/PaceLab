@@ -496,6 +496,35 @@ describe("Validações Zod do TAF (Fase 1 - Eixo B)", () => {
       expect("source" in partialTraining).toBe(false);
       expect("externalId" in partialTraining).toBe(false);
     });
+
+    it("aceita source='sheets' e syncedToSheetsAt válido/null/omitido em TrainingSession e TafAttempt", () => {
+      const sheetsTraining = CreateTrainingSessionSchema.parse({
+        source: "sheets",
+        activityType: "tempo_run",
+        distanceKm: 5,
+        durationSeconds: 1500,
+        syncedToSheetsAt: "2026-11-14T15:00:00.000Z",
+      });
+      expect(sheetsTraining.source).toBe("sheets");
+      expect(sheetsTraining.syncedToSheetsAt).toBe("2026-11-14T15:00:00.000Z");
+
+      const sheetsAttempt = CreateTafAttemptSchema.parse({
+        source: "sheets",
+        actualDurationSeconds: 720,
+        distanceMeters: 2550,
+        syncedToSheetsAt: null,
+      });
+      expect(sheetsAttempt.source).toBe("sheets");
+      expect(sheetsAttempt.syncedToSheetsAt).toBeNull();
+
+      const partialUpdate = UpdateTafAttemptSchema.parse({ notes: "Editado no Sheets" });
+      expect(partialUpdate.syncedToSheetsAt).toBeUndefined();
+
+      const invalidDate = UpdateTrainingSessionSchema.safeParse({
+        syncedToSheetsAt: "data-invalida",
+      });
+      expect(invalidDate.success).toBe(false);
+    });
   });
 
   describe("PaginationQuerySchema", () => {

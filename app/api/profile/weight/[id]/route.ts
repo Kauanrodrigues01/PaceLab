@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { safeAutoSync, syncProfileAndGoalToSheet } from "@/lib/googleSheets";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function DELETE(
   _request: Request,
@@ -40,6 +42,8 @@ export async function DELETE(
         },
       });
     }
+
+    await safeAutoSync(() => syncProfileAndGoalToSheet());
 
     return apiSuccess({ success: true, deletedId: id });
   });

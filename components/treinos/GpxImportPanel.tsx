@@ -15,6 +15,10 @@ import {
 } from "@/types";
 import { tafService } from "@/lib/services/tafService";
 import { profileService } from "@/lib/services/profileService";
+import {
+  buildMirroredTrainingFromAttempt,
+  combineTitleAndNotes,
+} from "@/lib/sheetsSyncUi";
 import { formatTime } from "@/lib/formatting/time";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import {
@@ -63,9 +67,19 @@ function resolveSafeIsoDate(primaryIso: string | null | undefined, fallbackInput
   return new Date().toISOString();
 }
 
+interface GpxImportAttemptMeta {
+  mirrored?: boolean;
+  mirrorError?: string | null;
+}
+
 interface GpxImportPanelProps {
   onImported?: (saved: TrainingSession, isUpdated?: boolean) => void;
-  onAttemptImported?: (saved: TafAttempt, isUpdated?: boolean) => void;
+  onAttemptImported?: (
+    saved: TafAttempt,
+    isUpdated?: boolean,
+    meta?: GpxImportAttemptMeta
+  ) => void;
+  onMirroredTraining?: (saved: TrainingSession) => void;
   defaultSaveAs?: "training" | "taf_attempt";
   onCancel?: () => void;
 }
@@ -73,6 +87,7 @@ interface GpxImportPanelProps {
 export function GpxImportPanel({
   onImported,
   onAttemptImported,
+  onMirroredTraining,
   defaultSaveAs = "training",
   onCancel,
 }: GpxImportPanelProps) {
@@ -99,6 +114,7 @@ export function GpxImportPanel({
   const [shoeName, setShoeName] = useState("");
   const [bodyWeightKg, setBodyWeightKg] = useState("");
   const [notes, setNotes] = useState("");
+  const [alsoSaveToDiary, setAlsoSaveToDiary] = useState(false);
   const [savedAttemptBanner, setSavedAttemptBanner] =
     useState<TafAttempt | null>(null);
 
@@ -267,6 +283,7 @@ export function GpxImportPanel({
     setSaveAs(defaultSaveAs);
     setWorkoutTitle("");
     setNotes("");
+    setAlsoSaveToDiary(false);
     setLocationType("pista_400m");
     setPerceivedEffort(null);
     setShoeName("");
@@ -426,13 +443,7 @@ export function GpxImportPanel({
         : null;
 
     // Combina Título do Treino e Observações em notes (respeitando limite de 1.000 chars do Zod)
-    const cleanTitle = workoutTitle.trim();
-    const cleanNotes = notes.trim();
-    const combinedRaw =
-      cleanTitle && cleanNotes
-        ? `${cleanTitle} — ${cleanNotes}`
-        : cleanTitle || cleanNotes || "";
-    const combinedNotes = combinedRaw ? combinedRaw.slice(0, 1000) : null;
+    const combinedNotes = combineTitleAndNotes(workoutTitle, notes);
 
     const caloriePayload = calorieEstimate
       ? buildCaloriePayload(calorieEstimate)
@@ -603,13 +614,7 @@ export function GpxImportPanel({
         ? avgHeartRate
         : maxHrCandidate;
 
-    const cleanTitle = workoutTitle.trim();
-    const cleanNotes = notes.trim();
-    const combinedRaw =
-      cleanTitle && cleanNotes
-        ? `${cleanTitle} — ${cleanNotes}`
-        : cleanTitle || cleanNotes || "";
-    const combinedNotes = combinedRaw ? combinedRaw.slice(0, 1000) : null;
+    const combinedNotes = combineTitleAndNotes(workoutTitle, notes);
 
     setStatus("saving");
 
@@ -640,14 +645,67 @@ export function GpxImportPanel({
       };
 
       const saved = await tafService.saveAttempt(payload, false);
+
+      let mirrorError: string | null = null;
+      let mirroredOk = false;
+      if (alsoSaveToDiary) {
+        const isSameDurationWindow =
+          preview.durationSeconds > 0 &&
+          Math.abs(preview.durationSeconds - saved.actualDurationSeconds) <= 10;
+        const hasDeviceCalories =
+          isSameDurationWindow &&
+          preview.activeCalories !== null &&
+          preview.activeCalories > 0;
+        const mirroredPayload = buildMirroredTrainingFromAttempt({
+          attempt: saved,
+          source: preview.source,
+          externalId: preview.alreadyExists ? null : preview.externalId,
+          activeCalories: hasDeviceCalories ? preview.activeCalories : null,
+          calorieMethod: hasDeviceCalories ? "garmin_fit_device" : null,
+          calorieSource: hasDeviceCalories ? "device_fit" : null,
+          calorieMetadata: hasDeviceCalories
+            ? { source: "fit_session_total_calories" }
+            : null,
+        });
+
+        try {
+          const savedMirrored = await tafService.saveTraining(
+            mirroredPayload,
+            false
+          );
+          mirroredOk = true;
+          if (onMirroredTraining) {
+            onMirroredTraining(savedMirrored);
+          } else {
+            onImported?.(savedMirrored, false);
+          }
+        } catch (mirrorErr) {
+          mirrorError =
+            mirrorErr instanceof Error
+              ? mirrorErr.message
+              : "Não foi possível espelhar o simulado no Diário de Treinos.";
+        }
+      }
+
       setStatus("preview");
+      setAlsoSaveToDiary(false);
+      if (mirrorError) {
+        setErrorMessage(
+          `Simulado TAF salvo, mas falha ao espelhar no Diário: ${mirrorError}`
+        );
+      }
+
       if (onAttemptImported) {
-        onAttemptImported(saved, onDuplicateMode === "update");
+        onAttemptImported(saved, onDuplicateMode === "update", {
+          mirrored: mirroredOk,
+          mirrorError,
+        });
       } else {
         setPreview((prev) =>
           prev
             ? {
                 ...prev,
+                alreadyExists: prev.alreadyExists || mirroredOk,
                 alreadyExistsAttempt: true,
                 existingAttemptId: saved.id,
               }
@@ -1475,59 +1533,79 @@ export function GpxImportPanel({
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#1E2942]">
-                <div className="flex items-center gap-2 text-xs text-[#8E9BB0]">
-                  <Award className="w-4 h-4 text-[#B7F34A] shrink-0" />
-                  {effectiveTafWindow ? (
-                    <span>
-                      Janela TAF (12 min):{" "}
-                      <strong className="text-[#B7F34A]">
-                        {effectiveTafWindow.distanceMeters.toLocaleString("pt-BR")}{" "}
-                        m
-                      </strong>{" "}
-                      em {formatTime(effectiveTafWindow.actualDurationSeconds)} (
-                      {effectiveTafWindow.paceFormatted}/km)
+              <div className="space-y-3 pt-2 border-t border-[#1E2942]">
+                <label className="flex items-start gap-2.5 p-3 rounded-xl bg-[#131A2E] border border-[#1E2942] cursor-pointer hover:border-[#B7F34A]/50 transition-colors">
+                  <input
+                    type="checkbox"
+                    data-testid="import-also-save-diary-checkbox"
+                    checked={alsoSaveToDiary}
+                    onChange={(e) => setAlsoSaveToDiary(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-[#1E2942] bg-[#0B1020] text-[#B7F34A] focus:ring-[#B7F34A]"
+                  />
+                  <span className="text-xs text-[#E2E8F0] leading-relaxed">
+                    <span className="font-bold text-white block">
+                      Também registrar no Diário de Treinos (Log_Treinos)
                     </span>
-                  ) : (
-                    <span>
-                      Informe distância e duração nos campos acima para gerar o
-                      simulado TAF.
+                    <span className="text-[11px] text-[#8E9BB0]">
+                      Salva uma sessão espelhada no Diário como Tempo Run (ID trn_ separado para sincronização com Google Sheets).
                     </span>
-                  )}
-                </div>
+                  </span>
+                </label>
 
-                <button
-                  type="button"
-                  data-testid="save-imported-attempt-btn"
-                  disabled={
-                    status === "saving" ||
-                    !effectiveTafWindow ||
-                    isTafWindowOutOfBounds
-                  }
-                  onClick={() =>
-                    handleSaveImportedAttempt(
-                      preview.alreadyExistsAttempt ? "update" : undefined
-                    )
-                  }
-                  className="h-11 px-6 rounded-xl bg-[#B7F34A] hover:bg-[#a6e03f] text-[#0B1020] font-black text-xs sm:text-sm inline-flex items-center justify-center gap-2 shadow-lg shadow-[#B7F34A]/20 transition-all disabled:opacity-50"
-                >
-                  {status === "saving" ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Salvando...
-                    </>
-                  ) : preview.alreadyExistsAttempt ? (
-                    <>
-                      <RefreshCw className="w-4 h-4" />
-                      Salvar Atualização do Simulado TAF
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      Confirmar e Salvar Simulado TAF
-                    </>
-                  )}
-                </button>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-xs text-[#8E9BB0]">
+                    <Award className="w-4 h-4 text-[#B7F34A] shrink-0" />
+                    {effectiveTafWindow ? (
+                      <span>
+                        Janela TAF (12 min):{" "}
+                        <strong className="text-[#B7F34A]">
+                          {effectiveTafWindow.distanceMeters.toLocaleString("pt-BR")}{" "}
+                          m
+                        </strong>{" "}
+                        em {formatTime(effectiveTafWindow.actualDurationSeconds)} (
+                        {effectiveTafWindow.paceFormatted}/km)
+                      </span>
+                    ) : (
+                      <span>
+                        Informe distância e duração nos campos acima para gerar o
+                        simulado TAF.
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    data-testid="save-imported-attempt-btn"
+                    disabled={
+                      status === "saving" ||
+                      !effectiveTafWindow ||
+                      isTafWindowOutOfBounds
+                    }
+                    onClick={() =>
+                      handleSaveImportedAttempt(
+                        preview.alreadyExistsAttempt ? "update" : undefined
+                      )
+                    }
+                    className="h-11 px-6 rounded-xl bg-[#B7F34A] hover:bg-[#a6e03f] text-[#0B1020] font-black text-xs sm:text-sm inline-flex items-center justify-center gap-2 shadow-lg shadow-[#B7F34A]/20 transition-all disabled:opacity-50"
+                  >
+                    {status === "saving" ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Salvando...
+                      </>
+                    ) : preview.alreadyExistsAttempt ? (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        Salvar Atualização do Simulado TAF
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Confirmar e Salvar Simulado TAF
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </div>

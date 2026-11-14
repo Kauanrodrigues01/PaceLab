@@ -56,6 +56,34 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
       expect(data.data.orm).toBe("Prisma");
       expect(data.data.database).toBe("PostgreSQL");
       expect(data.data.latencyMs).toBeGreaterThanOrEqual(0);
+      expect(data.data.sheetsConfigured).toBe(false);
+    });
+
+    it("informa sheetsConfigured=true em /api/taf/health quando credenciais estão presentes", async () => {
+      const originalId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+      const originalCreds = process.env.GOOGLE_CREDENTIALS_BASE64;
+      const originalDb = process.env.DATABASE_URL;
+      process.env.DATABASE_URL = "postgresql://mock:mock@localhost:5432/mock";
+      process.env.GOOGLE_SHEETS_SPREADSHEET_ID = "sheet-health";
+      process.env.GOOGLE_CREDENTIALS_BASE64 = Buffer.from(
+        JSON.stringify({
+          client_email: "health@pacelab-test.iam.gserviceaccount.com",
+          private_key: "-----BEGIN PRIVATE KEY-----\\nHEALTH\\n-----END PRIVATE KEY-----\\n",
+        }),
+        "utf-8"
+      ).toString("base64");
+
+      vi.mocked(prisma.$queryRaw).mockResolvedValueOnce([{ "?column?": 1 }]);
+      try {
+        const res = await getHealth();
+        const data = await res.json();
+        expect(res.status).toBe(200);
+        expect(data.data.sheetsConfigured).toBe(true);
+      } finally {
+        process.env.DATABASE_URL = originalDb;
+        process.env.GOOGLE_SHEETS_SPREADSHEET_ID = originalId;
+        process.env.GOOGLE_CREDENTIALS_BASE64 = originalCreds;
+      }
     });
 
     it("retorna 503 se DATABASE_URL não estiver configurada", async () => {
@@ -247,6 +275,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
           maxHeartRate: null,
           notes: null,
           laps: [],
+          syncedToSheetsAt: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -294,6 +323,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
           maxHeartRate: null,
           notes: null,
           laps: [],
+          syncedToSheetsAt: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -315,6 +345,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
           maxHeartRate: null,
           notes: null,
           laps: [],
+          syncedToSheetsAt: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -336,6 +367,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
           maxHeartRate: null,
           notes: null,
           laps: [],
+          syncedToSheetsAt: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -422,6 +454,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
         maxHeartRate: null,
         notes: null,
         laps: [],
+        syncedToSheetsAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -464,6 +497,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
         maxHeartRate: null,
         notes: null,
         laps: [],
+        syncedToSheetsAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -527,6 +561,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
         maxHeartRate: null,
         notes: null,
         laps: [],
+        syncedToSheetsAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -542,6 +577,89 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
       expect(putRes.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.data.distanceMeters).toBe(2400);
+      expect(prisma.tafAttempt.update).toHaveBeenCalledWith({
+        where: { id: "att-1" },
+        data: { distanceMeters: 2400, syncedToSheetsAt: null },
+      });
+    });
+
+    it("POST e PUT /api/taf/attempts persistem syncedToSheetsAt e aceitam source='sheets'", async () => {
+      const syncDate = new Date("2026-11-14T15:00:00.000Z");
+
+      vi.mocked(prisma.tafAttempt.create).mockResolvedValueOnce({
+        id: "att-sheets",
+        userId: null,
+        source: "sheets",
+        externalId: null,
+        testDate: new Date(),
+        targetDurationSeconds: 720,
+        actualDurationSeconds: 720,
+        distanceMeters: 2500,
+        speedKmh: 12.5,
+        paceSeconds: 288,
+        paceFormatted: "4:48",
+        locationType: null,
+        shoeName: null,
+        avgHeartRate: null,
+        maxHeartRate: null,
+        notes: null,
+        laps: [],
+        syncedToSheetsAt: syncDate,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const postReq = new Request("http://localhost/api/taf/attempts", {
+        method: "POST",
+        body: JSON.stringify({
+          source: "sheets",
+          actualDurationSeconds: 720,
+          distanceMeters: 2500,
+          syncedToSheetsAt: "2026-11-14T15:00:00.000Z",
+        }),
+      });
+      const postRes = await postAttempt(postReq);
+      expect(postRes.status).toBe(201);
+      expect(prisma.tafAttempt.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          source: "sheets",
+          syncedToSheetsAt: syncDate,
+        }),
+      });
+
+      vi.mocked(prisma.tafAttempt.update).mockResolvedValueOnce({
+        id: "att-sheets",
+        userId: null,
+        source: "sheets",
+        externalId: null,
+        testDate: new Date(),
+        targetDurationSeconds: 720,
+        actualDurationSeconds: 720,
+        distanceMeters: 2500,
+        speedKmh: 12.5,
+        paceSeconds: 288,
+        paceFormatted: "4:48",
+        locationType: null,
+        shoeName: null,
+        avgHeartRate: null,
+        maxHeartRate: null,
+        notes: null,
+        laps: [],
+        syncedToSheetsAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const putReq = new Request("http://localhost/api/taf/attempts/att-sheets", {
+        method: "PUT",
+        body: JSON.stringify({ syncedToSheetsAt: null }),
+      });
+      const putRes = await putAttempt(putReq, { params: { id: "att-sheets" } });
+      expect(putRes.status).toBe(200);
+      expect(prisma.tafAttempt.update).toHaveBeenCalledWith({
+        where: { id: "att-sheets" },
+        data: { syncedToSheetsAt: null },
+      });
     });
 
     it("DELETE remove tentativa existente com status 200", async () => {

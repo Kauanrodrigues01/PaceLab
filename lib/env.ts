@@ -68,3 +68,127 @@ export function logDatabaseEnvStatus(): void {
     );
   }
 }
+
+// ─── Google Sheets API (Vercel / Serverless Base64) ───────────────────────────
+
+export interface GoogleServiceAccountCredentials {
+  type?: string;
+  project_id?: string;
+  private_key_id?: string;
+  private_key: string;
+  client_email: string;
+  client_id?: string;
+  [key: string]: unknown;
+}
+
+export interface GoogleSheetsEnvConfig {
+  isConfigured: boolean;
+  spreadsheetId?: string;
+  credentials?: GoogleServiceAccountCredentials;
+  error?: string;
+}
+
+/**
+ * Decodifica e valida `GOOGLE_SHEETS_SPREADSHEET_ID` e `GOOGLE_CREDENTIALS_BASE64`
+ * sem lançar exceções durante o carregamento de módulos/páginas.
+ */
+export function getGoogleSheetsEnvConfig(): GoogleSheetsEnvConfig {
+  const rawSpreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID?.trim();
+  const credentialsBase64 = process.env.GOOGLE_CREDENTIALS_BASE64?.trim();
+
+  if (!rawSpreadsheetId && !credentialsBase64) {
+    return {
+      isConfigured: false,
+      error:
+        "GOOGLE_SHEETS_SPREADSHEET_ID e GOOGLE_CREDENTIALS_BASE64 não configuradas no ambiente.",
+    };
+  }
+
+  if (!rawSpreadsheetId) {
+    return {
+      isConfigured: false,
+      error: "GOOGLE_SHEETS_SPREADSHEET_ID não configurada no ambiente.",
+    };
+  }
+
+  let spreadsheetId = rawSpreadsheetId;
+  if (/^https?:\/\//i.test(rawSpreadsheetId)) {
+    const match = rawSpreadsheetId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    if (!match?.[1]) {
+      return {
+        isConfigured: false,
+        error:
+          "GOOGLE_SHEETS_SPREADSHEET_ID inválido: informe apenas o ID da planilha (ou URL completa /spreadsheets/d/<ID>/).",
+      };
+    }
+    spreadsheetId = match[1];
+  }
+
+  if (!credentialsBase64) {
+    return {
+      isConfigured: false,
+      error: "GOOGLE_CREDENTIALS_BASE64 não configurada no ambiente.",
+    };
+  }
+
+  const normalizedBase64 = credentialsBase64.replace(/\s+/g, "");
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(normalizedBase64)) {
+    return {
+      isConfigured: false,
+      error:
+        "GOOGLE_CREDENTIALS_BASE64 possui caracteres inválidos para Base64.",
+    };
+  }
+
+  try {
+    const decodedText = Buffer.from(normalizedBase64, "base64").toString("utf-8");
+    const parsed = JSON.parse(decodedText) as unknown;
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {
+        isConfigured: false,
+        error:
+          "GOOGLE_CREDENTIALS_BASE64 não decodifica para um objeto JSON de Conta de Serviço.",
+      };
+    }
+
+    const record = parsed as Record<string, unknown>;
+    const clientEmail =
+      typeof record.client_email === "string" ? record.client_email.trim() : "";
+    const privateKeyRaw =
+      typeof record.private_key === "string" ? record.private_key.trim() : "";
+
+    if (!clientEmail || !privateKeyRaw) {
+      return {
+        isConfigured: false,
+        error:
+          "Credenciais Google em Base64 devem conter os campos obrigatórios client_email e private_key.",
+      };
+    }
+
+    const privateKey = privateKeyRaw.replace(/\\n/g, "\n");
+
+    return {
+      isConfigured: true,
+      spreadsheetId,
+      credentials: {
+        ...(record as GoogleServiceAccountCredentials),
+        client_email: clientEmail,
+        private_key: privateKey,
+      },
+    };
+  } catch {
+    return {
+      isConfigured: false,
+      error:
+        "GOOGLE_CREDENTIALS_BASE64 não contém um JSON de Conta de Serviço válido.",
+    };
+  }
+}
+
+/**
+ * Indica de forma rápida e segura se a integração Google Sheets está configurada.
+ */
+export function isGoogleSheetsConfigured(): boolean {
+  return getGoogleSheetsEnvConfig().isConfigured;
+}

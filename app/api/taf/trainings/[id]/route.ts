@@ -1,8 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { shouldSkipSheetsSync, syncRecordWithSheets } from "@/lib/api/sheetsSync";
+import {
+  deleteTrainingSessionFromSheet,
+  safeAutoSync,
+  syncTrainingSessionToSheet,
+} from "@/lib/googleSheets";
 import { UpdateTrainingSessionSchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function PUT(
   request: Request,
@@ -10,6 +17,7 @@ export async function PUT(
 ) {
   return withApiHandler(async () => {
     const { id } = params;
+    const skipSheetsSync = shouldSkipSheetsSync(request);
     const body = await request.json();
     const validated = UpdateTrainingSessionSchema.parse(body);
 
@@ -30,13 +38,12 @@ export async function PUT(
         ...(hasRawField("activityType") && validated.activityType
           ? { activityType: validated.activityType }
           : {}),
-        ...(validated.syncedToSheetsAt !== undefined
-          ? {
-              syncedToSheetsAt: validated.syncedToSheetsAt
-                ? new Date(validated.syncedToSheetsAt)
-                : null,
-            }
-          : {}),
+        syncedToSheetsAt:
+          validated.syncedToSheetsAt !== undefined
+            ? validated.syncedToSheetsAt
+              ? new Date(validated.syncedToSheetsAt)
+              : null
+            : null,
         ...(validated.distanceKm !== undefined ? { distanceKm: validated.distanceKm } : {}),
         ...(validated.durationSeconds !== undefined
           ? { durationSeconds: validated.durationSeconds }
@@ -93,7 +100,13 @@ export async function PUT(
       },
     });
 
-    return apiSuccess(updated);
+    const syncedUpdated = await syncRecordWithSheets(
+      updated,
+      () => syncTrainingSessionToSheet(updated),
+      { skip: skipSheetsSync }
+    );
+
+    return apiSuccess(syncedUpdated);
   });
 }
 
@@ -106,6 +119,7 @@ export async function DELETE(
     await prisma.trainingSession.delete({
       where: { id },
     });
+    await safeAutoSync(() => deleteTrainingSessionFromSheet(id));
     return apiSuccess({ success: true, deletedId: id });
   });
 }

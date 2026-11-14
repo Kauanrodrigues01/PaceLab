@@ -46,6 +46,11 @@ export const swaggerSpec = {
       name: "Health & Diagnóstico",
       description: "Status de saúde do serviço e verificação de conexão com o banco de dados.",
     },
+    {
+      name: "Sincronização Google Sheets",
+      description:
+        "Sincronização manual e bidirecional PostgreSQL ↔ Google Sheets (Log_Treinos, Simulados_TAF e Perfil_e_Metas).",
+    },
   ],
   paths: {
     "/api/taf/goals": {
@@ -147,6 +152,16 @@ export const swaggerSpec = {
         summary: "Registrar novo simulado TAF",
         description:
           "Calcula pace, velocidade média, pontuação e registra a tentativa no histórico persistido.",
+        parameters: [
+          {
+            name: "skipSheetsSync",
+            in: "query",
+            required: false,
+            description:
+              "Quando true/1, evita chamada automática ao Google Sheets (útil em restauração em lote).",
+            schema: { type: "boolean", default: false },
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -222,6 +237,14 @@ export const swaggerSpec = {
             in: "path",
             required: true,
             schema: { type: "string" },
+          },
+          {
+            name: "skipSheetsSync",
+            in: "query",
+            required: false,
+            description:
+              "Quando true/1, evita chamada automática ao Google Sheets (útil em restauração em lote).",
+            schema: { type: "boolean", default: false },
           },
         ],
         requestBody: {
@@ -344,6 +367,16 @@ export const swaggerSpec = {
         summary: "Registrar nova sessão de treino",
         description:
           "Grava o treino (manual ou importado via .GPX do Strava) calculando ritmo, gasto calórico ativo e total segundo o Compêndio de Atividades Físicas 2024.",
+        parameters: [
+          {
+            name: "skipSheetsSync",
+            in: "query",
+            required: false,
+            description:
+              "Quando true/1, evita chamada automática ao Google Sheets (útil em restauração em lote).",
+            schema: { type: "boolean", default: false },
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -418,6 +451,14 @@ export const swaggerSpec = {
             in: "path",
             required: true,
             schema: { type: "string" },
+          },
+          {
+            name: "skipSheetsSync",
+            in: "query",
+            required: false,
+            description:
+              "Quando true/1, evita chamada automática ao Google Sheets (útil em restauração em lote).",
+            schema: { type: "boolean", default: false },
           },
         ],
         requestBody: {
@@ -731,6 +772,94 @@ export const swaggerSpec = {
       },
     },
 
+    "/api/sync/sheets": {
+      get: {
+        tags: ["Sincronização Google Sheets"],
+        summary: "Consultar status da integração e pendências Google Sheets",
+        description:
+          "Retorna se as credenciais Base64 e `GOOGLE_SHEETS_SPREADSHEET_ID` estão configuradas e conta registros pendentes no PostgreSQL sem consumir quota da Google API.",
+        responses: {
+          "200": {
+            description: "Status de sincronização obtido com sucesso.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SheetsSyncStatusResponse",
+                },
+              },
+            },
+          },
+          "500": {
+            $ref: "#/components/responses/InternalError",
+          },
+        },
+      },
+      post: {
+        tags: ["Sincronização Google Sheets"],
+        summary: "Executar sincronização manual ou backfill com o Google Sheets",
+        description:
+          "Dispara sincronização bidirecional (`bidirectional`), envio em lote (`push`, incremental ou `forceFullResync: true`) ou leitura reversa (`pull`) entre PostgreSQL e Google Sheets.",
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/SheetsSyncRequest",
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Sincronização concluída com sucesso.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SheetsSyncReportResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            $ref: "#/components/responses/ValidationError",
+          },
+          "429": {
+            description: "Limite de requisições (quota) da API Google Sheets excedido.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ApiErrorResponse",
+                },
+              },
+            },
+          },
+          "502": {
+            description: "Erro de permissão (403/401) ou recurso não encontrado (404) na planilha.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ApiErrorResponse",
+                },
+              },
+            },
+          },
+          "503": {
+            description: "Integração Google Sheets não configurada ou temporariamente indisponível.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ApiErrorResponse",
+                },
+              },
+            },
+          },
+          "500": {
+            $ref: "#/components/responses/InternalError",
+          },
+        },
+      },
+    },
+
     "/api/taf/health": {
       get: {
         tags: ["Health & Diagnóstico"],
@@ -753,7 +882,7 @@ export const swaggerSpec = {
             content: {
               "application/json": {
                 schema: {
-                  $ref: "#/components/schemas/HealthResponse",
+                  $ref: "#/components/schemas/ApiErrorResponse",
                 },
               },
             },
@@ -813,14 +942,23 @@ export const swaggerSpec = {
           success: { type: "boolean", example: false },
           error: { type: "string", example: "Dados de entrada inválidos" },
           details: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                field: { type: "string", example: "targetDistanceMeters" },
-                message: { type: "string", example: "A distância alvo deve ser de no mínimo 500 metros" },
+            oneOf: [
+              {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    field: { type: "string", example: "targetDistanceMeters" },
+                    message: { type: "string", example: "A distância alvo deve ser de no mínimo 500 metros" },
+                  },
+                },
               },
-            },
+              {
+                type: "object",
+                additionalProperties: true,
+                example: { code: "SHEETS_NOT_CONFIGURED", sheetsConfigured: false },
+              },
+            ],
           },
           timestamp: { type: "string", format: "date-time" },
         },
@@ -844,12 +982,99 @@ export const swaggerSpec = {
       HealthResponse: {
         type: "object",
         properties: {
-          status: { type: "string", enum: ["healthy", "unhealthy"], example: "healthy" },
-          database: { type: "string", example: "connected" },
-          latencyMs: { type: "number", example: 42 },
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              status: { type: "string", enum: ["connected"], example: "connected" },
+              orm: { type: "string", example: "Prisma" },
+              database: { type: "string", example: "PostgreSQL" },
+              latencyMs: { type: "number", example: 42 },
+              sheetsConfigured: { type: "boolean", example: true },
+            },
+            required: ["status", "orm", "database", "latencyMs", "sheetsConfigured"],
+          },
           timestamp: { type: "string", format: "date-time" },
         },
-        required: ["status", "database", "timestamp"],
+        required: ["success", "data", "timestamp"],
+      },
+      SheetsSyncRequest: {
+        type: "object",
+        properties: {
+          direction: {
+            type: "string",
+            enum: ["bidirectional", "push", "pull"],
+            default: "bidirectional",
+          },
+          forceFullResync: {
+            type: "boolean",
+            default: false,
+          },
+        },
+      },
+      SheetsSyncStatusResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              configured: { type: "boolean", example: true },
+              error: { type: "string" },
+              pendingTrainingsCount: { type: "integer", example: 3 },
+              pendingAttemptsCount: { type: "integer", example: 1 },
+              totalPendingCount: { type: "integer", example: 4 },
+            },
+            required: [
+              "configured",
+              "pendingTrainingsCount",
+              "pendingAttemptsCount",
+              "totalPendingCount",
+            ],
+          },
+          timestamp: { type: "string", format: "date-time" },
+        },
+        required: ["success", "data", "timestamp"],
+      },
+      SheetsSyncReportResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              direction: { type: "string", enum: ["bidirectional", "push", "pull"] },
+              forceFullResync: { type: "boolean" },
+              pulledUpdated: { type: "integer" },
+              pulledCreated: { type: "integer" },
+              pulledLinked: { type: "integer" },
+              pushedAppended: { type: "integer" },
+              pushedUpdated: { type: "integer" },
+              tafPulledUpdated: { type: "integer" },
+              tafPulledCreated: { type: "integer" },
+              tafPulledLinked: { type: "integer" },
+              tafPushedAppended: { type: "integer" },
+              tafPushedUpdated: { type: "integer" },
+              profileSynced: { type: "boolean" },
+              skipped: { type: "integer" },
+              warnings: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    tab: { type: "string", enum: ["Log_Treinos", "Simulados_TAF", "Perfil_e_Metas"] },
+                    rowNumber: { type: "integer" },
+                    message: { type: "string" },
+                  },
+                },
+              },
+              durationMs: { type: "integer" },
+              syncedAt: { type: "string", format: "date-time" },
+            },
+          },
+          timestamp: { type: "string", format: "date-time" },
+        },
+        required: ["success", "data", "timestamp"],
       },
       TafGoalInput: {
         type: "object",
@@ -916,11 +1141,12 @@ export const swaggerSpec = {
         properties: {
           source: {
             type: "string",
-            enum: ["manual", "gpx_upload", "fit_upload"],
+            enum: ["manual", "gpx_upload", "fit_upload", "sheets"],
             default: "manual",
             example: "manual",
           },
           externalId: { type: "string", maxLength: 100, nullable: true },
+          syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
           onDuplicate: { type: "string", enum: ["error", "update"] },
           distanceMeters: { type: "integer", minimum: 100, maximum: 10000, example: 2450 },
           actualDurationSeconds: { type: "integer", minimum: 30, maximum: 7200, example: 720 },
@@ -954,6 +1180,7 @@ export const swaggerSpec = {
       UpdateTafAttemptInput: {
         type: "object",
         properties: {
+          syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
           distanceMeters: { type: "integer", minimum: 100, maximum: 10000 },
           notes: { type: "string", maxLength: 1000, nullable: true },
           locationType: {
@@ -973,8 +1200,9 @@ export const swaggerSpec = {
             type: "object",
             properties: {
               id: { type: "string" },
-              source: { type: "string", enum: ["manual", "gpx_upload", "fit_upload"], example: "manual" },
+              source: { type: "string", enum: ["manual", "gpx_upload", "fit_upload", "sheets"], example: "manual" },
               externalId: { type: "string", nullable: true },
+              syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
               distanceMeters: { type: "integer", example: 2450 },
               actualDurationSeconds: { type: "integer", example: 720 },
               speedKmh: { type: "number", example: 12.25 },
@@ -1051,11 +1279,12 @@ export const swaggerSpec = {
         properties: {
           source: {
             type: "string",
-            enum: ["manual", "gpx_upload", "fit_upload"],
+            enum: ["manual", "gpx_upload", "fit_upload", "sheets"],
             default: "manual",
             example: "manual",
           },
           externalId: { type: "string", maxLength: 100, nullable: true },
+          syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
           onDuplicate: { type: "string", enum: ["error", "update"] },
           activityType: {
             type: "string",
@@ -1093,6 +1322,7 @@ export const swaggerSpec = {
       UpdateTrainingInput: {
         type: "object",
         properties: {
+          syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
           activityType: {
             type: "string",
             enum: [
@@ -1129,8 +1359,9 @@ export const swaggerSpec = {
             type: "object",
             properties: {
               id: { type: "string" },
-              source: { type: "string", enum: ["manual", "gpx_upload", "fit_upload"], example: "manual" },
+              source: { type: "string", enum: ["manual", "gpx_upload", "fit_upload", "sheets"], example: "manual" },
               externalId: { type: "string", nullable: true },
+              syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
               activityType: { type: "string", example: "corrida_continua" },
               distanceKm: { type: "number", example: 5.0 },
               durationSeconds: { type: "integer", example: 1500 },

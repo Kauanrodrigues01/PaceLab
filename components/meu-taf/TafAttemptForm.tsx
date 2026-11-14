@@ -1,7 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { TafAttempt, LapDetail, LocationType, LOCATION_LABELS } from "@/types";
+import {
+  TafAttempt,
+  LapDetail,
+  LocationType,
+  LOCATION_LABELS,
+  TrainingSession,
+} from "@/types";
+import { tafService } from "@/lib/services/tafService";
+import { buildMirroredTrainingFromAttempt } from "@/lib/sheetsSyncUi";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import { formatPace, formatTime } from "@/lib/formatting/time";
 import {
@@ -21,6 +29,7 @@ interface TafAttemptFormProps {
   lastAttemptSameDuration?: TafAttempt | null;
   editingAttempt?: TafAttempt | null;
   onSave: (attempt: TafAttempt) => Promise<void>;
+  onAlsoSaveTraining?: (training: TrainingSession) => Promise<void>;
   onCancelEdit?: () => void;
 }
 
@@ -45,6 +54,7 @@ export function TafAttemptForm({
   lastAttemptSameDuration,
   editingAttempt,
   onSave,
+  onAlsoSaveTraining,
   onCancelEdit,
 }: TafAttemptFormProps) {
   // Form State
@@ -65,6 +75,7 @@ export function TafAttemptForm({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [alsoSaveToDiary, setAlsoSaveToDiary] = useState(false);
 
   // Preenche formulário caso entre em modo de edição
   useEffect(() => {
@@ -258,13 +269,36 @@ export function TafAttemptForm({
 
       await onSave(attemptToSave);
 
-      if (onCancelEdit) {
-        onCancelEdit();
-      } else {
+      if (!editingAttempt && alsoSaveToDiary) {
+        const mirroredTraining = buildMirroredTrainingFromAttempt({
+          attempt: attemptToSave,
+          source: "manual",
+        });
+        try {
+          if (onAlsoSaveTraining) {
+            await onAlsoSaveTraining(mirroredTraining);
+          } else {
+            await tafService.saveTraining(mirroredTraining, false);
+          }
+        } catch (mirrorErr) {
+          setErrorMessage(
+            mirrorErr instanceof Error
+              ? `Simulado TAF salvo, mas falha ao espelhar no Diário: ${mirrorErr.message}`
+              : "Simulado TAF salvo, mas não foi possível espelhar no Diário de Treinos."
+          );
+        }
+      }
+
+      if (!editingAttempt) {
+        setAlsoSaveToDiary(false);
         // Reset campos livres mantendo data atual
         setNotes("");
         setEnableLaps(false);
         setLaps([]);
+      }
+
+      if (onCancelEdit) {
+        onCancelEdit();
       }
     } catch (err) {
       setErrorMessage(
@@ -624,6 +658,27 @@ export function TafAttemptForm({
           className="w-full p-3 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A] resize-none"
         />
       </div>
+
+      {/* Opção opcional de espelhar no Diário de Treinos */}
+      {!editingAttempt && (
+        <label className="mb-5 flex items-start gap-2.5 p-3 rounded-xl bg-[#0B1020] border border-[#1E2942] cursor-pointer hover:border-[#B7F34A]/50 transition-colors">
+          <input
+            type="checkbox"
+            data-testid="also-save-diary-checkbox"
+            checked={alsoSaveToDiary}
+            onChange={(e) => setAlsoSaveToDiary(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-[#1E2942] bg-[#131A2E] text-[#B7F34A] focus:ring-[#B7F34A]"
+          />
+          <span className="text-xs text-[#E2E8F0] leading-relaxed">
+            <span className="font-bold text-white block">
+              Também registrar no Diário de Treinos (Log_Treinos)
+            </span>
+            <span className="text-[11px] text-[#8E9BB0]">
+              Cria uma sessão espelhada no Diário como Tempo Run (com ID separado para sincronização no Google Sheets).
+            </span>
+          </span>
+        </label>
+      )}
 
       {/* Botão de Envio */}
       <button

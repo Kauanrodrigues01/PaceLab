@@ -387,6 +387,7 @@ describe("API Routes — Telemetria GPX, Origem e Anti-Duplicação (Fase 3)", (
         perceivedEffort: 9,
         shoeName: "Adidas Adios Pro 3",
         avgHeartRate: 168,
+        syncedToSheetsAt: null,
       });
       expect("source" in updateCall.data).toBe(false);
       expect("externalId" in updateCall.data).toBe(false);
@@ -526,6 +527,7 @@ describe("API Routes — Telemetria GPX, Origem e Anti-Duplicação (Fase 3)", (
       expect(updateCall.data).toEqual({
         shoeName: "Nike Vaporfly 3",
         avgHeartRate: 180,
+        syncedToSheetsAt: null,
       });
       expect("source" in updateCall.data).toBe(false);
       expect("externalId" in updateCall.data).toBe(false);

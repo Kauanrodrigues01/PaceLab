@@ -174,7 +174,7 @@ export const ACTIVITY_TYPES = [
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
-export const ACTIVITY_SOURCES = ["manual", "gpx_upload", "fit_upload"] as const;
+export const ACTIVITY_SOURCES = ["manual", "gpx_upload", "fit_upload", "sheets"] as const;
 
 export type ActivitySource = (typeof ACTIVITY_SOURCES)[number];
 
@@ -198,6 +198,7 @@ export const SOURCE_LABELS: Record<ActivitySource, string> = {
   manual: "Manual",
   gpx_upload: "Strava GPX",
   fit_upload: "Strava FIT",
+  sheets: "Google Sheets",
 };
 
 export const LOCATION_LABELS: Record<LocationType, string> = {
@@ -213,6 +214,7 @@ export interface TafAttempt {
   userId?: string | null;
   source?: ActivitySource;
   externalId?: string | null;
+  syncedToSheetsAt?: string | null;
   testDate: string; // ISO 8601
   targetDurationSeconds: Seconds; // Padrão 720 (12 min)
   actualDurationSeconds: Seconds;

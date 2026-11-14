@@ -1,8 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { shouldSkipSheetsSync, syncRecordWithSheets } from "@/lib/api/sheetsSync";
+import {
+  deleteTafAttemptFromSheet,
+  safeAutoSync,
+  syncTafAttemptToSheet,
+} from "@/lib/googleSheets";
 import { UpdateTafAttemptSchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function PUT(
   request: Request,
@@ -10,6 +17,7 @@ export async function PUT(
 ) {
   return withApiHandler(async () => {
     const { id } = params;
+    const skipSheetsSync = shouldSkipSheetsSync(request);
     const body = await request.json();
     const validated = UpdateTafAttemptSchema.parse(body);
 
@@ -27,6 +35,12 @@ export async function PUT(
         ...(hasRawField("testDate") && validated.testDate
           ? { testDate: new Date(validated.testDate) }
           : {}),
+        syncedToSheetsAt:
+          validated.syncedToSheetsAt !== undefined
+            ? validated.syncedToSheetsAt
+              ? new Date(validated.syncedToSheetsAt)
+              : null
+            : null,
         ...(hasRawField("targetDurationSeconds") &&
         validated.targetDurationSeconds !== undefined
           ? { targetDurationSeconds: validated.targetDurationSeconds }
@@ -61,7 +75,13 @@ export async function PUT(
       },
     });
 
-    return apiSuccess(updated);
+    const syncedUpdated = await syncRecordWithSheets(
+      updated,
+      () => syncTafAttemptToSheet(updated),
+      { skip: skipSheetsSync }
+    );
+
+    return apiSuccess(syncedUpdated);
   });
 }
 
@@ -74,6 +94,7 @@ export async function DELETE(
     await prisma.tafAttempt.delete({
       where: { id },
     });
+    await safeAutoSync(() => deleteTafAttemptFromSheet(id));
     return apiSuccess({ success: true, deletedId: id });
   });
 }

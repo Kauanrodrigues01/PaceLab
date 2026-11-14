@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { safeAutoSync, syncProfileAndGoalToSheet } from "@/lib/googleSheets";
 import { CreateWeightRecordSchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET() {
   return withApiHandler(async () => {
@@ -60,6 +62,8 @@ export async function POST(request: Request) {
         data: { currentWeightKg: validated.weightKg },
       });
     }
+
+    await safeAutoSync(() => syncProfileAndGoalToSheet());
 
     return apiSuccess(record, 201);
   });

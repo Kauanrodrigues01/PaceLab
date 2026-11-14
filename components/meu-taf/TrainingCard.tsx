@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { TrainingSession } from "@/types";
+import { TrainingSession, SOURCE_LABELS } from "@/types";
 import { ACTIVITY_CONFIG } from "@/lib/activity";
 import { formatTime } from "@/lib/formatting/time";
 import { analyzeSplits } from "@/lib/math/splitsAnalysis";
 import { SplitsInsights } from "../treinos/SplitsInsights";
 import { SplitsPaceChart } from "../treinos/SplitsPaceChart";
 import { SplitsTable } from "../treinos/SplitsTable";
+import { SheetsSyncBadge } from "./SheetsSyncBadge";
 import {
   BarChart3,
   Clock,
@@ -16,6 +17,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  FileSpreadsheet,
   FileText,
   Flame,
   Scale,
@@ -118,10 +120,20 @@ export function TrainingCard({
               {training.source === "fit_upload" ? "Strava FIT" : "Strava GPX"}
             </span>
           )}
+          {training.source === "sheets" && (
+            <span
+              data-testid="badge-source"
+              className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-950/50 text-emerald-300 border border-emerald-500/30"
+            >
+              <FileSpreadsheet className="w-3 h-3 text-emerald-400" aria-hidden="true" />
+              {SOURCE_LABELS.sheets}
+            </span>
+          )}
         </div>
 
         {/* Badges de RPE, Telemetria, Peso e Calorias */}
         <div className="flex items-center gap-1.5 flex-wrap">
+          <SheetsSyncBadge syncedToSheetsAt={training.syncedToSheetsAt} />
           {rpeInfo && (
             <span
               data-testid="badge-rpe"

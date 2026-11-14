@@ -1,9 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { TafAttempt, TrainingSession } from "@/types";
 import { tafService } from "@/lib/services/tafService";
+import {
+  clearCrossPageSheetsCaches,
+  formatSheetsSyncReportSummary,
+  getSheetsSyncErrorMessage,
+} from "@/lib/sheetsSyncUi";
 import { formatPace } from "@/lib/formatting/time";
 import { parseSafeDate } from "@/lib/math/evolution";
 import { TrainingForm } from "@/components/meu-taf/TrainingForm";
@@ -14,6 +19,7 @@ import { Button } from "@/components/ui/Button";
 import {
   Activity,
   Plus,
+  RefreshCw,
   Upload,
   TrendingUp,
   Clock,
@@ -59,7 +65,9 @@ export default function TreinosPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<TrainingEntryMode>("manual");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [notification, setNotification] = useState<{
     type: "success" | "error";
@@ -90,21 +98,40 @@ export default function TreinosPage() {
     }
   };
 
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
-  };
+  const showToast = useCallback(
+    (message: string, type: "success" | "error" = "success") => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      setNotification({ message, type });
+      toastTimeoutRef.current = setTimeout(() => {
+        setNotification(null);
+        toastTimeoutRef.current = null;
+      }, 4000);
+    },
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Carrega a lista de treinos via tafService (Stale-While-Revalidate)
-  const loadTrainings = useCallback(async () => {
+  const loadTrainings = useCallback(async (): Promise<boolean> => {
     setErrorMessage(null);
     try {
       const data = await tafService.getTrainings();
       setTrainings(data);
       setCachedTrainings(data);
+      return true;
     } catch (err) {
       console.error("Erro ao carregar treinos:", err);
       setErrorMessage("Não foi possível carregar os treinos. Verifique sua conexão.");
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -187,16 +214,80 @@ export default function TreinosPage() {
     );
   };
 
+  // Atualiza lista local e cache após salvar ou espelhar um treino
+  const upsertTrainingInState = useCallback((saved: TrainingSession) => {
+    setTrainings((prev) => {
+      const index = prev.findIndex((t) => t.id === saved.id);
+      const updated =
+        index >= 0
+          ? prev.map((t) => (t.id === saved.id ? saved : t))
+          : [saved, ...prev];
+      setCachedTrainings(updated);
+      return updated;
+    });
+  }, []);
+
   // Callback ao importar Simulado TAF via .FIT / .GPX no Diário de Treinos
-  const handleImportedAttempt = (saved: TafAttempt, isUpdated = false) => {
+  const handleImportedAttempt = (
+    saved: TafAttempt,
+    isUpdated = false,
+    meta?: { mirrored?: boolean; mirrorError?: string | null }
+  ) => {
     setEditingTraining(null);
     setIsFormOpen(false);
     setFormMode("manual");
+    if (meta?.mirrorError) {
+      showToast(
+        `Simulado TAF (${saved.distanceMeters}m) salvo, mas falha ao espelhar no Diário: ${meta.mirrorError}`,
+        "error"
+      );
+      return;
+    }
+    if (meta?.mirrored) {
+      showToast(
+        `Simulado TAF (${saved.distanceMeters}m) salvo e espelhado no Diário de Treinos!`
+      );
+      return;
+    }
     showToast(
       isUpdated
         ? `Simulado TAF existente (${saved.distanceMeters}m) atualizado no Meu TAF!`
         : `Simulado TAF (${saved.distanceMeters}m) salvo no histórico do Meu TAF!`
     );
+  };
+
+  // Sincronização manual bidirecional com Google Sheets
+  const handleSyncSheets = async () => {
+    if (isSyncingSheets) return;
+    setIsSyncingSheets(true);
+    try {
+      const report = await tafService.syncGoogleSheets({
+        direction: "bidirectional",
+        forceFullResync: false,
+      });
+
+      clearCrossPageSheetsCaches();
+
+      const reloaded = await loadTrainings();
+      if (!reloaded) {
+        showToast(
+          "Planilha sincronizada, mas falha ao atualizar a lista local.",
+          "error"
+        );
+        return;
+      }
+      showToast(formatSheetsSyncReportSummary(report), "success");
+    } catch (err) {
+      showToast(
+        getSheetsSyncErrorMessage(
+          err,
+          "Erro ao sincronizar planilha Google Sheets."
+        ),
+        "error"
+      );
+    } finally {
+      setIsSyncingSheets(false);
+    }
   };
 
   // Excluir treino
@@ -315,7 +406,13 @@ export default function TreinosPage() {
           <span>{notification.message}</span>
           <button
             type="button"
-            onClick={() => setNotification(null)}
+            onClick={() => {
+              if (toastTimeoutRef.current) {
+                clearTimeout(toastTimeoutRef.current);
+                toastTimeoutRef.current = null;
+              }
+              setNotification(null);
+            }}
             className="text-slate-400 hover:text-slate-600 ml-2"
           >
             <X className="w-3.5 h-3.5" />
@@ -407,6 +504,21 @@ export default function TreinosPage() {
           >
             <Upload className="w-3.5 h-3.5" />
             <span>Importar .FIT / .GPX</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="sync-sheets-btn"
+            onClick={handleSyncSheets}
+            disabled={isSyncingSheets}
+            className="inline-flex items-center justify-center font-bold transition-all duration-150 select-none active:scale-[0.98] border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-950/60 text-emerald-300 text-xs px-3.5 py-2.5 rounded-xl gap-1.5 cursor-pointer shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${isSyncingSheets ? "animate-spin" : ""}`}
+            />
+            <span>
+              {isSyncingSheets ? "Sincronizando..." : "Sincronizar Planilha"}
+            </span>
           </button>
 
           <Link
@@ -671,6 +783,7 @@ export default function TreinosPage() {
                 <GpxImportPanel
                   onImported={handleImportedTraining}
                   onAttemptImported={handleImportedAttempt}
+                  onMirroredTraining={upsertTrainingInState}
                   onCancel={() => {
                     setIsFormOpen(false);
                     setFormMode("manual");
