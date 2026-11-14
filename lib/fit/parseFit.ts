@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { Decoder, Stream } from "@garmin/fitsdk";
+import { Decoder, Profile, Stream } from "@garmin/fitsdk";
 import { formatPaceSeconds } from "../gpx/metrics";
 import { calculateElevationGain } from "../gpx/elevation";
 import { splitByDistance } from "../gpx/splits";
@@ -142,6 +142,162 @@ function sanitizeHeartRate(val: unknown): number | null {
   return rounded;
 }
 
+const FIT_PROFILE_SPORT_TABLE = Profile.types.sport as unknown as Record<
+  string,
+  string
+>;
+const FIT_PROFILE_SUBSPORT_TABLE = Profile.types.subSport as unknown as Record<
+  string,
+  string
+>;
+
+const FIT_GENERIC_SPORT_KEYS = new Set([
+  "generic",
+  "training",
+  "fitnessequipment",
+  "all",
+]);
+
+const FIT_GENERIC_SUBSPORT_KEYS = new Set(["generic", "all"]);
+
+const FIT_INDOOR_SUBSPORT_KEYS = new Set([
+  "treadmill",
+  "indoorrunning",
+  "indoorwalking",
+  "virtualactivity",
+  "indoortrack",
+]);
+
+const FIT_EXPLICIT_WALK_SPORTS = new Set([
+  "walking",
+  "walk",
+  "hiking",
+  "hike",
+  "mountaineering",
+  "trailwalking",
+  "trailwalk",
+  "casualwalking",
+  "indoorwalking",
+  "speedwalking",
+  "powerwalking",
+  "nordicwalking",
+  "racewalking",
+  "rucking",
+  "wheelchairpushwalk",
+  "caminhada",
+  "trilha",
+  "trekking",
+]);
+
+const FIT_EXPLICIT_RUN_SPORTS = new Set([
+  "running",
+  "run",
+  "trailrunning",
+  "trailrun",
+  "virtualrun",
+  "virtualrunning",
+  "treadmillrunning",
+  "treadmillrun",
+  "indoorrunning",
+  "indoorrun",
+  "trackrun",
+  "streetrun",
+  "wheelchairpushrun",
+  "corrida",
+]);
+
+const FIT_WALK_SUBSPORT_KEYS = new Set([
+  "indoorwalking",
+  "casualwalking",
+  "speedwalking",
+  "powerwalking",
+  "nordicwalking",
+  "racewalking",
+  "trailwalking",
+  "trailwalk",
+  "rucking",
+  "indoorwheelchairwalk",
+]);
+
+const FIT_RUN_SUBSPORT_KEYS = new Set([
+  "treadmill",
+  "indoorrunning",
+  "indoortrack",
+  "street",
+  "trail",
+  "track",
+  "ultra",
+  "trackrun",
+  "streetrun",
+  "indoorwheelchairrun",
+]);
+
+function normalizeFitKey(token: string | null): string | null {
+  if (!token) return null;
+  const cleaned = token
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\s_-]+/g, "");
+  return cleaned || null;
+}
+
+function resolveFitEnumToken(
+  raw: unknown,
+  profileTable: Record<string, string>
+): string | null {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const code = String(Math.trunc(raw));
+    const mapped = profileTable[code];
+    return (mapped ?? code).trim().toLowerCase();
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    if (/^\d+$/.test(trimmed)) {
+      const mapped = profileTable[String(Number(trimmed))];
+      if (mapped) {
+        return mapped.trim().toLowerCase();
+      }
+    }
+    return trimmed.toLowerCase();
+  }
+  return null;
+}
+
+function pickBestFitEnumToken(
+  candidates: readonly unknown[],
+  profileTable: Record<string, string>,
+  genericKeys: ReadonlySet<string>
+): string | null {
+  let firstNonNull: string | null = null;
+  for (const candidate of candidates) {
+    const token = resolveFitEnumToken(candidate, profileTable);
+    if (!token) continue;
+    if (firstNonNull === null) {
+      firstNonNull = token;
+    }
+    const key = normalizeFitKey(token);
+    if (key && !genericKeys.has(key)) {
+      return token;
+    }
+  }
+  return firstNonNull;
+}
+
+function throwUnsupportedFitActivity(
+  rawType: string | null,
+  sport: string | null,
+  subSport: string | null
+): never {
+  throw new FitParseError(
+    "UNSUPPORTED_ACTIVITY",
+    `Modalidade "${rawType}" no arquivo .FIT não é suportada. O PaceLab aceita apenas atividades de corrida ou caminhada.`,
+    { rawType, sport, subSport }
+  );
+}
+
 function classifyFitSport(
   sportRaw: unknown,
   subSportRaw: unknown
@@ -152,33 +308,20 @@ function classifyFitSport(
   subSport: string | null;
   isIndoorSubSport: boolean;
 } {
-  const sport =
-    typeof sportRaw === "string" && sportRaw.trim().length > 0
-      ? sportRaw.trim().toLowerCase()
-      : typeof sportRaw === "number"
-        ? String(sportRaw)
-        : null;
-
-  const subSport =
-    typeof subSportRaw === "string" && subSportRaw.trim().length > 0
-      ? subSportRaw.trim().toLowerCase()
-      : typeof subSportRaw === "number"
-        ? String(subSportRaw)
-        : null;
+  const sport = resolveFitEnumToken(sportRaw, FIT_PROFILE_SPORT_TABLE);
+  const subSport = resolveFitEnumToken(subSportRaw, FIT_PROFILE_SUBSPORT_TABLE);
+  const sportKey = normalizeFitKey(sport);
+  const subSportKey = normalizeFitKey(subSport);
 
   const rawType =
-    sport && subSport && subSport !== "generic"
+    sport && subSport && subSportKey !== "generic" && subSportKey !== "all"
       ? `${sport}:${subSport}`
       : sport ?? subSport ?? null;
 
   const isIndoorSubSport =
-    subSport === "treadmill" ||
-    subSport === "indoor_running" ||
-    subSport === "indoor_walking" ||
-    subSport === "virtual_activity" ||
-    subSport === "indoor_track";
+    subSportKey !== null && FIT_INDOOR_SUBSPORT_KEYS.has(subSportKey);
 
-  if (!sport && !subSport) {
+  if (!sportKey && !subSportKey) {
     return {
       kind: "unknown",
       rawType: null,
@@ -188,34 +331,8 @@ function classifyFitSport(
     };
   }
 
-  // No protocolo FIT: sport="running" ou "1", sport="walking" ou "11", sport="hiking" ou "17"
-  if (
-    sport === "running" ||
-    sport === "run" ||
-    subSport === "treadmill" ||
-    subSport === "indoor_running" ||
-    subSport === "street" ||
-    subSport === "trail" ||
-    subSport === "track"
-  ) {
-    return {
-      kind: "run",
-      rawType,
-      sport,
-      subSport,
-      isIndoorSubSport,
-    };
-  }
-
-  if (
-    sport === "walking" ||
-    sport === "walk" ||
-    sport === "hiking" ||
-    sport === "mountaineering" ||
-    subSport === "indoor_walking" ||
-    subSport === "casual_walking" ||
-    subSport === "speed_walking"
-  ) {
+  // 1. Sport explícito tem precedência absoluta sobre subSport de terreno/local (ex.: caminhada na esteira/trilha)
+  if (sportKey && FIT_EXPLICIT_WALK_SPORTS.has(sportKey)) {
     return {
       kind: "walk",
       rawType,
@@ -225,7 +342,54 @@ function classifyFitSport(
     };
   }
 
-  if (sport === "generic" || sport === "training") {
+  if (sportKey && FIT_EXPLICIT_RUN_SPORTS.has(sportKey)) {
+    return {
+      kind: "run",
+      rawType,
+      sport,
+      subSport,
+      isIndoorSubSport,
+    };
+  }
+
+  // 2. Quando o sport está ausente ou é genérico/equipamento, usa o subSport para desambiguar
+  if (!sportKey || FIT_GENERIC_SPORT_KEYS.has(sportKey)) {
+    if (subSportKey && FIT_WALK_SUBSPORT_KEYS.has(subSportKey)) {
+      return {
+        kind: "walk",
+        rawType,
+        sport,
+        subSport,
+        isIndoorSubSport,
+      };
+    }
+
+    if (subSportKey && FIT_RUN_SUBSPORT_KEYS.has(subSportKey)) {
+      return {
+        kind: "run",
+        rawType,
+        sport,
+        subSport,
+        isIndoorSubSport,
+      };
+    }
+
+    if (sportKey === "fitnessequipment" && subSportKey) {
+      const subClass = classifyActivityType(subSportKey);
+      if (subClass === "walk" || subClass === "run") {
+        return {
+          kind: subClass,
+          rawType,
+          sport,
+          subSport,
+          isIndoorSubSport,
+        };
+      }
+      if (subClass === "other") {
+        throwUnsupportedFitActivity(rawType, sport, subSport);
+      }
+    }
+
     return {
       kind: "unknown",
       rawType,
@@ -235,14 +399,31 @@ function classifyFitSport(
     };
   }
 
-  // Fallback para o classificador textual compartilhado
+  // 3. Fallback para o classificador textual compartilhado em outros nomes/aliases
   const classified = classifyActivityType(sport ?? subSport);
   if (classified === "other") {
-    throw new FitParseError(
-      "UNSUPPORTED_ACTIVITY",
-      `Modalidade "${rawType}" no arquivo .FIT não é suportada. O PaceLab aceita apenas atividades de corrida ou caminhada.`,
-      { rawType, sport, subSport }
-    );
+    throwUnsupportedFitActivity(rawType, sport, subSport);
+  }
+
+  if (classified === "unknown" && subSportKey) {
+    if (FIT_WALK_SUBSPORT_KEYS.has(subSportKey)) {
+      return {
+        kind: "walk",
+        rawType,
+        sport,
+        subSport,
+        isIndoorSubSport,
+      };
+    }
+    if (FIT_RUN_SUBSPORT_KEYS.has(subSportKey)) {
+      return {
+        kind: "run",
+        rawType,
+        sport,
+        subSport,
+        isIndoorSubSport,
+      };
+    }
   }
 
   return {
@@ -365,6 +546,7 @@ export function parseFit(
   const recordMesgs = decoded.messages?.recordMesgs ?? [];
   const workoutMesgs = decoded.messages?.workoutMesgs ?? [];
   const eventMesgs = decoded.messages?.eventMesgs ?? [];
+  const sportMesgs = decoded.messages?.sportMesgs ?? [];
 
   if (
     sessionMesgs.length === 0 &&
@@ -485,11 +667,18 @@ export function parseFit(
   // Consolida registros no mesmo timestamp (comum no app mobile do Strava: GPS+velocidade vs odômetro em msgs alternadas)
   const records = coalesceFitRecordsByTimestamp(rawRecords);
 
-  // Classificação de modalidade
-  const sportInfo = classifyFitSport(
-    session.sport ?? lapMesgs[0]?.sport,
-    session.subSport ?? lapMesgs[0]?.subSport
+  // Classificação de modalidade (session -> sportMesgs -> lapMesgs, priorizando tokens não genéricos)
+  const resolvedRawSport = pickBestFitEnumToken(
+    [session.sport, sportMesgs[0]?.sport, lapMesgs[0]?.sport],
+    FIT_PROFILE_SPORT_TABLE,
+    FIT_GENERIC_SPORT_KEYS
   );
+  const resolvedRawSubSport = pickBestFitEnumToken(
+    [session.subSport, sportMesgs[0]?.subSport, lapMesgs[0]?.subSport],
+    FIT_PROFILE_SUBSPORT_TABLE,
+    FIT_GENERIC_SUBSPORT_KEYS
+  );
+  const sportInfo = classifyFitSport(resolvedRawSport, resolvedRawSubSport);
 
   // Horário de início (session.startTime -> session.timestamp -> 1º lap.startTime -> 1º record.timestamp)
   const startedAt =

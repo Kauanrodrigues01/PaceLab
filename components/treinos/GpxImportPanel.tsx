@@ -43,6 +43,7 @@ import {
   evaluateBatchItemEligibility,
   isTafWindowOutOfBounds as checkTafWindowOutOfBounds,
   persistBatchActivityItems,
+  resolveDefaultActivityTypeFromPreview,
   resolveDefaultBatchLocationType,
   resolveEffectivePreviewMetrics,
   resolveTrainingCaloriesPayload,
@@ -358,7 +359,12 @@ export function GpxImportPanel({
           localFilenameTitle ||
           ""
       );
-      setActivityType(result.suggestedActivityType ?? "corrida_continua");
+      setActivityType(
+        resolveDefaultActivityTypeFromPreview(
+          result,
+          incomingFiles.map((f) => f.name)
+        )
+      );
       setLocationType(resolveDefaultBatchLocationType(result));
       setFallbackDate(result.startedAt ? result.startedAt.slice(0, 16) : "");
       setFallbackDistanceKm(
@@ -669,6 +675,16 @@ export function GpxImportPanel({
     setBatchSummary(null);
     setBatchActionError(null);
     setExpandedItemIds(new Set());
+    setBatchActivityType("auto");
+    setBatchLocationType("auto");
+    setBatchShoeName("");
+    setBatchPerceivedEffort(null);
+    batchDefaultsRef.current = {
+      activityType: "auto",
+      locationType: "auto",
+      shoeName: "",
+      perceivedEffort: null,
+    };
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -936,7 +952,10 @@ export function GpxImportPanel({
           ...item,
           activityType:
             next === "auto"
-              ? (item.preview?.suggestedActivityType ?? "corrida_continua")
+              ? resolveDefaultActivityTypeFromPreview(
+                  item.preview,
+                  item.files.map((f) => f.name)
+                )
               : next,
         };
       })
@@ -2273,6 +2292,27 @@ export function GpxImportPanel({
                           </option>
                         ))}
                       </select>
+                      {preview.sourceActivityKind === "unknown" ? (
+                        <p
+                          data-testid="post-upload-activity-hint"
+                          className="mt-1 text-[11px] text-amber-300 leading-snug"
+                        >
+                          Arquivo sem tipo explícito; sugerido por ritmo/nome. Confirme se é corrida ou caminhada.
+                        </p>
+                      ) : (
+                        !preview.allowedActivityTypes.includes(activityType) && (
+                          <p
+                            data-testid="post-upload-activity-hint"
+                            className="mt-1 text-[11px] text-amber-300 leading-snug"
+                          >
+                            Selecionado difere do arquivo (
+                            {preview.sourceActivityKind === "walk"
+                              ? "Caminhada"
+                              : "Corrida"}
+                            ).
+                          </p>
+                        )
+                      )}
                     </div>
 
                     <div>

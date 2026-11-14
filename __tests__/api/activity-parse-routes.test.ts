@@ -507,4 +507,54 @@ describe("POST /api/training-sessions/parse-activity & /api/taf/trainings/gpx-pr
     expect(combinedJson.data.suggestedNotes).toBe("Caminhada no parque");
     expect(combinedJson.data.titleSource).toBe("filename");
   });
+
+  it("infere suggestedActivityType corretamente ('caminhada' vs 'corrida_continua') quando o arquivo tem modalidade generic/unknown", async () => {
+    const genericSlowWalkFit = buildFitBuffer({
+      session: {
+        startTime: new Date("2026-11-12T06:00:00Z"),
+        totalTimerTime: 1800,
+        totalElapsedTime: 1800,
+        totalDistance: 2500, // 5.0 km/h (pace 12:00/km)
+        sport: "generic",
+      },
+    });
+
+    const walkReq = buildMultipartRequest(
+      "http://localhost/api/training-sessions/parse-activity",
+      [{ fileName: "atividade_001.fit", content: genericSlowWalkFit }]
+    );
+    const walkRes = await postParseActivity(walkReq);
+    const walkJson = await walkRes.json();
+
+    expect(walkRes.status).toBe(200);
+    expect(walkJson.data.sourceActivityKind).toBe("unknown");
+    expect(walkJson.data.suggestedActivityType).toBe("caminhada");
+    expect(walkJson.data.allowedActivityTypes).toContain("caminhada");
+    expect(walkJson.data.allowedActivityTypes).toContain("corrida_continua");
+    expect(
+      walkJson.data.warnings.some(
+        (w: { code: string }) => w.code === "UNKNOWN_ACTIVITY_TYPE"
+      )
+    ).toBe(true);
+
+    const genericRunFit = buildFitBuffer({
+      session: {
+        startTime: new Date("2026-11-12T07:00:00Z"),
+        totalTimerTime: 1500,
+        totalElapsedTime: 1500,
+        totalDistance: 5000, // 12.0 km/h
+        sport: "generic",
+      },
+    });
+    const runReq = buildMultipartRequest(
+      "http://localhost/api/training-sessions/parse-activity",
+      [{ fileName: "atividade_002.fit", content: genericRunFit }]
+    );
+    const runRes = await postParseActivity(runReq);
+    const runJson = await runRes.json();
+
+    expect(runRes.status).toBe(200);
+    expect(runJson.data.sourceActivityKind).toBe("unknown");
+    expect(runJson.data.suggestedActivityType).toBe("corrida_continua");
+  });
 });

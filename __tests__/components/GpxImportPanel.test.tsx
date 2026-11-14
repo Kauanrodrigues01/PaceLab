@@ -892,4 +892,55 @@ describe("Fase 7 — Upload Unificado (.FIT + .GPX), Painel Somente Leitura e Fo
       screen.queryByTestId("training-elapsed-pause")
     ).not.toBeInTheDocument();
   });
+
+  it("12. Importação individual também infere 'caminhada' quando arquivo vem sem tipo explícito (suggestedActivityType=null) com baixa velocidade ou nome de caminhada", async () => {
+    const user = userEvent.setup({ applyAccept: false });
+
+    vi.mocked(tafService.parseActivity).mockResolvedValueOnce({
+      ...mockFitOnlyPreview,
+      name: "Caminhada leve",
+      rawType: null,
+      sourceActivityKind: "unknown",
+      distanceKm: 2.5,
+      durationSeconds: 1800,
+      elapsedSeconds: 1800,
+      speedKmh: 5.0,
+      paceSeconds: 720,
+      paceFormatted: "12:00",
+      suggestedActivityType: null,
+      allowedActivityTypes: [
+        "rodagem_leve",
+        "corrida_continua",
+        "tempo_run",
+        "corrida_intervalada",
+        "longao",
+        "caminhada",
+      ],
+      warnings: [
+        {
+          code: "UNKNOWN_ACTIVITY_TYPE",
+          message:
+            "Modalidade não especificada ou genérica no arquivo .FIT; selecione a modalidade de treino manualmente.",
+        },
+      ],
+    });
+
+    render(<GpxImportPanel />);
+
+    const fileInput = screen.getByTestId(
+      "activity-file-input"
+    ) as HTMLInputElement;
+    await user.upload(
+      fileInput,
+      new File([new Uint8Array([1, 2, 3])], "Caminhada_leve.fit")
+    );
+
+    const activitySelect = (await screen.findByTestId(
+      "post-upload-activity-select"
+    )) as HTMLSelectElement;
+    expect(activitySelect.value).toBe("caminhada");
+    expect(screen.getByTestId("post-upload-activity-hint")).toHaveTextContent(
+      /Confirme se é corrida ou caminhada/i
+    );
+  });
 });

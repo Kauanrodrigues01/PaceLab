@@ -322,5 +322,17 @@ describe("TrainingEvolutionDashboard (Fase 4 & 5 - Gráficos Analíticos)", () =
       )
     ).toBeInTheDocument();
   });
+
+  it("mantém o cabeçalho do gráfico de Pace em coluna sem esmagar título e subtítulo ao lado da barra de filtros", () => {
+    render(<TrainingEvolutionDashboard trainings={mockTrainings} />);
+
+    const header = screen.getByTestId("chart-pace-evolution-header");
+    expect(header).toHaveClass("flex-col");
+    expect(header).not.toHaveClass("sm:flex-row");
+
+    const filterGroup = screen.getByTestId("filter-pace-activity-group");
+    expect(filterGroup).toHaveClass("flex-wrap");
+    expect(filterGroup).not.toHaveClass("shrink-0");
+  });
 });
 

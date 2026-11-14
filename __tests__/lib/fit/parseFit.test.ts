@@ -24,6 +24,7 @@ function buildFitBuffer(options: {
   laps?: Array<Record<string, unknown>>;
   records?: Array<Record<string, unknown>>;
   events?: Array<Record<string, unknown>>;
+  sports?: Array<Record<string, unknown>>;
   workout?: Record<string, unknown>;
 }): Buffer {
   const enc = new Encoder();
@@ -39,6 +40,10 @@ function buildFitBuffer(options: {
 
   if (options.workout) {
     enc.onMesg(Profile.MesgNum.WORKOUT, options.workout as never);
+  }
+
+  for (const sp of options.sports ?? []) {
+    enc.onMesg(Profile.MesgNum.SPORT, sp as never);
   }
 
   for (const ev of options.events ?? []) {
@@ -352,6 +357,84 @@ describe("lib/fit/parseFit — Parser Binário .FIT (@garmin/fitsdk)", () => {
       expect(parsed.sourceActivityKind).toBe("walk");
       expect(parsed.distanceKm).toBe(2);
       expect(parsed.paceFormatted).toBe("10:00");
+    });
+
+    it("classifica camelCase de caminhada (casualWalking, indoorWalking, speedWalking), caminhada em esteira/trilha (sport='walking' + subSport='treadmill') e sportMesgs", () => {
+      const casualGenericBuf = buildFitBuffer({
+        session: {
+          startTime: new Date("2026-11-10T10:00:00Z"),
+          totalTimerTime: 1800,
+          totalElapsedTime: 1800,
+          totalDistance: 2500,
+          sport: "generic",
+          subSport: "casualWalking",
+        },
+      });
+      expect(parseFit(casualGenericBuf).sourceActivityKind).toBe("walk");
+
+      const indoorFitnessBuf = buildFitBuffer({
+        session: {
+          startTime: new Date("2026-11-10T10:00:00Z"),
+          totalTimerTime: 1800,
+          totalElapsedTime: 1800,
+          totalDistance: 2400,
+          sport: "fitnessEquipment",
+          subSport: "indoorWalking",
+        },
+      });
+      const indoorWalk = parseFit(indoorFitnessBuf);
+      expect(indoorWalk.sourceActivityKind).toBe("walk");
+      expect(indoorWalk.isIndoor).toBe(true);
+
+      // Caminhada explícita na esteira (sport='walking', subSport='treadmill') NÃO pode ser rebaixada para corrida
+      const treadmillWalkBuf = buildFitBuffer({
+        session: {
+          startTime: new Date("2026-11-10T10:00:00Z"),
+          totalTimerTime: 1500,
+          totalElapsedTime: 1500,
+          totalDistance: 2200,
+          sport: "walking",
+          subSport: "treadmill",
+        },
+      });
+      const treadmillWalk = parseFit(treadmillWalkBuf);
+      expect(treadmillWalk.sourceActivityKind).toBe("walk");
+      expect(treadmillWalk.isIndoor).toBe(true);
+
+      // Session genérica desambiguada por sportMesgs + código numérico FIT (11=walking, 1=running)
+      const sportMesgWalkBuf = buildFitBuffer({
+        session: {
+          startTime: new Date("2026-11-10T10:00:00Z"),
+          totalTimerTime: 1200,
+          totalElapsedTime: 1200,
+          totalDistance: 1600,
+          sport: "generic",
+        },
+        sports: [{ sport: "walking", subSport: "casualWalking" }],
+      });
+      expect(parseFit(sportMesgWalkBuf).sourceActivityKind).toBe("walk");
+
+      const numericWalkBuf = buildFitBuffer({
+        session: {
+          startTime: new Date("2026-11-10T10:00:00Z"),
+          totalTimerTime: 1200,
+          totalElapsedTime: 1200,
+          totalDistance: 1700,
+          sport: 11,
+        },
+      });
+      expect(parseFit(numericWalkBuf).sourceActivityKind).toBe("walk");
+
+      const numericRunBuf = buildFitBuffer({
+        session: {
+          startTime: new Date("2026-11-10T10:00:00Z"),
+          totalTimerTime: 1200,
+          totalElapsedTime: 1200,
+          totalDistance: 4000,
+          sport: 1,
+        },
+      });
+      expect(parseFit(numericRunBuf).sourceActivityKind).toBe("run");
     });
 
     it("rejeita esporte incompatível (sport='cycling') com FitParseError UNSUPPORTED_ACTIVITY", () => {

@@ -942,13 +942,16 @@ export function TrainingEvolutionDashboard({
               data-testid="chart-pace-evolution"
               className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-6 shadow-sm"
             >
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
-                <div className="min-w-0">
+              <div
+                data-testid="chart-pace-evolution-header"
+                className="flex flex-col gap-3 mb-4"
+              >
+                <div className="w-full min-w-0">
                   <h4 className="font-bold text-sm sm:text-base text-white flex items-center gap-2">
                     <Zap className="w-4 h-4 text-[#B7F34A] shrink-0" />
                     <span>Evolução do Pace por Sessão</span>
                   </h4>
-                  <p className="text-xs text-[#8E9BB0] mt-0.5">
+                  <p className="text-xs text-[#8E9BB0] mt-0.5 leading-relaxed">
                     Ritmo médio (min/km). Eixo invertido: quanto mais alto na curva, mais rápido seu ritmo (evolução ascendente).
                   </p>
                 </div>
@@ -956,7 +959,7 @@ export function TrainingEvolutionDashboard({
                 {/* Filtro por Modalidade / Tipo de Exercício */}
                 <div
                   data-testid="filter-pace-activity-group"
-                  className="flex items-center gap-1 bg-[#0B1020] p-1 rounded-2xl border border-[#1E2942] self-start sm:self-center overflow-x-auto max-w-full shrink-0"
+                  className="flex flex-wrap items-center gap-1 bg-[#0B1020] p-1 rounded-2xl border border-[#1E2942] self-start max-w-full"
                 >
                   {PACE_ACTIVITY_OPTIONS.map((opt) => {
                     const isActive = paceActivityFilter === opt.value;
@@ -1020,7 +1023,7 @@ export function TrainingEvolutionDashboard({
                         margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#1E2942" />
-                        <XAxis dataKey="dateLabel" tick={{ fontSize: 10 }} stroke="#8E9BB0" />
+                        <XAxis dataKey="dateLabel" tick={{ fontSize: 10 }} minTickGap={16} stroke="#8E9BB0" />
                         <YAxis
                           reversed
                           domain={["dataMin - 15", "dataMax + 15"]}

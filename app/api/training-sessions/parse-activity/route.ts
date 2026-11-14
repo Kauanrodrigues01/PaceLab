@@ -10,25 +10,16 @@ import {
   parseAndMergeActivity,
   pickPreferredActivityTitleFromFileNames,
   RawActivityFileInput,
+  resolveActivityTypeSuggestions,
 } from "@/lib/activityParser";
 import { isFitParseError } from "@/lib/fit";
 import { isGpxParseError } from "@/lib/gpx";
-import { ACTIVITY_TYPES, ActivityParsePreview, ActivityType } from "@/types";
+import { ActivityParsePreview } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_ACTIVITY_FILE_BYTES = 4 * 1024 * 1024; // 4 MB por arquivo
-
-const RUN_ACTIVITY_TYPES: ActivityType[] = [
-  "rodagem_leve",
-  "corrida_continua",
-  "tempo_run",
-  "corrida_intervalada",
-  "longao",
-];
-
-const WALK_ACTIVITY_TYPES: ActivityType[] = ["caminhada"];
 
 interface UploadedLikeBlob {
   name?: string;
@@ -53,30 +44,6 @@ function hasInvalidExtension(fileName?: string): boolean {
     return false;
   }
   return !trimmed.endsWith(".fit") && !trimmed.endsWith(".gpx");
-}
-
-function resolveActivityTypeSuggestions(
-  kind: "run" | "walk" | "unknown"
-): {
-  suggestedActivityType: ActivityType | null;
-  allowedActivityTypes: ActivityType[];
-} {
-  if (kind === "walk") {
-    return {
-      suggestedActivityType: "caminhada",
-      allowedActivityTypes: [...WALK_ACTIVITY_TYPES],
-    };
-  }
-  if (kind === "run") {
-    return {
-      suggestedActivityType: "corrida_continua",
-      allowedActivityTypes: [...RUN_ACTIVITY_TYPES],
-    };
-  }
-  return {
-    suggestedActivityType: null,
-    allowedActivityTypes: [...ACTIVITY_TYPES],
-  };
 }
 
 export async function POST(request: Request) {
@@ -213,9 +180,6 @@ export async function POST(request: Request) {
         : Promise.resolve(null),
     ]);
 
-    const { suggestedActivityType, allowedActivityTypes } =
-      resolveActivityTypeSuggestions(parsed.sourceActivityKind);
-
     const metadataTitle = parsed.name ? parsed.name.trim() : null;
     const filenameTitle = pickPreferredActivityTitleFromFileNames(
       rawInputs.map((f) => f.fileName)
@@ -226,6 +190,18 @@ export async function POST(request: Request) {
         ? "filename"
         : null;
     const suggestedNotes = (metadataTitle || filenameTitle || "").slice(0, 500);
+
+    const { suggestedActivityType, allowedActivityTypes } =
+      resolveActivityTypeSuggestions({
+        sourceActivityKind: parsed.sourceActivityKind,
+        name: parsed.name,
+        suggestedNotes,
+        fileNames: rawInputs.map((f) => f.fileName),
+        speedKmh: parsed.speedKmh,
+        distanceKm: parsed.distanceKm,
+        durationSeconds: parsed.durationSeconds,
+        avgCadence: parsed.avgCadence,
+      });
 
     const previewData: ActivityParsePreview = {
       ...parsed,

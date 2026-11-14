@@ -206,6 +206,24 @@ export function BatchImportItemRow({
       ? item.preview.elapsedSeconds - eligibility.effectiveMetrics.durationSeconds
       : 0;
 
+  const detectedKind = item.preview?.sourceActivityKind ?? null;
+  const allowedTypes = item.preview?.allowedActivityTypes ?? [];
+  const isFamilyMismatch =
+    item.parseStatus === "ready" &&
+    target === "training" &&
+    detectedKind !== null &&
+    detectedKind !== "unknown" &&
+    allowedTypes.length > 0 &&
+    !allowedTypes.includes(item.activityType);
+  const activityNotice =
+    item.parseStatus === "ready" && target === "training"
+      ? item.preview?.warnings.find(
+          (w) =>
+            w.code === "ACTIVITY_TYPE_MISMATCH" ||
+            w.code === "UNKNOWN_ACTIVITY_TYPE"
+        ) ?? null
+      : null;
+
   return (
     <div
       data-testid={`batch-item-row-${index}`}
@@ -247,6 +265,25 @@ export function BatchImportItemRow({
           >
             {item.displayFileNames}
           </span>
+
+          {item.parseStatus === "ready" && detectedKind && (
+            <span
+              data-testid={`batch-item-kind-${index}`}
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                detectedKind === "walk"
+                  ? "bg-emerald-950/50 text-emerald-300 border-emerald-500/30"
+                  : detectedKind === "run"
+                    ? "bg-[#B7F34A]/10 text-[#B7F34A] border-[#B7F34A]/30"
+                    : "bg-amber-950/40 text-amber-300 border-amber-500/30"
+              }`}
+            >
+              {detectedKind === "walk"
+                ? "Caminhada"
+                : detectedKind === "run"
+                  ? "Corrida"
+                  : "Tipo não detectado"}
+            </span>
+          )}
 
           {item.isMergedPair &&
             !isLockedSaved &&
@@ -426,6 +463,9 @@ export function BatchImportItemRow({
                     {ACTIVITY_TYPES.map((type) => (
                       <option key={type} value={type}>
                         {ACTIVITY_LABELS[type]}
+                        {allowedTypes.length === 0 || allowedTypes.includes(type)
+                          ? ""
+                          : " (Outra família)"}
                       </option>
                     ))}
                   </select>
@@ -482,6 +522,22 @@ export function BatchImportItemRow({
               />
             </div>
           </div>
+
+          {(isFamilyMismatch || activityNotice) && (
+            <div
+              data-testid={`batch-item-activity-warning-${index}`}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-amber-500/30 bg-amber-950/25 text-amber-200 flex items-center gap-1.5"
+            >
+              <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>
+                {isFamilyMismatch
+                  ? `Modalidade selecionada difere do arquivo (${
+                      detectedKind === "walk" ? "Caminhada" : "Corrida"
+                    }).`
+                  : activityNotice?.message}
+              </span>
+            </div>
+          )}
 
           {/* Métricas compactas conforme destino global ativo */}
           <div

@@ -1125,4 +1125,119 @@ describe("Fase 3 — UI de Importação em Massa (.FIT / .GPX) com Seleção Ún
     expect(vi.mocked(tafService.saveTraining).mock.calls[0][0].perceivedEffort).toBeNull();
     expect(vi.mocked(tafService.saveTraining).mock.calls[1][0].perceivedEffort).toBeNull();
   });
+
+  it("12. Distingue caminhada vs corrida no lote (incluindo unknown walk), sinaliza divergência de família e reseta default ao limpar fila", async () => {
+    const user = userEvent.setup({ applyAccept: false });
+
+    vi.mocked(tafService.parseActivity)
+      .mockResolvedValueOnce(
+        makePreview({
+          externalId: "batch_walk_fit",
+          name: "Caminhada no Parque",
+          sourceActivityKind: "walk",
+          rawType: "walking:casualwalking",
+          speedKmh: 5.4,
+          suggestedActivityType: "caminhada",
+          allowedActivityTypes: ["caminhada"],
+        })
+      )
+      .mockResolvedValueOnce(
+        makePreview({
+          externalId: "batch_unknown_walk_gpx",
+          source: "gpx_upload",
+          filesUsed: ["gpx"],
+          name: null,
+          rawType: null,
+          sourceActivityKind: "unknown",
+          speedKmh: 4.9,
+          distanceKm: 2.45,
+          durationSeconds: 1800,
+          suggestedActivityType: null,
+          allowedActivityTypes: [
+            "rodagem_leve",
+            "corrida_continua",
+            "tempo_run",
+            "corrida_intervalada",
+            "longao",
+            "caminhada",
+          ],
+          warnings: [
+            {
+              code: "UNKNOWN_ACTIVITY_TYPE",
+              message:
+                "O arquivo .GPX não informa o tipo da atividade (<type>); escolha a modalidade antes de salvar.",
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(
+        makePreview({
+          externalId: "batch_run_fit",
+          name: "Corrida Matinal",
+          sourceActivityKind: "run",
+          rawType: "running:street",
+          speedKmh: 11.8,
+          suggestedActivityType: "corrida_continua",
+          allowedActivityTypes: [
+            "rodagem_leve",
+            "corrida_continua",
+            "tempo_run",
+            "corrida_intervalada",
+            "longao",
+          ],
+        })
+      );
+
+    render(<GpxImportPanel />);
+
+    const fileInput = screen.getByTestId(
+      "activity-file-input"
+    ) as HTMLInputElement;
+    await user.upload(fileInput, [
+      makeActivityFile("walk.fit", 1024, 12001),
+      makeActivityFile("Caminhada_matinal.gpx", 1024, 12002),
+      makeActivityFile("run.fit", 1024, 12003),
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("batch-item-activity-2")).toBeInTheDocument();
+    });
+
+    const act0 = screen.getByTestId("batch-item-activity-0") as HTMLSelectElement;
+    const act1 = screen.getByTestId("batch-item-activity-1") as HTMLSelectElement;
+    const act2 = screen.getByTestId("batch-item-activity-2") as HTMLSelectElement;
+
+    expect(act0.value).toBe("caminhada");
+    expect(act1.value).toBe("caminhada");
+    expect(act2.value).toBe("corrida_continua");
+
+    expect(screen.getByTestId("batch-item-kind-0")).toHaveTextContent("Caminhada");
+    expect(screen.getByTestId("batch-item-kind-1")).toHaveTextContent(
+      "Tipo não detectado"
+    );
+    expect(screen.getByTestId("batch-item-kind-2")).toHaveTextContent("Corrida");
+    expect(screen.getByTestId("batch-item-activity-warning-1")).toHaveTextContent(
+      /<type>/i
+    );
+
+    // Override global para Corrida Contínua dispara alerta na caminhada detectada
+    await user.selectOptions(
+      screen.getByTestId("batch-default-activity-select"),
+      "corrida_continua"
+    );
+    expect(act0.value).toBe("corrida_continua");
+    expect(screen.getByTestId("batch-item-activity-warning-0")).toHaveTextContent(
+      /difere do arquivo \(Caminhada\)/i
+    );
+
+    // Limpar lote volta default global para 'auto' sem prender próximo lote
+    await user.click(screen.getByTestId("batch-clear-queue-btn"));
+    expect(
+      (
+        screen.getByTestId(
+          "batch-default-activity-select"
+        ) as HTMLSelectElement
+      ).value
+    ).toBe("auto");
+  });
 });

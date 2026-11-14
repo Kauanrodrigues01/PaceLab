@@ -463,4 +463,43 @@ describe("lib/activityParser/parseAndMergeActivity — Regra de Prioridade e Mes
     expect(merged.warnings.some((w) => w.code === "ELEVATION_MERGED_FROM_GPX")).toBe(true);
     expect(merged.elevationGainM).toBeGreaterThan(0);
   });
+
+  it("Emite warning ACTIVITY_TYPE_MISMATCH quando .FIT e .GPX declaram famílias opostas (run vs walk)", () => {
+    const startIso = "2026-11-12T08:00:00.000Z";
+    const fitBuf = buildFitBuffer({
+      session: {
+        startTime: new Date(startIso),
+        totalTimerTime: 1800,
+        totalElapsedTime: 1800,
+        totalDistance: 3000,
+        sport: "running",
+      },
+    });
+    const walkGpx = Buffer.from(
+      `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1">
+  <trk>
+    <name>Caminhada no Parque</name>
+    <type>walking</type>
+    <trkseg>
+      <trkpt lat="-23.58741" lon="-46.65763"><time>2026-11-12T08:00:00Z</time></trkpt>
+      <trkpt lat="-23.58841" lon="-46.65763"><time>2026-11-12T08:02:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>`,
+      "utf-8"
+    );
+
+    const merged = parseAndMergeActivity({
+      files: [
+        { fileName: "atividade.fit", buffer: fitBuf },
+        { fileName: "atividade.gpx", buffer: walkGpx },
+      ],
+    });
+
+    expect(merged.sourceActivityKind).toBe("run");
+    expect(
+      merged.warnings.some((w) => w.code === "ACTIVITY_TYPE_MISMATCH")
+    ).toBe(true);
+  });
 });

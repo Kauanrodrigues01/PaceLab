@@ -1010,4 +1010,64 @@ describe("lib/activityParser/batchPayloads — Pool de Análise e Persistência 
     expect(result.summary.mirroredCount).toBe(0);
     expect(result.summary.mirrorFailedCount).toBe(0);
   });
+
+  it("infere 'caminhada' quando arquivo no lote vem sem suggestedActivityType (sourceActivityKind='unknown', baixa velocidade ou nome de caminhada)", async () => {
+    const grouped = groupActivityFilesForBatch([
+      makeFakeFile("Caminhada_matinal.gpx"),
+      makeFakeFile("Rodagem_pista.fit"),
+    ]);
+    const pending = createPendingBatchItems(grouped.groups);
+
+    const analyzed = await analyzeBatchActivityGroups(
+      pending,
+      async (files) => {
+        const name = files[0].name;
+        if (name.startsWith("Caminhada")) {
+          return makePreview({
+            externalId: "gpx_unknown_walk",
+            source: "gpx_upload",
+            filesUsed: ["gpx"],
+            name: null,
+            suggestedNotes: "Caminhada matinal",
+            rawType: null,
+            sourceActivityKind: "unknown",
+            speedKmh: 5.1,
+            distanceKm: 2.55,
+            durationSeconds: 1800,
+            avgCadence: 118,
+            suggestedActivityType: null,
+            allowedActivityTypes: [
+              "rodagem_leve",
+              "corrida_continua",
+              "tempo_run",
+              "corrida_intervalada",
+              "longao",
+              "caminhada",
+            ],
+          });
+        }
+        return makePreview({
+          externalId: "fit_unknown_run",
+          name: "Rodagem na Pista",
+          rawType: "generic",
+          sourceActivityKind: "unknown",
+          speedKmh: 11.5,
+          distanceKm: 5.0,
+          durationSeconds: 1565,
+          suggestedActivityType: null,
+          allowedActivityTypes: [
+            "rodagem_leve",
+            "corrida_continua",
+            "tempo_run",
+            "corrida_intervalada",
+            "longao",
+            "caminhada",
+          ],
+        });
+      }
+    );
+
+    expect(analyzed.items[0].activityType).toBe("caminhada");
+    expect(analyzed.items[1].activityType).toBe("corrida_continua");
+  });
 });

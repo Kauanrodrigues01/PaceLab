@@ -12,8 +12,12 @@ describe("lib/gpx/xml — Leitura, validação XML, namespaces e classificação
         "trail_run",
         "VirtualRun",
         "virtual-run",
+        "treadmill_running",
+        "indoor_running",
+        "jogging",
         "Corrida",
         "Corrida de Trilha",
+        "Corrida na esteira",
         "9",
         "53",
       ]) {
@@ -22,7 +26,23 @@ describe("lib/gpx/xml — Leitura, validação XML, namespaces e classificação
     });
 
     it("classifica variantes de caminhada/trilha (texto e código numérico) como 'walk'", () => {
-      for (const raw of ["Walk", "walking", "Hike", "hiking", "Caminhada", "Trilha", "10", "4"]) {
+      for (const raw of [
+        "Walk",
+        "walking",
+        "casualWalking",
+        "indoor_walking",
+        "speed-walking",
+        "power_walking",
+        "nordicWalking",
+        "treadmill_walking",
+        "Hike",
+        "hiking",
+        "Caminhada",
+        "Caminhada leve",
+        "Trilha",
+        "10",
+        "4",
+      ]) {
         expect(classifyActivityType(raw)).toBe("walk");
       }
     });

@@ -25,6 +25,9 @@ import {
   type BatchActivityGroup,
   markDuplicateExternalIdsInBatch,
 } from "./batchGrouping";
+import { resolveDefaultActivityTypeFromPreview } from "./activitySuggestion";
+
+export { resolveDefaultActivityTypeFromPreview } from "./activitySuggestion";
 
 export const TRAINING_MIN_DISTANCE_KM = 0.05;
 export const TRAINING_MAX_DISTANCE_KM = 100;
@@ -1206,7 +1209,10 @@ export async function analyzeBatchActivityGroups(
         const resolvedActivityType: ActivityType =
           activityTypeOverride !== "auto"
             ? activityTypeOverride
-            : preview.suggestedActivityType ?? "corrida_continua";
+            : resolveDefaultActivityTypeFromPreview(
+                preview,
+                current.files.map((file) => file.name)
+              );
         const resolvedLocationType: LocationType =
           locationTypeOverride !== "auto"
             ? locationTypeOverride

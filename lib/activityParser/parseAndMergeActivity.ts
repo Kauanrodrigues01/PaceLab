@@ -337,6 +337,17 @@ export function parseAndMergeActivity(
     if (unkIdx !== -1) {
       warnings.splice(unkIdx, 1);
     }
+  } else if (
+    mergedKind !== "unknown" &&
+    gpxKind !== "unknown" &&
+    mergedKind !== gpxKind
+  ) {
+    const fitLabel = mergedKind === "walk" ? "Caminhada" : "Corrida";
+    const gpxLabel = gpxKind === "walk" ? "Caminhada" : "Corrida";
+    warnings.push({
+      code: "ACTIVITY_TYPE_MISMATCH",
+      message: `Atenção: o arquivo .FIT indica ${fitLabel} e o .GPX indica ${gpxLabel}; mantendo a classificação do .FIT. Confirme a modalidade antes de salvar.`,
+    });
   }
 
   return {
