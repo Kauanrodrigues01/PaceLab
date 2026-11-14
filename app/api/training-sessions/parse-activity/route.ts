@@ -6,7 +6,11 @@ import {
   apiUnprocessable,
   withApiHandler,
 } from "@/lib/api/response";
-import { parseAndMergeActivity, RawActivityFileInput } from "@/lib/activityParser";
+import {
+  parseAndMergeActivity,
+  pickPreferredActivityTitleFromFileNames,
+  RawActivityFileInput,
+} from "@/lib/activityParser";
 import { isFitParseError } from "@/lib/fit";
 import { isGpxParseError } from "@/lib/gpx";
 import { ACTIVITY_TYPES, ActivityParsePreview, ActivityType } from "@/types";
@@ -212,10 +216,20 @@ export async function POST(request: Request) {
     const { suggestedActivityType, allowedActivityTypes } =
       resolveActivityTypeSuggestions(parsed.sourceActivityKind);
 
-    const suggestedNotes = parsed.name ? parsed.name.trim().slice(0, 500) : "";
+    const metadataTitle = parsed.name ? parsed.name.trim() : null;
+    const filenameTitle = pickPreferredActivityTitleFromFileNames(
+      rawInputs.map((f) => f.fileName)
+    );
+    const titleSource: "metadata" | "filename" | null = metadataTitle
+      ? "metadata"
+      : filenameTitle
+        ? "filename"
+        : null;
+    const suggestedNotes = (metadataTitle || filenameTitle || "").slice(0, 500);
 
     const previewData: ActivityParsePreview = {
       ...parsed,
+      titleSource,
       tafWindow: parsed.tafWindow ?? null,
       alreadyExists: Boolean(existingTraining?.id),
       existingTrainingId: existingTraining?.id ?? null,

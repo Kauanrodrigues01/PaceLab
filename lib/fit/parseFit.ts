@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { Decoder, Stream } from "@garmin/fitsdk";
 import { formatPaceSeconds } from "../gpx/metrics";
-import { computeSplitElevationDiff } from "../gpx/elevation";
+import { calculateElevationGain } from "../gpx/elevation";
+import { splitByDistance } from "../gpx/splits";
 import { classifyActivityType, sanitizeActivityText } from "../gpx/xml";
 import {
   CADENCE_SINGLE_FOOT_MAX,
@@ -19,7 +20,17 @@ import {
   samplesFromFitRecords,
 } from "../activityParser/window";
 import {
+  areLapsUniform1Km,
+  buildFitMotionSteps,
+  computeLapElevationDiff,
+  hasExplicitTimerPauseEvents,
+  motionStepsToSplitInputs,
+  summarizeFitMotion,
+} from "./movingMetrics";
+import {
   FIT_MAGIC_SIGNATURE,
+  FIT_MAX_VALID_SPEED_MS,
+  FIT_PAUSE_HYSTERESIS_MIN_SECONDS,
   FitParseError,
   FitRecordPoint,
   FitWarning,
@@ -112,6 +123,13 @@ function parseFitDateToIso(val: unknown): string | null {
     return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
   }
   return null;
+}
+
+function parseFitDateToMs(val: unknown): number | null {
+  const iso = parseFitDateToIso(val);
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : null;
 }
 
 function sanitizeHeartRate(val: unknown): number | null {
@@ -236,172 +254,6 @@ function classifyFitSport(
 }
 
 /**
- * Gera splits de 1 km a partir dos `recordMesgs` quando `lapMesgs` possui apenas 1 volta (sem auto-lap).
- */
-function buildSplitsFromFitRecords(
-  records: FitRecordPoint[],
-  totalMovingSeconds: number
-): GpxSplit[] {
-  const withDist = records.filter(
-    (r): r is FitRecordPoint & { distanceM: number } =>
-      typeof r.distanceM === "number" &&
-      Number.isFinite(r.distanceM) &&
-      r.distanceM >= 0
-  );
-
-  if (withDist.length < 2) {
-    return [];
-  }
-
-  // Calcula intervalos válidos com distância crescente
-  interface Step {
-    deltaDistM: number;
-    deltaTimeSec: number;
-    hr: number | null;
-    eleFrom: number | null;
-    eleTo: number | null;
-  }
-
-  const rawSteps: Step[] = [];
-  let rawTotalElapsedMoveSec = 0;
-  let anchor = withDist[0];
-
-  for (let i = 1; i < withDist.length; i++) {
-    const cur = withDist[i];
-    const dDist = cur.distanceM - anchor.distanceM;
-    const dTime = (cur.timestampMs - anchor.timestampMs) / 1000;
-
-    if (dTime <= 0) continue;
-    if (dDist <= 0) {
-      anchor = cur;
-      continue;
-    }
-
-    // Descarta pausas longas onde a velocidade aparente cai abaixo de 0,3 m/s
-    const speed = dDist / dTime;
-    const effectiveTime = speed < 0.3 ? dDist / 1.5 : dTime;
-
-    rawSteps.push({
-      deltaDistM: dDist,
-      deltaTimeSec: effectiveTime,
-      hr: cur.heartRateBpm ?? anchor.heartRateBpm,
-      eleFrom: anchor.elevationM,
-      eleTo: cur.elevationM,
-    });
-    rawTotalElapsedMoveSec += effectiveTime;
-    anchor = cur;
-  }
-
-  if (rawSteps.length === 0 || rawTotalElapsedMoveSec <= 0) {
-    return [];
-  }
-
-  // Escala os tempos dos passos para que a soma bata com o totalTimerTime oficial da sessão
-  const timeScale =
-    totalMovingSeconds > 0 ? totalMovingSeconds / rawTotalElapsedMoveSec : 1;
-
-  const splits: GpxSplit[] = [];
-  const splitDistanceMeters = 1000;
-  let splitIndex = 1;
-  let accDistM = 0;
-  let accTimeSec = 0;
-  let accHrWeighted = 0;
-  let accHrTime = 0;
-  let startEle: number | null = null;
-  let currentEndEle: number | null = null;
-
-  for (const step of rawSteps) {
-    let remDist = step.deltaDistM;
-    const stepTimeScaled = step.deltaTimeSec * timeScale;
-    let curProgress = 0;
-
-    while (remDist > 1e-9) {
-      const needed = splitDistanceMeters - accDistM;
-      const takeDist = Math.min(remDist, needed);
-      const frac = takeDist / step.deltaDistM;
-      const prevProgress = curProgress;
-      const nextProgress = curProgress + frac;
-      const takeTime = stepTimeScaled * frac;
-
-      let eleStartPiece: number | null = null;
-      let eleEndPiece: number | null = null;
-      if (step.eleFrom !== null && step.eleTo !== null) {
-        eleStartPiece =
-          step.eleFrom + (step.eleTo - step.eleFrom) * prevProgress;
-        eleEndPiece = step.eleFrom + (step.eleTo - step.eleFrom) * nextProgress;
-      } else {
-        eleStartPiece = step.eleFrom ?? step.eleTo;
-        eleEndPiece = step.eleTo ?? step.eleFrom;
-      }
-
-      if (startEle === null && eleStartPiece !== null) {
-        startEle = eleStartPiece;
-      }
-      if (eleEndPiece !== null) {
-        currentEndEle = eleEndPiece;
-      }
-
-      accDistM += takeDist;
-      accTimeSec += takeTime;
-
-      if (step.hr !== null && takeTime > 0) {
-        accHrWeighted += step.hr * takeTime;
-        accHrTime += takeTime;
-      }
-
-      remDist -= takeDist;
-      curProgress = nextProgress;
-
-      if (Math.abs(accDistM - splitDistanceMeters) <= 1e-6) {
-        const durationSeconds = Math.max(1, Math.round(accTimeSec));
-        const paceSeconds = Math.max(1, Math.round(accTimeSec));
-
-        splits.push({
-          kilometer: splitIndex,
-          distanceKm: 1,
-          durationSeconds,
-          paceSeconds,
-          paceFormatted: formatPaceSeconds(paceSeconds),
-          avgHeartRate:
-            accHrTime > 0 ? Math.round(accHrWeighted / accHrTime) : null,
-          elevationDiffM: computeSplitElevationDiff(startEle, currentEndEle),
-        });
-
-        splitIndex++;
-        accDistM = 0;
-        accTimeSec = 0;
-        accHrWeighted = 0;
-        accHrTime = 0;
-        startEle = currentEndEle;
-        currentEndEle = null;
-      }
-    }
-  }
-
-  if (accDistM >= MIN_RESIDUAL_SPLIT_METERS && accTimeSec > 0) {
-    const distKm = Math.min(1, Number((accDistM / 1000).toFixed(3)));
-    const durationSeconds = Math.max(1, Math.round(accTimeSec));
-    const paceSeconds = Math.max(
-      1,
-      Math.round(accTimeSec / (accDistM / 1000))
-    );
-
-    splits.push({
-      kilometer: splitIndex,
-      distanceKm: distKm,
-      durationSeconds,
-      paceSeconds,
-      paceFormatted: formatPaceSeconds(paceSeconds),
-      avgHeartRate:
-        accHrTime > 0 ? Math.round(accHrWeighted / accHrTime) : null,
-      elevationDiffM: computeSplitElevationDiff(startEle, currentEndEle),
-    });
-  }
-
-  return splits;
-}
-
-/**
  * Sintetiza splits de 1 km proporcionais ao resumo da sessão quando o .FIT não possui
  * múltiplas voltas (`lapMesgs`) nem registros granulares com distância (`recordMesgs`).
  */
@@ -447,6 +299,31 @@ function synthesizeSplitsFromSession(
   return splits;
 }
 
+function isValidLapMovingTime(l: Record<string, unknown>): boolean {
+  const timer = typeof l.totalTimerTime === "number" ? l.totalTimerTime : 0;
+  const elapsed =
+    typeof l.totalElapsedTime === "number" && l.totalElapsedTime > 0
+      ? l.totalElapsedTime
+      : timer;
+  return (
+    typeof l.totalMovingTime === "number" &&
+    Number.isFinite(l.totalMovingTime) &&
+    l.totalMovingTime > 0 &&
+    (elapsed <= 0 || l.totalMovingTime <= elapsed + 1)
+  );
+}
+
+function resolveLapMovingSec(l: Record<string, unknown>): number {
+  const timer =
+    typeof l.totalTimerTime === "number" && Number.isFinite(l.totalTimerTime)
+      ? l.totalTimerTime
+      : 0;
+  if (isValidLapMovingTime(l)) {
+    return l.totalMovingTime as number;
+  }
+  return timer;
+}
+
 /**
  * Decodifica um arquivo binário `.FIT` usando `@garmin/fitsdk`, extraindo o resumo oficial
  * de `sessionMesgs[0]`, voltas reais de `lapMesgs` e/ou parciais km a km de `recordMesgs`.
@@ -486,6 +363,7 @@ export function parseFit(
   const lapMesgs = decoded.messages?.lapMesgs ?? [];
   const recordMesgs = decoded.messages?.recordMesgs ?? [];
   const workoutMesgs = decoded.messages?.workoutMesgs ?? [];
+  const eventMesgs = decoded.messages?.eventMesgs ?? [];
 
   if (
     sessionMesgs.length === 0 &&
@@ -570,6 +448,24 @@ export function parseFit(
         ? rec.distance
         : null;
 
+    const rawSpeed =
+      typeof rec.enhancedSpeed === "number" && Number.isFinite(rec.enhancedSpeed)
+        ? rec.enhancedSpeed
+        : typeof rec.speed === "number" && Number.isFinite(rec.speed)
+          ? rec.speed
+          : null;
+    const speedMs =
+      rawSpeed !== null && rawSpeed >= 0 && rawSpeed <= FIT_MAX_VALID_SPEED_MS
+        ? rawSpeed
+        : null;
+
+    const rawGpsAcc =
+      typeof rec.gpsAccuracy === "number" &&
+      Number.isFinite(rec.gpsAccuracy) &&
+      rec.gpsAccuracy >= 0
+        ? rec.gpsAccuracy
+        : null;
+
     records.push({
       timestampMs,
       timestampIso: iso,
@@ -580,7 +476,16 @@ export function parseFit(
       heartRateBpm: hr,
       cadenceRaw: rawCad,
       temperatureC: rawTemp,
+      speedMs,
+      gpsAccuracyM: rawGpsAcc,
     });
+  }
+
+  for (let i = 1; i < records.length; i++) {
+    if (records[i].timestampMs < records[i - 1].timestampMs) {
+      records.sort((a, b) => a.timestampMs - b.timestampMs);
+      break;
+    }
   }
 
   // Classificação de modalidade
@@ -609,8 +514,10 @@ export function parseFit(
       acc + (typeof l.totalDistance === "number" ? l.totalDistance : 0),
     0
   );
-  const lastRecordDistanceM =
-    records.length > 0 ? (records[records.length - 1].distanceM ?? 0) : 0;
+  const lastRecordDistanceM = records.reduce<number>(
+    (last, r) => (r.distanceM !== null && r.distanceM >= 0 ? r.distanceM : last),
+    0
+  );
 
   const totalDistanceM =
     typeof session.totalDistance === "number" && session.totalDistance > 0
@@ -627,10 +534,34 @@ export function parseFit(
     );
   }
 
-  // Tempo em movimento (session.totalTimerTime -> soma de lap.totalTimerTime -> diferença de records)
+  // Voltas válidas identificadas antecipadamente para distinguir auto-laps de 1 km de intervalados estruturados
+  const validLaps = lapMesgs.filter(
+    (l) =>
+      typeof l.totalDistance === "number" &&
+      l.totalDistance >= MIN_RESIDUAL_SPLIT_METERS &&
+      typeof l.totalTimerTime === "number" &&
+      l.totalTimerTime > 0
+  );
+  const uniform1KmAutoLaps = areLapsUniform1Km(validLaps);
+
+  // Análise de movimento nos records e hierarquia de tempo (totalMovingTime -> auto-pause -> histerese mobile)
+  const motionSteps = buildFitMotionSteps(records, sportInfo.kind);
+  const motionSummary = summarizeFitMotion(motionSteps);
+  const hasTimerPauseEvent = hasExplicitTimerPauseEvents(eventMesgs);
+
   const lapTotalTimerSec = lapMesgs.reduce(
     (acc, l) =>
       acc + (typeof l.totalTimerTime === "number" ? l.totalTimerTime : 0),
+    0
+  );
+  const lapTotalElapsedSec = lapMesgs.reduce(
+    (acc, l) =>
+      acc +
+      (typeof l.totalElapsedTime === "number"
+        ? l.totalElapsedTime
+        : typeof l.totalTimerTime === "number"
+          ? l.totalTimerTime
+          : 0),
     0
   );
   const recordSpanSec =
@@ -645,7 +576,65 @@ export function parseFit(
         ? lapTotalTimerSec
         : recordSpanSec;
 
-  const durationSeconds = Math.round(rawTimerSec);
+  if (rawTimerSec <= 0) {
+    throw new FitParseError(
+      "ZERO_MOVING_TIME",
+      "O tempo em movimento (totalTimerTime) registrado no arquivo .FIT é zero."
+    );
+  }
+
+  const rawElapsedFloatSec =
+    typeof session.totalElapsedTime === "number" && session.totalElapsedTime > 0
+      ? session.totalElapsedTime
+      : lapTotalElapsedSec > 0
+        ? lapTotalElapsedSec
+        : recordSpanSec > 0
+          ? recordSpanSec
+          : rawTimerSec;
+
+  const sessionTotalMovingSec =
+    typeof session.totalMovingTime === "number" &&
+    Number.isFinite(session.totalMovingTime) &&
+    session.totalMovingTime > 0 &&
+    session.totalMovingTime <= rawElapsedFloatSec + 1
+      ? session.totalMovingTime
+      : null;
+
+  const hasAnyLapMovingTime = lapMesgs.some((l) => isValidLapMovingTime(l));
+  const lapTotalMovingSec = hasAnyLapMovingTime
+    ? lapMesgs.reduce((acc, l) => acc + resolveLapMovingSec(l), 0)
+    : 0;
+  const validLapMovingSec =
+    lapTotalMovingSec > 0 && lapTotalMovingSec <= rawElapsedFloatSec + 1
+      ? lapTotalMovingSec
+      : null;
+
+  const explicitMovingSec = sessionTotalMovingSec ?? validLapMovingSec;
+  const hasWatchAutoPause =
+    rawElapsedFloatSec - rawTimerSec >= 2 || hasTimerPauseEvent;
+
+  const canDetectPausesFromRecords =
+    explicitMovingSec === null &&
+    !hasWatchAutoPause &&
+    Math.abs(rawElapsedFloatSec - rawTimerSec) < 2 &&
+    motionSummary.isHighFrequency &&
+    motionSummary.movingTimeSec >= 10 &&
+    (validLaps.length <= 1 || uniform1KmAutoLaps);
+
+  const detectedPausedSec =
+    canDetectPausesFromRecords &&
+    motionSummary.pausedTimeSec >= FIT_PAUSE_HYSTERESIS_MIN_SECONDS
+      ? motionSummary.pausedTimeSec
+      : 0;
+
+  const rawMovingDurationSec =
+    explicitMovingSec !== null
+      ? explicitMovingSec
+      : hasWatchAutoPause
+        ? rawTimerSec
+        : Math.max(1, rawTimerSec - detectedPausedSec);
+
+  const durationSeconds = Math.round(rawMovingDurationSec);
   if (durationSeconds <= 0) {
     throw new FitParseError(
       "ZERO_MOVING_TIME",
@@ -653,13 +642,7 @@ export function parseFit(
     );
   }
 
-  const rawElapsedSec =
-    typeof session.totalElapsedTime === "number" && session.totalElapsedTime > 0
-      ? Math.round(session.totalElapsedTime)
-      : recordSpanSec > 0
-        ? Math.round(recordSpanSec)
-        : durationSeconds;
-
+  const rawElapsedSec = Math.round(rawElapsedFloatSec);
   const elapsedSeconds = Math.max(durationSeconds, rawElapsedSec);
 
   const speedKmh = Number(
@@ -681,6 +664,14 @@ export function parseFit(
   }
 
   const warnings: FitWarning[] = [];
+
+  if (detectedPausedSec >= 5) {
+    warnings.push({
+      code: "PAUSES_DETECTED_FROM_RECORDS",
+      count: Math.round(detectedPausedSec),
+      message: `Tempo parado (${Math.round(detectedPausedSec)}s) descontado automaticamente dos registros .FIT para cálculo do tempo em movimento.`,
+    });
+  }
 
   if (sportInfo.kind === "unknown") {
     warnings.push({
@@ -756,11 +747,11 @@ export function parseFit(
     });
   }
 
-  // Ganho de elevação (session.totalAscent)
+  // Ganho de elevação (session.totalAscent -> fallback records via média móvel + histerese)
   const elevationGainM =
     typeof session.totalAscent === "number" && Number.isFinite(session.totalAscent)
       ? Math.round(session.totalAscent)
-      : null;
+      : calculateElevationGain(records.map((r) => r.elevationM));
 
   if (elevationGainM === null) {
     warnings.push({
@@ -787,20 +778,13 @@ export function parseFit(
         : null;
 
   // Voltas (lapMesgs) e Parciais (splits)
-  const validLaps = lapMesgs.filter(
-    (l) =>
-      typeof l.totalDistance === "number" &&
-      l.totalDistance >= MIN_RESIDUAL_SPLIT_METERS &&
-      typeof l.totalTimerTime === "number" &&
-      l.totalTimerTime > 0
-  );
-
   const laps: LapDetail[] = validLaps.map((l, idx) => {
     const distM = Math.round(l.totalDistance as number);
-    const durSec = Math.max(1, Math.round(l.totalTimerTime as number));
+    const moveSec = resolveLapMovingSec(l);
+    const durSec = Math.max(1, Math.round(moveSec));
     const paceSec = Math.max(
       1,
-      Math.round((l.totalTimerTime as number) / ((l.totalDistance as number) / 1000))
+      Math.round(moveSec / ((l.totalDistance as number) / 1000))
     );
     return {
       lapNumber: idx + 1,
@@ -810,21 +794,40 @@ export function parseFit(
     };
   });
 
+  const shouldRebuildSplitsFromRecords =
+    validLaps.length < 2 ||
+    (uniform1KmAutoLaps && detectedPausedSec > 0 && motionSteps.length > 0);
+
   let splits: GpxSplit[] = [];
 
-  if (validLaps.length >= 2) {
+  if (!shouldRebuildSplitsFromRecords) {
+    let cursorMs = parseFitDateToMs(startedAt);
     splits = validLaps.map((l, idx) => {
       const lapDistM = l.totalDistance as number;
-      const lapTimerSec = l.totalTimerTime as number;
+      const lapMoveSec = resolveLapMovingSec(l);
+      const lapWindowSec =
+        typeof l.totalElapsedTime === "number" && l.totalElapsedTime > 0
+          ? l.totalElapsedTime
+          : lapMoveSec;
+      const lapStartMs = parseFitDateToMs(l.startTime) ?? cursorMs;
+      const lapEndMs =
+        parseFitDateToMs(l.timestamp) ??
+        (lapStartMs !== null ? lapStartMs + Math.round(lapWindowSec * 1000) : null);
+      if (lapEndMs !== null) {
+        cursorMs = lapEndMs;
+      }
+
       const distKm = Math.min(1, Number((lapDistM / 1000).toFixed(3)));
-      const durSec = Math.max(1, Math.round(lapTimerSec));
-      const paceSec = Math.max(1, Math.round(lapTimerSec / (lapDistM / 1000)));
+      const durSec = Math.max(1, Math.round(lapMoveSec));
+      const paceSec = Math.max(1, Math.round(lapMoveSec / (lapDistM / 1000)));
       const lapAscent =
         typeof l.totalAscent === "number" ? l.totalAscent : null;
       const lapDescent =
         typeof l.totalDescent === "number" ? l.totalDescent : 0;
-      const eleDiff =
-        lapAscent !== null ? Math.round(lapAscent - lapDescent) : null;
+      const rawEleDiff =
+        lapAscent !== null
+          ? Math.round(lapAscent - lapDescent)
+          : computeLapElevationDiff(lapStartMs, lapEndMs, records);
 
       return {
         kilometer: idx + 1,
@@ -833,11 +836,12 @@ export function parseFit(
         paceSeconds: paceSec,
         paceFormatted: formatPaceSeconds(paceSec),
         avgHeartRate: sanitizeHeartRate(l.avgHeartRate),
-        elevationDiffM: eleDiff !== null && Object.is(eleDiff, -0) ? 0 : eleDiff,
+        elevationDiffM:
+          rawEleDiff !== null && Object.is(rawEleDiff, -0) ? 0 : rawEleDiff,
       };
     });
   } else {
-    splits = buildSplitsFromFitRecords(records, durationSeconds);
+    splits = splitByDistance(motionStepsToSplitInputs(motionSteps));
     if (splits.length > 0) {
       warnings.push({
         code: "SPLITS_FROM_RECORDS",

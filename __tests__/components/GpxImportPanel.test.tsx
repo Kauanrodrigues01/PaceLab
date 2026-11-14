@@ -134,7 +134,7 @@ describe("Fase 7 — Upload Unificado (.FIT + .GPX), Painel Somente Leitura e Fo
     const fileInput = screen.getByTestId(
       "activity-file-input"
     ) as HTMLInputElement;
-    const fitFile = new File([new Uint8Array([1, 2, 3, 4])], "treino_garmin.fit", {
+    const fitFile = new File([new Uint8Array([1, 2, 3, 4])], "1234567890.fit", {
       type: "application/octet-stream",
     });
 
@@ -158,8 +158,10 @@ describe("Fase 7 — Upload Unificado (.FIT + .GPX), Painel Somente Leitura e Fo
     const smartForm = screen.getByTestId("smart-post-upload-form");
     expect(smartForm).toBeInTheDocument();
 
-    // Como o .FIT não trouxe título, o badge de destaque deve aparecer e o campo de título deve estar vazio
-    expect(screen.getByTestId("title-highlight-badge")).toBeInTheDocument();
+    // Como o .FIT não trouxe título nem nome descritivo (ID numérico), o badge de destaque deve aparecer e o campo deve estar vazio
+    expect(screen.getByTestId("title-highlight-badge")).toHaveTextContent(
+      "Destaque • Nomeie seu treino"
+    );
     const titleInput = screen.getByTestId(
       "post-upload-title-input"
     ) as HTMLInputElement;
@@ -753,5 +755,141 @@ describe("Fase 7 — Upload Unificado (.FIT + .GPX), Painel Somente Leitura e Fo
     expect(savedPayload.activeCalories).toBeNull();
     const zodResult = CreateTrainingSessionSchema.safeParse(savedPayload);
     expect(zodResult.success).toBe(true);
+  });
+
+  it("10. Fase 2: pré-preenche workoutTitle a partir de arquivo .FIT com underscores e permite edição/limpeza dinâmica", async () => {
+    const user = userEvent.setup();
+    vi.mocked(tafService.parseActivity)
+      .mockResolvedValueOnce({
+        ...mockFitOnlyPreview,
+        name: null,
+        suggestedNotes: "Caminhada leve",
+        titleSource: "filename",
+      })
+      .mockResolvedValueOnce({
+        ...mockFitOnlyPreview,
+        name: null,
+        suggestedNotes: "", // Simula resposta legada sem suggestedNotes para testar fallback local
+      });
+    vi.mocked(tafService.saveTraining).mockImplementation(async (session) => ({
+      ...session,
+      id: "saved-filename-title-1",
+    }));
+
+    render(<GpxImportPanel onImported={vi.fn()} />);
+
+    const fileInput = screen.getByTestId(
+      "activity-file-input"
+    ) as HTMLInputElement;
+
+    // Upload 1: backend envia suggestedNotes="Caminhada leve" + titleSource="filename"
+    await user.upload(
+      fileInput,
+      new File([new Uint8Array([1, 2, 3])], "Caminhada_leve.fit")
+    );
+
+    const titleInput = (await screen.findByTestId(
+      "post-upload-title-input"
+    )) as HTMLInputElement;
+    expect(titleInput.value).toBe("Caminhada leve");
+    expect(screen.getByTestId("title-highlight-badge")).toHaveTextContent(
+      "Sugerido pelo arquivo • Editável"
+    );
+
+    // Se usuário limpar o input, o badge volta a destacar "Destaque • Nomeie seu treino"
+    await user.clear(titleInput);
+    expect(screen.getByTestId("title-highlight-badge")).toHaveTextContent(
+      "Destaque • Nomeie seu treino"
+    );
+
+    // Upload 2: fallback local via nome do arquivo mesmo sem suggestedNotes vindo do mock
+    await user.upload(
+      fileInput,
+      new File([new Uint8Array([1, 2, 3])], "Treino_de_tiros_400m.FIT")
+    );
+    await waitFor(() => {
+      expect(
+        (screen.getByTestId("post-upload-title-input") as HTMLInputElement).value
+      ).toBe("Treino de tiros 400m");
+    });
+    expect(screen.getByTestId("title-highlight-badge")).toHaveTextContent(
+      "Sugerido pelo arquivo • Editável"
+    );
+
+    await user.click(screen.getByTestId("save-imported-training-btn"));
+    await waitFor(() => {
+      expect(tafService.saveTraining).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notes: "Treino de tiros 400m",
+        }),
+        false
+      );
+    });
+  });
+
+  it("11. Fase 2: TrainingCard exibe linha discreta de tempo decorrido e pausas apenas quando elapsedSeconds > durationSeconds", () => {
+    const baseTraining: TrainingSession = {
+      id: "t-pause-test",
+      sessionDate: "2026-10-29T20:24:17.000Z",
+      activityType: "rodagem_leve",
+      source: "fit_upload",
+      externalId: "fit_pause_1",
+      distanceKm: 2.85,
+      durationSeconds: 2126, // 35:26 em movimento
+      elapsedSeconds: 2141, // 35:41 decorrido (15s de pausa)
+      speedKmh: 4.82,
+      paceSeconds: 746,
+      paceFormatted: "12:26",
+      splits: [],
+      createdAt: "2026-10-29T20:24:17.000Z",
+      updatedAt: "2026-10-29T20:24:17.000Z",
+    };
+
+    const { rerender } = render(
+      <TrainingCard
+        training={baseTraining}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    const card = screen.getByTestId("training-card-t-pause-test");
+    expect(card).toHaveTextContent("35:26");
+    expect(
+      within(card).getByTestId("training-elapsed-pause")
+    ).toHaveTextContent("Decorrido: 35:41 • 15s pausa");
+
+    // Pausa >= 60s formata com MM:SS (ex.: 2:00 pausa)
+    rerender(
+      <TrainingCard
+        training={{
+          ...baseTraining,
+          durationSeconds: 3600,
+          elapsedSeconds: 3720,
+        }}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    expect(
+      within(screen.getByTestId("training-card-t-pause-test")).getByTestId(
+        "training-elapsed-pause"
+      )
+    ).toHaveTextContent("Decorrido: 1:02:00 • 2:00 pausa");
+
+    // Sem pausa (elapsedSeconds === durationSeconds ou null) -> linha não aparece
+    rerender(
+      <TrainingCard
+        training={{
+          ...baseTraining,
+          elapsedSeconds: 2126,
+        }}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    expect(
+      screen.queryByTestId("training-elapsed-pause")
+    ).not.toBeInTheDocument();
   });
 });

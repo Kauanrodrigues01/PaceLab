@@ -262,6 +262,32 @@ describe("Fase 9 — Extrator de Janela Contínua de 12 Minutos (Simulado TAF / 
     expect(extractBestTafWindow([])).toBeNull();
   });
 
+  it("não corrompe lastCoord em samplesFromFitRecords quando há salto GPS anômalo (> 12 m/s) no fallback Haversine", () => {
+    const baseMs = Date.parse("2026-11-10T16:00:00Z");
+    const stepLat = 0.00003; // ~3.33 m/s para norte
+    const points = [0, 1, 2, 3, 4].map((sec) => ({
+      timestampMs: baseMs + sec * 1000,
+      timestampIso: new Date(baseMs + sec * 1000).toISOString(),
+      distanceM: null,
+      // No segundo 2 injeta um salto absurdo de ~1,1 km; nos segundos 3 e 4 retorna à rota normal
+      lat: sec === 2 ? -23.5405 : -23.5505 + sec * stepLat,
+      lon: -46.6333,
+      elevationM: null,
+      heartRateBpm: null,
+      cadenceRaw: null,
+      temperatureC: null,
+    }));
+
+    const samples = samplesFromFitRecords(points);
+    expect(samples).toHaveLength(5);
+    // Salto em sec=2 deve ser ignorado (distância mantida igual a sec=1)
+    expect(samples[2].distanceM).toBeCloseTo(samples[1].distanceM, 5);
+    // Em sec=3, o cálculo retoma a partir de sec=1 (não da coordenada corrompida em sec=2), recuperando ~10m e ~13.3m em sec=4
+    expect(samples[3].distanceM).toBeGreaterThan(9);
+    expect(samples[4].distanceM).toBeGreaterThan(12);
+    expect(samples[4].distanceM).toBeLessThan(15);
+  });
+
   it("processa arquivos reais do Strava (.GPX) gerando tafWindow e voltas de 400m compatíveis com CreateTafAttemptSchema", () => {
     const fixturesDir = path.resolve(
       process.cwd(),

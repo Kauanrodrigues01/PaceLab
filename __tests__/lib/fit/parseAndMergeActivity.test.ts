@@ -379,4 +379,88 @@ describe("lib/activityParser/parseAndMergeActivity — Regra de Prioridade e Mes
       })
     ).toThrowError(FitParseError);
   });
+
+  it("Enriquece splits[i].elevationDiffM e elevationGainM via .GPX complementar quando .FIT vem com altimetria zerada", () => {
+    const fitBuf = fs.readFileSync(
+      path.resolve(process.cwd(), "__tests__/fixtures/fit/fit_run_zero_ascent_merge.fit")
+    );
+    const gpxBuf = fs.readFileSync(
+      path.resolve(process.cwd(), "__tests__/fixtures/gpx/run_elevation_staircase.gpx")
+    );
+
+    const merged = parseAndMergeActivity({
+      files: [
+        { fileName: "treino.fit", buffer: fitBuf },
+        { fileName: "treino.gpx", buffer: gpxBuf },
+      ],
+    });
+
+    expect(merged.source).toBe("fit_upload");
+    expect(merged.filesUsed).toEqual(["fit", "gpx"]);
+    expect(merged.warnings.some((w) => w.code === "ELEVATION_MERGED_FROM_GPX")).toBe(true);
+    expect(merged.elevationGainM).toBeGreaterThan(0);
+    expect(merged.splits.length).toBeGreaterThan(0);
+    for (const split of merged.splits) {
+      expect(split.elevationDiffM).not.toBeNull();
+    }
+    expect(merged.splits.some((s) => (s.elevationDiffM ?? 0) > 0)).toBe(true);
+  });
+
+  it("Calcula correlação de janela usando fallback Haversine e filtragem de saltos GPS em .FIT sem record.distance", () => {
+    const startMs = Date.parse("2026-11-10T14:00:00Z");
+    const start = new Date(startMs);
+    const degToSemicircle = (deg: number) => Math.round((deg * 2 ** 31) / 180);
+    const lat0 = -23.5505;
+    const lon0 = -46.6333;
+
+    const enc = new Encoder();
+    enc.onMesg(Profile.MesgNum.FILE_ID, {
+      type: "activity",
+      manufacturer: "garmin",
+      product: 1,
+      timeCreated: start,
+    } as never);
+    for (let sec = 0; sec <= 20; sec++) {
+      // Injeta salto anômalo no segundo 10; Haversine > 12 m/s deve ser filtrado na janela
+      const lat = sec === 10 ? lat0 + 0.01 : lat0 + sec * 0.00003;
+      enc.onMesg(Profile.MesgNum.RECORD, {
+        timestamp: new Date(startMs + sec * 1000),
+        positionLat: degToSemicircle(lat),
+        positionLong: degToSemicircle(lon0),
+        altitude: 750,
+      } as never);
+    }
+    enc.onMesg(Profile.MesgNum.SESSION, {
+      startTime: start,
+      totalElapsedTime: 20,
+      totalTimerTime: 20,
+      totalDistance: 66.7,
+      totalAscent: 0,
+      sport: "running",
+    } as never);
+    const fitBuf = Buffer.from(enc.close());
+
+    // GPX da mesma atividade/horário para acionar correlação de amostras via window.ts
+    const gpxPts = Array.from({ length: 21 }, (_, sec) => {
+      const lat = (lat0 + sec * 0.00003).toFixed(6);
+      const iso = new Date(startMs + sec * 1000).toISOString();
+      return `<trkpt lat="${lat}" lon="${lon0.toFixed(6)}"><ele>${750 + sec}</ele><time>${iso}</time></trkpt>`;
+    }).join("\n");
+    const gpxBuf = Buffer.from(
+      `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1"><trk><trkseg>${gpxPts}</trkseg></trk></gpx>`,
+      "utf-8"
+    );
+
+    const merged = parseAndMergeActivity({
+      files: [
+        { fileName: "gps_only.fit", buffer: fitBuf },
+        { fileName: "gps_only.gpx", buffer: gpxBuf },
+      ],
+    });
+
+    expect(merged.source).toBe("fit_upload");
+    expect(merged.filesUsed).toEqual(["fit", "gpx"]);
+    expect(merged.warnings.some((w) => w.code === "ELEVATION_MERGED_FROM_GPX")).toBe(true);
+    expect(merged.elevationGainM).toBeGreaterThan(0);
+  });
 });

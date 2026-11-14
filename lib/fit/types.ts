@@ -12,6 +12,13 @@ import type { LapDetail, TafWindowSummary } from "@/types";
 export const FIT_MAGIC_SIGNATURE = ".FIT";
 export const SEMICIRCLES_TO_DEGREES = 180 / Math.pow(2, 31);
 
+/** Limiares calibrados de detecção de pausas para arquivos .FIT sem auto-pause do dispositivo. */
+export const FIT_STOP_SPEED_THRESHOLD_RUN_MS = 0.85;
+export const FIT_STOP_SPEED_THRESHOLD_WALK_MS = 0.3;
+export const FIT_PAUSE_HYSTERESIS_MIN_SECONDS = 3;
+export const FIT_MAX_VALID_SPEED_MS = 12.0;
+export const FIT_MAX_GPS_ACCURACY_METERS = 50;
+
 export type FitParseErrorCode =
   | "INVALID_FIT"
   | "NO_SESSION_DATA"
@@ -58,6 +65,7 @@ export type FitWarningCode =
   | "UNKNOWN_ACTIVITY_TYPE"
   | "CADENCE_DOUBLED"
   | "INDOOR_ACTIVITY_NO_GPS"
+  | "PAUSES_DETECTED_FROM_RECORDS"
   | "SPLITS_FROM_RECORDS"
   | "SPLITS_SYNTHESIZED_FROM_SESSION"
   | "MISMATCHED_ACTIVITY_FILES"
@@ -80,6 +88,8 @@ export interface FitRecordPoint {
   heartRateBpm: number | null;
   cadenceRaw: number | null;
   temperatureC: number | null;
+  speedMs?: number | null;
+  gpsAccuracyM?: number | null;
 }
 
 export interface ParsedFit {

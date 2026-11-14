@@ -19,6 +19,7 @@ import {
   buildMirroredTrainingFromAttempt,
   combineTitleAndNotes,
 } from "@/lib/sheetsSyncUi";
+import { pickPreferredActivityTitleFromFileNames } from "@/lib/activityParser/filenameTitle";
 import { formatTime } from "@/lib/formatting/time";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import {
@@ -207,9 +208,14 @@ export function GpxImportPanel({
 
     try {
       const result = await tafService.parseActivity(incomingFiles);
+      const localFilenameTitle = pickPreferredActivityTitleFromFileNames(
+        incomingFiles.map((f) => f.name)
+      );
       setPreview(result);
       setSavedAttemptBanner(null);
-      setWorkoutTitle(result.name ?? "");
+      setWorkoutTitle(
+        result.name?.trim() || result.suggestedNotes?.trim() || localFilenameTitle || ""
+      );
       setActivityType(result.suggestedActivityType ?? "corrida_continua");
       setLocationType(result.isIndoor ? "esteira" : "pista_400m");
       setFallbackDate(
@@ -438,8 +444,8 @@ export function GpxImportPanel({
           })();
 
     const finalElapsedSeconds =
-      preview.elapsedSeconds !== null
-        ? Math.max(finalDurationSeconds, preview.elapsedSeconds)
+      preview.elapsedSeconds != null && Number.isFinite(preview.elapsedSeconds)
+        ? Math.round(Math.max(finalDurationSeconds, preview.elapsedSeconds))
         : null;
 
     // Combina Título do Treino e Observações em notes (respeitando limite de 1.000 chars do Zod)
@@ -1219,11 +1225,15 @@ export function GpxImportPanel({
                     data-testid="title-highlight-badge"
                     className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-[#B7F34A] text-[#0B1020]"
                   >
-                    Destaque • Nomeie seu treino
+                    {workoutTitle.trim().length > 0
+                      ? "Sugerido pelo arquivo • Editável"
+                      : "Destaque • Nomeie seu treino"}
                   </span>
                 ) : (
                   <span className="text-[10px] font-semibold text-emerald-400">
-                    Preenchido pelo .GPX (editável)
+                    {preview?.filesUsed.includes("gpx")
+                      ? "Preenchido pelo .GPX (editável)"
+                      : "Preenchido pelo .FIT (editável)"}
                   </span>
                 )}
               </div>

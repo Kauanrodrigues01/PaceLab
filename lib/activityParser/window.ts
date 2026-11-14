@@ -5,7 +5,7 @@
  */
 
 import type { LapDetail, TafWindowSummary } from "@/types";
-import type { FitRecordPoint } from "../fit/types";
+import { FIT_MAX_VALID_SPEED_MS, type FitRecordPoint } from "../fit/types";
 import { haversineDistanceMeters } from "../gpx/geo";
 import { formatPaceSeconds } from "../gpx/metrics";
 import {
@@ -65,7 +65,7 @@ export function samplesFromFitRecords(records: FitRecordPoint[]): WindowSample[]
   const baseTs = validRecords[0].timestampMs;
   const samples: WindowSample[] = [];
   let cumulativeDist = 0;
-  let lastCoord: { lat: number; lon: number } | null = null;
+  let lastCoord: { lat: number; lon: number; timestampMs: number } | null = null;
   let prevElapsed = 0;
 
   for (let i = 0; i < validRecords.length; i++) {
@@ -74,32 +74,43 @@ export function samplesFromFitRecords(records: FitRecordPoint[]): WindowSample[]
     const elapsedSec = Math.max(prevElapsed, rawElapsed);
     prevElapsed = elapsedSec;
 
+    const hasValidGps =
+      rec.lat !== null &&
+      rec.lon !== null &&
+      Number.isFinite(rec.lat) &&
+      Number.isFinite(rec.lon);
+    let acceptGpsAsAnchor = hasValidGps;
+
     if (rec.distanceM !== null && Number.isFinite(rec.distanceM)) {
       if (i === 0 && rec.distanceM > 0) {
         cumulativeDist = rec.distanceM;
       } else if (rec.distanceM > cumulativeDist) {
         cumulativeDist = rec.distanceM;
       }
-    } else if (
-      lastCoord !== null &&
-      rec.lat !== null &&
-      rec.lon !== null &&
-      Number.isFinite(rec.lat) &&
-      Number.isFinite(rec.lon)
-    ) {
-      const segDist = haversineDistanceMeters(lastCoord.lat, lastCoord.lon, rec.lat, rec.lon);
-      if (Number.isFinite(segDist) && segDist > 0) {
-        cumulativeDist += segDist;
+    } else if (lastCoord !== null && hasValidGps) {
+      const dtSec = (rec.timestampMs - lastCoord.timestampMs) / 1000;
+      const segDist = haversineDistanceMeters(
+        lastCoord.lat,
+        lastCoord.lon,
+        rec.lat as number,
+        rec.lon as number
+      );
+      if (dtSec > 0 && Number.isFinite(segDist) && segDist / dtSec <= FIT_MAX_VALID_SPEED_MS) {
+        if (segDist > 0) {
+          cumulativeDist += segDist;
+        }
+      } else {
+        // Não avança lastCoord com coordenada de salto GPS anômalo (> 12 m/s) ou dt <= 0
+        acceptGpsAsAnchor = false;
       }
     }
 
-    if (
-      rec.lat !== null &&
-      rec.lon !== null &&
-      Number.isFinite(rec.lat) &&
-      Number.isFinite(rec.lon)
-    ) {
-      lastCoord = { lat: rec.lat, lon: rec.lon };
+    if (acceptGpsAsAnchor && hasValidGps) {
+      lastCoord = {
+        lat: rec.lat as number,
+        lon: rec.lon as number,
+        timestampMs: rec.timestampMs,
+      };
     }
 
     samples.push({
