@@ -1,7 +1,7 @@
 # Leitura de `.FIT` / `.GPX`, Mesclagem e Divergências com o Strava
 
 > **Documentação Técnica de Arquitetura — PaceLab**
-> Referência de código atualizada conforme estado da branch `main` (após entrega das melhorias de `.FIT`, título por nome de arquivo, proteção de telemetria no Google Sheets e preparação para importação em massa).
+> Referência de código atualizada para o estado em produção pós-Planos 14 e 15 (parser prioritário `.FIT` + complemento `.GPX`, título por nome de arquivo, importação em lote de até 50 arquivos, proteção de telemetria no Google Sheets e conciliação com `Plano_Semanal`).
 
 Este documento explica como o PaceLab ingere, valida, interpreta e mescla arquivos **`.FIT`** e **`.GPX`** para registrar treinos no Diário (`TrainingSession`) e Simulados de 12 minutos (`TafAttempt`), por que os números obtidos podem diferir dos exibidos na interface do Strava, qual abordagem é tecnicamente mais precisa e quais regras transversais governam o restante do sistema (calorias, Google Sheets, deduplicação e ferramentas de auditoria).
 
@@ -31,7 +31,7 @@ flowchart TD
 ### Contratos de Entrada na API de Parsing
 - **Rota:** [`app/api/training-sessions/parse-activity/route.ts`](../../app/api/training-sessions/parse-activity/route.ts)
 - **Limite por arquivo:** `MAX_ACTIVITY_FILE_BYTES = 4 * 1024 * 1024` (**4 MB**). Arquivos vazios retornam `422` (`EMPTY_FILE`); arquivos acima de 4 MB retornam `413` (`FILE_TOO_LARGE`).
-- **Combinações aceitas:** `1 .FIT`, `1 .GPX`, ou `1 .FIT + 1 .GPX` da mesma atividade. Enviar mais de 2 arquivos, dois `.FIT` ou dois `.GPX` simultaneamente é rejeitado com `422` (`INVALID_FIT`).
+- **Combinações aceitas:** `1 .FIT`, `1 .GPX`, ou `1 .FIT + 1 .GPX` da mesma atividade. Enviar mais de 2 arquivos na requisição HTTP retorna `422` (`TOO_MANY_FILES`); enviar dois `.FIT` ou dois `.GPX` simultaneamente é rejeitado pelo parser com `422` (`INVALID_FIT`).
 - **Sugestão de modalidade (`resolveActivityTypeSuggestions`):**
   - `walk` → sugere `"caminhada"` (`allowedActivityTypes: ["caminhada"]`);
   - `run` → sugere `"corrida_continua"` (`allowedActivityTypes: ["rodagem_leve", "corrida_continua", "tempo_run", "corrida_intervalada", "longao"]`);
@@ -224,7 +224,7 @@ Mesmo após passar pelo parser, toda gravação no backend passa pelos contratos
 ### 6.4 Boas Práticas Operacionais ao Exportar do Strava
 - **Preferir `.FIT` original:** no Strava Web, use **Exportar Original** (`.FIT`, endpoint `/export_original` — ver também [`__tests__/fixtures/fit/README.md`](../../__tests__/fixtures/fit/README.md)) em vez de baixar apenas `.GPX`, principalmente para atividades indoor/esteira, treinos intervalados ou treinos gravados com relógio/cinta cardíaca.
 - **Quando enviar `.FIT + .GPX` juntos:** sempre que a gravação vier do app Strava Mobile com título personalizado importante ou em percursos com subidas relevantes onde o `totalAscent` bruto do aparelho esteja zerado/subestimado.
-- **Atenção ao Fuso Horário:** tanto `.FIT` quanto `.GPX` armazenam timestamps internos em **UTC** (`...Z`). O PaceLab preserva o instante UTC no banco e utiliza o fuso `America/Fortaleza` na formatação de datas para a sincronização com o Google Sheets (`formatDateFortaleza` em `lib/googleSheets/mapper.ts` e `lib/sheetsSyncUi.ts`).
+- **Atenção ao Fuso Horário:** tanto `.FIT` quanto `.GPX` armazenam timestamps internos em **UTC** (`...Z`). O PaceLab preserva o instante UTC no banco e utiliza o fuso `America/Fortaleza` no agrupamento semanal (`toFortalezaDateKey` em [`lib/math/weeklyAdherence.ts`](../../lib/math/weeklyAdherence.ts)) e na sincronização com o Google Sheets (`formatDateFortaleza` em [`lib/googleSheets/mapper.ts`](../../lib/googleSheets/mapper.ts) e `formatSheetsSyncBadge` em [`lib/sheetsSyncUi.ts`](../../lib/sheetsSyncUi.ts)) — veja detalhes em [`03_modelo_de_dados_e_apis.md`](./03_modelo_de_dados_e_apis.md#3-contrato-de-datas-e-fuso-horário-americafortaleza).
 
 ### 6.5 Ferramentas CLI de Diagnóstico e Regressão (`package.json`)
 Para depurar divergências numéricas em qualquer arquivo real antes de alterar constantes de corte ou histerese:
@@ -237,3 +237,8 @@ Para depurar divergências numéricas em qualquer arquivo real antes de alterar 
 | `npm run fit:test:real` | Executa regressão contra arquivos reais em `__tests__/fixtures/fit/` |
 | `npm run gpx:test:synthetic` | Valida suíte sintética `.GPX` (XXE, EMA caminhada lenta, spikes GPS, elevação) |
 | `npm run gpx:test:real` | Valida arquivos reais e referências em `__tests__/fixtures/gpx/` |
+
+### 6.6 Navegação Cruzada
+- **Passo a passo de usuário (Strava Web, importação individual/lote e classificação):** [`01_strava_exportacao_e_classificacao.md`](../integrations/01_strava_exportacao_e_classificacao.md)
+- **Ecossistema Strava → PaceLab → Sheets (4 abas, incl. conciliação automática com `Plano_Semanal`) → Gemini:** [`02_ecossistema_strava_pacelab_sheets_gemini.md`](./02_ecossistema_strava_pacelab_sheets_gemini.md)
+- **Schema PostgreSQL (6 tabelas), persistência híbrida e contratos de API REST:** [`03_modelo_de_dados_e_apis.md`](./03_modelo_de_dados_e_apis.md)

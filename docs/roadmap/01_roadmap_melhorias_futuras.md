@@ -14,18 +14,22 @@ Dedicado exclusivamente a funcionalidades de conveniência no navegador, garanti
 | Chave no `localStorage` | Tipo de Dado | Onde é Usado | O que Armazena |
 | :--- | :--- | :--- | :--- |
 | **`pacelab_history_v1`** | Array de `HistoryEntry` | `/historico`, `/calculadora`, `/taf`, `/intervalado`, `/metas` | Rascunho/bloco de notas de cálculos gerais feitos nas calculadoras (distância km, tempo total, pace médio, velocidade km/h, data e notas). |
+| **`pacelab_draft_calc`** / **`pacelab_draft_interval`** | JSON (`CalcDraft` / `IntervalDraft`) | `/calculadora`, `/intervalado` | Persistência automática de rascunho dos campos preenchidos pelo usuário nas calculadoras. |
+| **`pacelab_weight_prompt_dismissed_until`** | ISO Timestamp (`DISMISSED_PROMPT_KEY`) | `WeeklyWeightModal` ([`lib/services/profileService.ts`](../../lib/services/profileService.ts)) | Data/hora limite de dispensa temporária do lembrete semanal de pesagem. |
+| **`pacelab_cache_*`** | JSON (`trainings`, `taf_attempts`, `taf_trainings`, `taf_goal`, `weekly_plan`, `profile`, `weights`) | `/treinos`, `/meu-taf`, `/perfil` (`CROSS_PAGE_SHEETS_CACHE_KEYS` e `profileService`) | Cache local rápido (SWR) de leituras da nuvem, invalidado após sincronizações com o Google Sheets. |
 | **`theme`** | String (`"light"` \| `"dark"` \| `"system"`) | Todo o site (`ThemeProvider`) | Preferência visual de tema (modo claro ou modo escuro). |
 
 ### 1.2. Armazenamento na Nuvem (`Supabase • PostgreSQL via Prisma ORM`)
-Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são persistidos de forma segura e relacional, sem cópias locais em `localStorage` e sem rotas de sincronização legadas.
+Camada relacional principal usada pelos módulos **Meu TAF** (`/meu-taf`), **Diário & Dashboard de Treinos** (`/treinos`), **Perfil** (`/perfil`), widgets dinâmicos da **Home** (`/`) e reconciliação semanal (`/api/weekly-plan`), com espelhamento bidirecional opcional para Google Sheets.
 
 | Tabela no Banco | Modelo Prisma | Onde é Usado | O que Armazena |
 | :--- | :--- | :--- | :--- |
-| **`taf_goals`** | `TafGoal` | `/meu-taf` (Configurações e KPIs) | Meta oficial do concurso (distância alvo: ex. 2.300 m, tempo limite: 12 min e data prevista do edital). |
-| **`taf_attempts`** | `TafAttempt` | `/meu-taf` (Simulados 12 Min, Gráficos e Comparador) | Histórico completo de simulados de 12 min (metros percorridos, tempo real, pace, velocidade, parciais em voltas de 400m, notas de pista e estado de sincronização com Google Sheets: `source` + `synced_to_sheets_at`). |
-| **`training_sessions`** | `TrainingSession` | `/meu-taf` (Diário de Treinos, Gráficos e Comparador) | Diário de treinos (quilômetros, tempo, pace, modalidade, esforço percebido na escala RPE de 1 a 10, peso corporal em kg, calorias ativas/totais, valor MET, parciais por km, origem `manual`/`gpx_upload`/`fit_upload`/`sheets` e rastreamento de sincronização com Google Sheets via `synced_to_sheets_at`). |
-| **`user_profiles`** | `UserProfile` | `/perfil`, `/meu-taf`, `/treinos`, Modais | Perfil biométrico do atleta (altura em cm, peso atual em kg, data de nascimento, sexo biológico e data da última pesagem). |
-| **`weight_records`** | `WeightRecord` | `/perfil` (Gráficos e Histórico) | Histórico temporal de pesagens corporais com data, peso em kg e origem do registro (`manual`, `prompt_semanal`, `treino`). |
+| **`taf_goals`** | `TafGoal` | `/perfil`, `/meu-taf`, `/`, `/calculadora`, `/taf`, `/metas`, `/intervalado` | Meta oficial do concurso (instituição, distância mínima/alvo em metros, duração do teste, data prevista do edital e metas/tempos de Barra, Flexão e Abdominal). |
+| **`taf_attempts`** | `TafAttempt` | `/meu-taf`, `/` (Home) e aba `Simulados_TAF` | Histórico de simulados de 12 min (metros percorridos, tempo real/alvo, pace, velocidade, voltas parciais de `400 m`, origem `manual`/`gpx_upload`/`fit_upload`/`sheets`, `external_id` e `synced_to_sheets_at`). |
+| **`training_sessions`** | `TrainingSession` | `/treinos`, `/meu-taf`, `/`, `/historico` | Diário de treinos (distância km, tempo em movimento e `elapsed_seconds`, pace, `ActivityType`, RPE 1–10, peso corporal, calorias ativas/totais, MET, parciais por km, sensores/tênis, origem, `external_id`, `synced_to_sheets_at` e vínculo `1:1` opcional com `weekly_plan_items`). |
+| **`user_profiles`** | `UserProfile` | `/perfil`, `/meu-taf`, `/treinos`, `/intervalado`, Home e Modais | Perfil biométrico do atleta (nome, altura em cm, peso atual em kg, data de nascimento e gênero). |
+| **`weight_records`** | `WeightRecord` | `/perfil`, `WeeklyWeightModal` | Histórico temporal de pesagens corporais com data, peso em kg, notas e origem do registro (`manual`, `weekly_prompt`, `profile_update`). |
+| **`weekly_plan_items`** | `WeeklyPlanItem` | `/`, `/treinos`, `/api/weekly-plan`, sync Google Sheets | Itens prescritos da 4ª aba `Plano_Semanal!A:I` (data planejada em `America/Fortaleza`, atividade, distância/pace alvo, status `Planejado` / `Concluído` / `Parcial` / `Perdido`, chave `plan_external_id` e FK `matched_session_id` `ON DELETE SET NULL`). *(Plano 15)* |
 
 ---
 
@@ -41,7 +45,7 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
   - Sincronização multi-dispositivo real (treino registrado no celular na pista fica disponível imediatamente no notebook em casa).
 
 #### 2. Ativação de Row Level Security (RLS) no PostgreSQL
-- **Solução proposta:** Ativar políticas de RLS nas tabelas `taf_goals`, `taf_attempts` e `training_sessions` garantindo que cada usuário só possa ler, alterar ou excluir seus próprios dados.
+- **Solução proposta:** Ativar políticas de RLS nas tabelas `taf_goals`, `taf_attempts` e `training_sessions` — além das tabelas adicionadas posteriormente ao schema (`user_profiles`, `weight_records` e `weekly_plan_items`) — garantindo que cada usuário só possa ler, alterar ou excluir seus próprios dados.
 
 ---
 
@@ -75,6 +79,7 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 #### 6. Tipagem com Enums Nativos (Prisma, PostgreSQL e Zod) (✅ Implementado)
 - **Status:** Criação dos Enums nativos `ActivityType` (`corrida_continua`, `corrida_intervalada`, `caminhada`) e `LocationType` (`pista_400m`, `rua_plana`, `parque_praca`, `esteira`, `outro`) no `prisma/schema.prisma` e migração SQL segura com conversão de registros legados.
 - **Camada Zod & Domínio:** Validação estrita em `lib/validations/taf.ts` e labels humanizados em `types/index.ts`.
+- *(Nota de evolução posterior: no Plano 11 / Eixo B.6, `ActivityType` foi expandido para 6 valores com `rodagem_leve`, `tempo_run` e `longao`; veja [Modelo de Dados e APIs](../architecture/03_modelo_de_dados_e_apis.md#22-enums-oficiais-prismaschemaprisma).)*
 
 #### 7. Dashboard de Evolução do Treinamento em `/treinos` (✅ Implementado)
 - **Status:** Componente analítico `components/treinos/TrainingEvolutionDashboard.tsx` integrado à página com navegação por abas e deep linking (`/treinos?tab=graficos`).
@@ -86,6 +91,7 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
   - Pirâmide Polarizada de Intensidade (RPE com Regra 80/20 de Stephen Seiler);
   - Gráfico Donut de Volume por Modalidade.
 - **Testes:** Suíte dedicada em `__tests__/components/TrainingEvolutionDashboard.test.tsx` e integração em `__tests__/pages/treinos.test.tsx`.
+- *(Nota de evolução posterior: com os Planos 8 e 9, o painel evoluiu para **6 KPIs** — somando `Gasto Calórico` —, **Heatmap de 12 semanas** (`TrainingConsistencyHeatmap`) e **7 painéis visuais** — 6 gráficos Recharts somados à Pirâmide RPE; veja [Treinos e Dashboard Analítico](../features/02_treinos_e_dashboard_analitico.md#5-dashboard-analítico-treinostabgraficos).)*
 
 ---
 
@@ -142,7 +148,7 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 #### 16. Modelo Multimodal e Eliminação Definitiva de Hardcoding (✅ Implementado)
 - **Status:** Expansão do modelo Prisma `TafGoal` com suporte multimodal (`institution`, `minDistanceMeters`, `pullupsTarget`, `pushupsTarget`, `absTarget`) e migração SQL segura.
 - **Zero Hardcoding:** Eliminação total de valores estáticos legados (2.300m / 2.400m). O Meu TAF, Intervalado, Calculadora Principal, Metas e Home agora carregam e calculam réguas de aprovação e atalhos baseados estritamente na meta do edital cadastrado do atleta.
-- **Configuração no Perfil:** Criação do componente `TafGoalConfigCard.tsx` em `/perfil` com presets de 1 clique (PMPR, PF, PRF, PMESP, PCERJ) e validação Zod bidirecional.
+- **Configuração no Perfil:** Criação do componente `TafGoalConfigCard.tsx` em `/perfil` com presets de 1 clique e validação Zod bidirecional. *(Nota de evolução posterior: os 4 presets implementados e padronizados no código são `PM-SP`, `PF`, `PRF` e `PMPR`.)*
 
 #### 17. Revitalização de UI/UX e Métricas Fisiológicas Avançadas (✅ Implementado)
 - **Status:**
@@ -240,6 +246,25 @@ Dedicado exclusivamente ao módulo **Meu TAF** (`/meu-taf`). Todos os dados são
 - **Motor de Análise, Payloads e Políticas em Lote (`lib/activityParser/batchPayloads.ts`):** Pool concorrente com suporte a `AbortSignal` para chamadas individuais a `/api/training-sessions/parse-activity`, pré-preenchimento de títulos por arquivo/GPX, recálculo calórico MET em lote (`bodyWeightKg`), sanitização compatível com os schemas Zod (`CreateTrainingSessionSchema` e `CreateTafAttemptSchema`), fallback manual para arquivos sem métricas completas, políticas globais de duplicidade (`"skip"` vs `"update"` via `onDuplicate: "update"`) e espelhamento seguro TAF → Diário (`buildSafeMirroredDiaryPayload`) sem criar registros órfãos.
 - **UI em Massa com Seleção Única Global (`components/treinos/GpxImportPanel.tsx` + `components/treinos/batch/*`):** Alternador de modo (`1 Treino (Individual)` vs `Em Massa (Vários Arquivos)`) preservando integralmente o fluxo individual, **`radiogroup` único global (`BatchImportTargetBar.tsx`)** definindo todo o lote como *Todos como Treinos do Diário* ou *Todos como Simulados TAF (Cooper 12 min)* sem seletores individuais por linha, barra de configuração rápida para aplicar tipo/local/tênis/RPE em massa (`BatchImportDefaultsBar.tsx`), cartões compactos de revisão (`BatchImportItemRow.tsx`) com `<GpxPreviewCard />` sob demanda para performance mobile e recuperação granular via *"Tentar novamente falhos"* sem duplicar itens já persistidos.
 - **Push Único Consolidado para Google Sheets & Cache (`lib/services/tafService.ts`, `lib/sheetsSyncUi.ts`, `app/treinos/page.tsx`, `app/meu-taf/page.tsx`):** Suporte a `{ skipSheetsSync: true }` nas gravações individuais via query param `?skipSheetsSync=true` (`shouldSkipSheetsSync` em `lib/api/sheetsSync.ts`) nas rotas `/api/taf/trainings` e `/api/taf/attempts` (`POST`/`PUT`), disparo de **1 único push consolidado** (`direction: "push"`) ao final quando configurado, invalidação de caches cross-page preservando a meta TAF (`clearCrossPageSheetsCaches({ includeGoal: false })`) e 1 toast resumo consolidado (`formatBatchImportToast`).
+
+---
+
+### Eixo B.10: Sincronização do `Plano_Semanal` (4ª Aba Sheets), Reconciliação em 2 Passadas e Card de Aderência Semanal — ✅ Concluído e Homologado (Fases 0–5)
+
+> **Plano executado:** [`docs/plans/executed/15_plan_sincronizacao_plano_semanal_e_aderencia.md`](../plans/executed/15_plan_sincronizacao_plano_semanal_e_aderencia.md)
+
+- **Modelo `WeeklyPlanItem` & Migration (`prisma/schema.prisma`):** Criação da 6ª tabela PostgreSQL (`weekly_plan_items` via migration `20261115191047_add_weekly_plan_items`) com chave `planExternalId` e relação `1:1` opcional (`matchedSessionId @unique`, `ON DELETE SET NULL`) com `TrainingSession`.
+- **Reconciliação Automática e Sync da 4ª Aba (`lib/math/weeklyAdherence.ts`, `lib/googleSheets/syncService.ts`):** Integração opcional da aba `Plano_Semanal!A:I` (suportando criação orgânica sem quebrar planilhas com 3 abas), calendário canônico `America/Fortaleza` (`toFortalezaDateKey`), matching em 2 passadas (D+0 e tolerância `±1 dia` em dias sem outro plano, corte `>= 0.40` e `>= 0.85` `Concluído`), reversão automática após `PUT`/`DELETE` de treinos e *write-back* seletivo em `H:I`.
+- **APIs & UI (`GET /api/weekly-plan`, `GET /api/taf/trainings/[id]`, `WeeklyAdherenceCard.tsx`):** Novos endpoints documentados no Swagger `/docs` e card interativo renderizado na Home (`/`) e em `/treinos` com aderência semanal, média móvel de até 4 semanas, sessões extras e abertura direta do `TrainingDetailModal` (incluindo deep-link `/treinos?trainingId=<id>`).
+
+---
+
+### Eixo B.11: Organização, Atualização Pós-Plano 15 e Consolidação da Documentação (Plano 16) — ✅ Concluído e Arquivado (Fases 0–5)
+
+> **Portal resultante:** [`docs/README.md`](../README.md) · **Playbook de Operações:** [`docs/operations/01_testes_deploy_e_troubleshooting.md`](../operations/01_testes_deploy_e_troubleshooting.md) · **Plano executado:** [`16_plan_organizacao_e_consolidacao_documentacao.md`](../plans/executed/16_plan_organizacao_e_consolidacao_documentacao.md)
+
+- **Arquitetura Modular Anti-Duplicação (`docs/` + `README.md`):** Separação estrita entre **Arquitetura Técnica** (`docs/architecture/01..03_*`), **Guias Práticos de Integração** (`docs/integrations/01..02_*`), **Documentação Funcional de Produto** (`docs/features/01..03_*`), **Operações & Troubleshooting** (`docs/operations/01_*`) e **Portal Central** (`docs/README.md`).
+- **Atualização Integral Pós-Plano 15:** Promoção de `Plano_Semanal`, `WeeklyPlanItem` e `WeeklyAdherenceCard` para a documentação viva em produção, remoção do rascunho sensível da raiz, correção dos presets oficiais (`PM-SP`, `PF`, `PRF`, `PMPR`) e refatoração do [`README.md`](../../README.md) enxuto na raiz.
 
 ---
 
