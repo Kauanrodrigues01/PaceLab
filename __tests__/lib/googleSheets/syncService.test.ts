@@ -5,11 +5,17 @@ const {
   mockGetGoogleSheetsClient,
   mockGetSheetIdByTitle,
   mockPrisma,
-} = vi.hoisted(() => ({
-  mockIsGoogleSheetsConfigured: vi.fn(),
-  mockGetGoogleSheetsClient: vi.fn(),
-  mockGetSheetIdByTitle: vi.fn(),
-  mockPrisma: {
+} = vi.hoisted(() => {
+  const weeklyPlanItem = {
+    findMany: vi.fn().mockResolvedValue([]),
+    findUnique: vi.fn().mockResolvedValue(null),
+    create: vi.fn().mockResolvedValue({}),
+    update: vi.fn().mockResolvedValue({}),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  };
+
+  const prisma = {
     trainingSession: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -33,8 +39,24 @@ const {
     weightRecord: {
       findFirst: vi.fn(),
     },
-  },
-}));
+    weeklyPlanItem,
+    $transaction: vi.fn(async (arg: unknown) => {
+      if (typeof arg === "function") {
+        return (arg as (tx: { weeklyPlanItem: typeof weeklyPlanItem }) => Promise<unknown>)({
+          weeklyPlanItem,
+        });
+      }
+      return Promise.all(arg as Promise<unknown>[]);
+    }),
+  };
+
+  return {
+    mockIsGoogleSheetsConfigured: vi.fn(),
+    mockGetGoogleSheetsClient: vi.fn(),
+    mockGetSheetIdByTitle: vi.fn(),
+    mockPrisma: prisma,
+  };
+});
 
 vi.mock("@/lib/env", () => ({
   isGoogleSheetsConfigured: mockIsGoogleSheetsConfigured,
@@ -64,6 +86,10 @@ import {
   deleteTafAttemptFromSheet,
   syncHistoricalDataToSheets,
   pullChangesFromSheets,
+  pullWeeklyPlanFromSheets,
+  reconcileWeeklyPlansWithSessions,
+  pushWeeklyPlanStatusToSheets,
+  syncWeeklyPlanFromSheets,
   syncWithGoogleSheets,
   safeAutoSync,
 } from "@/lib/googleSheets";
@@ -127,6 +153,18 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
     mockPrisma.trainingSession.updateMany.mockResolvedValue({ count: 0 });
     mockPrisma.tafAttempt.update.mockResolvedValue({});
     mockPrisma.tafAttempt.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.weeklyPlanItem.findMany.mockResolvedValue([]);
+    mockPrisma.weeklyPlanItem.findUnique.mockResolvedValue(null);
+    mockPrisma.weeklyPlanItem.create.mockResolvedValue({});
+    mockPrisma.weeklyPlanItem.update.mockResolvedValue({});
+    mockPrisma.weeklyPlanItem.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.weeklyPlanItem.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.$transaction.mockImplementation(async (arg: unknown) => {
+      if (typeof arg === "function") {
+        return (arg as (tx: unknown) => Promise<unknown>)(mockPrisma);
+      }
+      return Promise.all(arg as Promise<unknown>[]);
+    });
   });
 
   describe("A. Sync Pontual em Tempo Real & Exclusão", () => {
@@ -1699,6 +1737,697 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
       expect(fakeSheets.spreadsheets.values.update).toHaveBeenCalledWith(
         expect.objectContaining({
           range: "Perfil_e_Metas!A2:I2",
+        })
+      );
+    });
+  });
+
+  describe("G. Plano_Semanal & Reconciliação Local (A3/A4/A8)", () => {
+    it("degrada graciosamente quando aba Plano_Semanal não existe (HTTP 400 unable to parse range / 404) sem criar aba", async () => {
+      fakeSheets.spreadsheets.values.get.mockRejectedValueOnce({
+        status: 400,
+        message: "Unable to parse range: Plano_Semanal!A2:I",
+      });
+
+      const pullRes = await pullWeeklyPlanFromSheets();
+      expect(pullRes.sheetMissing).toBe(true);
+      expect(pullRes.stats).toEqual({
+        imported: 0,
+        updated: 0,
+        removed: 0,
+        sheetMissingOrEmpty: true,
+      });
+      expect(pullRes.warnings).toHaveLength(0);
+      expect(fakeSheets.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+
+      // Orquestrador syncWithGoogleSheets continua operando normalmente com batchGet [0..2] intacto
+      mockPrisma.trainingSession.findMany.mockResolvedValue([]);
+      mockPrisma.tafAttempt.findMany.mockResolvedValue([]);
+      fakeSheets.spreadsheets.values.get.mockRejectedValueOnce({ status: 404, message: "Not Found" });
+      fakeSheets.spreadsheets.values.batchGet
+        .mockResolvedValueOnce({ data: { valueRanges: [{ values: [] }, { values: [] }] } })
+        .mockResolvedValueOnce({
+          data: {
+            valueRanges: [
+              { values: [] },
+              { values: [] },
+              { values: [["Kauan", "28", "178", "74,2", "PF Agente", "2400", "2600", "12", "15/02/2027"]] },
+            ],
+          },
+        });
+
+      const biReport = await syncWithGoogleSheets(
+        { direction: "bidirectional", forceFullResync: false },
+        { now: () => fixedNow }
+      );
+      expect(biReport.warnings).toHaveLength(0);
+      expect(biReport.weeklyPlan).toEqual({
+        imported: 0,
+        updated: 0,
+        removed: 0,
+        matched: 0,
+        missed: 0,
+        pushed: 0,
+        sheetMissingOrEmpty: true,
+      });
+      expect(fakeSheets.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+    });
+
+    it("importa prescrições A-G, ignora Descanso/Off sem warnings, preserva matchedSessionId e limpa apenas pendências substituídas", async () => {
+      let seq = 0;
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["plan-new-1", "2026-11-17", "Terça", "Corrida Contínua", "6,5", "5:10", "Rodagem aeróbica"],
+            ["plan-done-1", "2026-11-16", "Segunda", "Tempo Run", "8", "4:40", "Prescrição ajustada para 8km"],
+            ["plan-off-1", "2026-11-18", "Quarta", "Descanso", "-", "-", "Recuperação passiva"],
+            ["plan-new-1", "2026-11-19", "Quinta", "Longão", "12", "5:30", "Linha duplicada"],
+          ],
+        },
+      });
+
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wp-done-1",
+          planExternalId: "plan-done-1",
+          plannedDate: new Date("2026-11-16T12:00:00.000Z"),
+          dayOfWeek: "Segunda",
+          activityType: "tempo_run",
+          targetDistanceKm: 6,
+          targetPaceFormatted: "4:45",
+          description: "Antiga descrição",
+          status: "Concluído",
+          matchedSessionId: "trn-concluido",
+        },
+        {
+          id: "wp-removed-planned",
+          planExternalId: "plan-removed-planned",
+          plannedDate: new Date("2026-11-20T12:00:00.000Z"),
+          dayOfWeek: "Sexta",
+          activityType: "rodagem_leve",
+          targetDistanceKm: 5,
+          targetPaceFormatted: null,
+          description: null,
+          status: "Planejado",
+          matchedSessionId: null,
+        },
+        {
+          id: "wp-regenerated-missed",
+          planExternalId: "plan-regenerated-missed",
+          plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+          dayOfWeek: "Quarta",
+          activityType: "longao",
+          targetDistanceKm: 10,
+          targetPaceFormatted: null,
+          description: null,
+          status: "Perdido",
+          matchedSessionId: null,
+        },
+        {
+          id: "wp-old-missed",
+          planExternalId: "plan-old-missed",
+          plannedDate: new Date("2026-11-04T12:00:00.000Z"),
+          dayOfWeek: "Quarta",
+          activityType: "corrida_continua",
+          targetDistanceKm: 5,
+          targetPaceFormatted: null,
+          description: null,
+          status: "Perdido",
+          matchedSessionId: null,
+        },
+        {
+          id: "wp-old-concluded",
+          planExternalId: "plan-old-concluded",
+          plannedDate: new Date("2026-11-05T12:00:00.000Z"),
+          dayOfWeek: "Quinta",
+          activityType: "tempo_run",
+          targetDistanceKm: 6,
+          targetPaceFormatted: null,
+          description: null,
+          status: "Concluído",
+          matchedSessionId: "trn-old",
+        },
+      ]);
+      mockPrisma.weeklyPlanItem.deleteMany.mockResolvedValueOnce({ count: 2 });
+
+      const res = await pullWeeklyPlanFromSheets({
+        generateId: () => `gen-wp-${++seq}`,
+      });
+
+      expect(res.stats).toEqual({
+        imported: 1,
+        updated: 1,
+        removed: 2,
+        sheetMissingOrEmpty: false,
+      });
+      expect(res.parsedCount).toBe(2);
+
+      // Apenas 1 warning da linha duplicada; "Descanso" não gera warning nem persistência
+      expect(res.warnings).toHaveLength(1);
+      expect(res.warnings[0]).toMatchObject({
+        tab: "Plano_Semanal",
+        rowNumber: 5,
+      });
+
+      expect(mockPrisma.weeklyPlanItem.create).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.weeklyPlanItem.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          id: "gen-wp-1",
+          planExternalId: "plan-new-1",
+          activityType: "corrida_continua",
+          targetDistanceKm: 6.5,
+          targetPaceFormatted: "5:10",
+          status: "Planejado",
+          matchedSessionId: null,
+        }),
+      });
+
+      // Atualização preserva status e matchedSessionId (nunca sobrescreve com "Planejado")
+      const updateCallArg = mockPrisma.weeklyPlanItem.update.mock.calls[0]?.[0];
+      expect(updateCallArg?.where).toEqual({ id: "wp-done-1" });
+      expect(updateCallArg?.data).toMatchObject({
+        targetDistanceKm: 8,
+        targetPaceFormatted: "4:40",
+        description: "Prescrição ajustada para 8km",
+      });
+      expect(updateCallArg?.data).not.toHaveProperty("status");
+      expect(updateCallArg?.data).not.toHaveProperty("matchedSessionId");
+
+      // Limpou "wp-removed-planned" e "wp-regenerated-missed", preservando semana passada + concluído
+      expect(mockPrisma.weeklyPlanItem.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["wp-removed-planned", "wp-regenerated-missed"] } },
+      });
+    });
+
+    it("reconcilia 100% localmente em 2 passadas, reverte órfãos pós-DELETE e revalida sessão editada (PUT) sem colisão @unique", async () => {
+      // Caso 1: órfão (matchedSessionId=null pós-DELETE com status "Concluído"), Passada 1, Passada 2 e Perdido
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wp-orphan-past",
+          planExternalId: "p-orphan-past",
+          plannedDate: new Date("2026-11-11T12:00:00.000Z"),
+          activityType: "corrida_continua",
+          targetDistanceKm: 5,
+          status: "Concluído",
+          matchedSessionId: null,
+        },
+        {
+          id: "wp-pass1",
+          planExternalId: "p-pass1",
+          plannedDate: new Date("2026-11-14T12:00:00.000Z"),
+          activityType: "tempo_run",
+          targetDistanceKm: 6,
+          status: "Planejado",
+          matchedSessionId: null,
+        },
+        {
+          id: "wp-pass2",
+          planExternalId: "p-pass2",
+          plannedDate: new Date("2026-11-12T12:00:00.000Z"),
+          activityType: "longao",
+          targetDistanceKm: 10,
+          status: "Planejado",
+          matchedSessionId: null,
+        },
+      ]);
+      mockPrisma.trainingSession.findMany.mockResolvedValueOnce([
+        {
+          id: "trn-hoje",
+          sessionDate: new Date("2026-11-14T10:00:00.000Z"),
+          activityType: "tempo_run",
+          distanceKm: 5.5,
+          durationSeconds: 1650,
+        },
+        {
+          id: "trn-ontem-longo",
+          sessionDate: new Date("2026-11-13T10:00:00.000Z"),
+          activityType: "longao",
+          distanceKm: 5.0, // 50% de 10km -> Parcial em Passada 2 (+1 dia)
+          durationSeconds: 1800,
+        },
+      ]);
+
+      const rec1 = await reconcileWeeklyPlansWithSessions({ now: fixedNow });
+      expect(rec1).toEqual({ matched: 2, missed: 1, updatedCount: 3 });
+
+      // Zero chamadas ao Google Sheets durante reconciliação local!
+      expect(fakeSheets.spreadsheets.values.get).not.toHaveBeenCalled();
+      expect(fakeSheets.spreadsheets.values.batchGet).not.toHaveBeenCalled();
+      expect(fakeSheets.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
+
+      expect(mockPrisma.weeklyPlanItem.update).toHaveBeenCalledWith({
+        where: { id: "wp-pass1" },
+        data: { status: "Concluído", matchedSessionId: "trn-hoje" },
+      });
+      expect(mockPrisma.weeklyPlanItem.update).toHaveBeenCalledWith({
+        where: { id: "wp-pass2" },
+        data: { status: "Parcial", matchedSessionId: "trn-ontem-longo" },
+      });
+      expect(mockPrisma.weeklyPlanItem.update).toHaveBeenCalledWith({
+        where: { id: "wp-orphan-past" },
+        data: { status: "Perdido", matchedSessionId: null },
+      });
+
+      // Caso 2: editedSessionId movida de wpA (dia 14) para dia 15 onde existe wpB pendente
+      // -> garante Phase 1 (matchedSessionId: null em wpA) ANTES de Phase 2 (matchedSessionId: "trn-edit" em wpB)
+      vi.clearAllMocks();
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wpA",
+          planExternalId: "p-a",
+          plannedDate: new Date("2026-11-14T12:00:00.000Z"),
+          activityType: "corrida_continua",
+          targetDistanceKm: 5,
+          status: "Concluído",
+          matchedSessionId: "trn-edit",
+        },
+        {
+          id: "wpB",
+          planExternalId: "p-b",
+          plannedDate: new Date("2026-11-15T12:00:00.000Z"),
+          activityType: "corrida_continua",
+          targetDistanceKm: 5,
+          status: "Planejado",
+          matchedSessionId: null,
+        },
+      ]);
+      mockPrisma.trainingSession.findMany.mockResolvedValueOnce([
+        {
+          id: "trn-edit",
+          sessionDate: new Date("2026-11-15T10:00:00.000Z"),
+          activityType: "corrida_continua",
+          distanceKm: 5.1,
+          durationSeconds: 1500,
+        },
+      ]);
+
+      const recEdit = await reconcileWeeklyPlansWithSessions({
+        editedSessionId: "trn-edit",
+        now: fixedNow,
+      });
+      expect(recEdit).toEqual({ matched: 1, missed: 0, updatedCount: 2 });
+      expect(mockPrisma.weeklyPlanItem.update).toHaveBeenNthCalledWith(1, {
+        where: { id: "wpA" },
+        data: { status: "Planejado", matchedSessionId: null },
+      });
+      expect(mockPrisma.weeklyPlanItem.update).toHaveBeenNthCalledWith(2, {
+        where: { id: "wpB" },
+        data: { status: "Concluído", matchedSessionId: "trn-edit" },
+      });
+
+      // Caso 3: editedSessionId reduz distância para 50% no mesmo dia -> mantém vínculo e rebaixa para Parcial
+      vi.clearAllMocks();
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wp-same",
+          planExternalId: "p-same",
+          plannedDate: new Date("2026-11-14T12:00:00.000Z"),
+          activityType: "corrida_continua",
+          targetDistanceKm: 10,
+          status: "Concluído",
+          matchedSessionId: "trn-edit",
+        },
+      ]);
+      mockPrisma.trainingSession.findMany.mockResolvedValueOnce([
+        {
+          id: "trn-edit",
+          sessionDate: new Date("2026-11-14T10:00:00.000Z"),
+          activityType: "corrida_continua",
+          distanceKm: 5,
+          durationSeconds: 1500,
+        },
+      ]);
+
+      const recShrink = await reconcileWeeklyPlansWithSessions({
+        editedSessionId: "trn-edit",
+        now: fixedNow,
+      });
+      expect(recShrink).toEqual({ matched: 0, missed: 0, updatedCount: 1 });
+      expect(mockPrisma.weeklyPlanItem.update).toHaveBeenCalledWith({
+        where: { id: "wp-same" },
+        data: { status: "Parcial", matchedSessionId: "trn-edit" },
+      });
+    });
+
+    it("pushWeeklyPlanStatusToSheets atualiza apenas colunas H:I e somente quando há divergência no Sheets", async () => {
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wp-1",
+          planExternalId: "plan-1",
+          plannedDate: new Date("2026-11-14T12:00:00.000Z"),
+          activityType: "corrida_continua",
+          status: "Concluído",
+          matchedSessionId: "trn-1",
+        },
+        {
+          id: "wp-2",
+          planExternalId: "plan-2",
+          plannedDate: new Date("2026-11-13T12:00:00.000Z"),
+          activityType: "tempo_run",
+          status: "Parcial",
+          matchedSessionId: "trn-2",
+        },
+      ]);
+
+      // Linha 2 já está igual no Sheets ("Concluído" + "trn-1"); linha 3 diverge ("Planejado" + "")
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["plan-1", "2026-11-14", "Sábado", "Corrida Contínua", "5", "", "", "Concluído", "trn-1"],
+            ["plan-2", "2026-11-13", "Sexta", "Tempo Run", "8", "", "", "Planejado", ""],
+          ],
+        },
+      });
+
+      const pushDiff = await pushWeeklyPlanStatusToSheets();
+      expect(pushDiff).toEqual({ pushed: 1, sheetMissingOrEmpty: false });
+      expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledTimes(1);
+      expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledWith({
+        spreadsheetId: "spreadsheet-123",
+        requestBody: {
+          valueInputOption: "USER_ENTERED",
+          data: [
+            {
+              range: "Plano_Semanal!H3:I3",
+              values: [["Parcial", "trn-2"]],
+            },
+          ],
+        },
+      });
+
+      // Se nenhuma linha diverge, batchUpdate NÃO é disparado
+      vi.clearAllMocks();
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wp-1",
+          planExternalId: "plan-1",
+          status: "Concluído",
+          matchedSessionId: "trn-1",
+        },
+      ]);
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [["plan-1", "2026-11-14", "Sábado", "Corrida Contínua", "5", "", "", "Concluído", "trn-1"]],
+        },
+      });
+
+      const pushNoop = await pushWeeklyPlanStatusToSheets();
+      expect(pushNoop).toEqual({ pushed: 0, sheetMissingOrEmpty: false });
+      expect(fakeSheets.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
+    });
+
+    it("orquestra syncWeeklyPlanFromSheets e syncWithGoogleSheets em pull e push corretamente", async () => {
+      // 1) syncWeeklyPlanFromSheets reutiliza snapshot sem ler Plano_Semanal!A2:I duas vezes
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["plan-s1", "2026-11-14", "Sábado", "Corrida Contínua", "5", "5:00", "Treino alvo", "Planejado", ""],
+          ],
+        },
+      });
+      const createdPlan = {
+        id: "gen-wp-sync",
+        planExternalId: "plan-s1",
+        plannedDate: new Date("2026-11-14T12:00:00.000Z"),
+        dayOfWeek: "Sábado",
+        activityType: "corrida_continua",
+        targetDistanceKm: 5,
+        targetPaceFormatted: "5:00",
+        description: "Treino alvo",
+        status: "Planejado",
+        matchedSessionId: null,
+      };
+      const matchedPlan = {
+        ...createdPlan,
+        status: "Concluído",
+        matchedSessionId: "trn-match",
+      };
+      mockPrisma.weeklyPlanItem.findMany
+        .mockResolvedValueOnce([]) // pullWeeklyPlanFromSheets
+        .mockResolvedValueOnce([createdPlan]) // reconcileWeeklyPlansWithSessions
+        .mockResolvedValueOnce([matchedPlan]); // pushWeeklyPlanStatusToSheets
+      mockPrisma.trainingSession.findMany.mockResolvedValueOnce([
+        {
+          id: "trn-match",
+          sessionDate: new Date("2026-11-14T09:00:00.000Z"),
+          activityType: "corrida_continua",
+          distanceKm: 5,
+          durationSeconds: 1500,
+        },
+      ]);
+
+      const standalone = await syncWeeklyPlanFromSheets({
+        now: () => fixedNow,
+        generateId: () => "gen-wp-sync",
+      });
+      expect(standalone).toEqual({
+        imported: 1,
+        updated: 0,
+        removed: 0,
+        matched: 1,
+        missed: 0,
+        pushed: 1,
+        sheetMissingOrEmpty: false,
+        syncedPlans: 1,
+      });
+      expect(fakeSheets.spreadsheets.values.get).toHaveBeenCalledTimes(1);
+      expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            data: [{ range: "Plano_Semanal!H2:I2", values: [["Concluído", "trn-match"]] }],
+          }),
+        })
+      );
+
+      // 2) direction: "pull" faz pull+reconcile+push H:I de Plano_Semanal conforme A4/Fase 3
+      vi.clearAllMocks();
+      mockPrisma.trainingSession.findMany.mockResolvedValue([]);
+      mockPrisma.tafAttempt.findMany.mockResolvedValue([]);
+      fakeSheets.spreadsheets.values.batchGet.mockResolvedValueOnce({
+        data: { valueRanges: [{ values: [] }, { values: [] }] },
+      });
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["plan-p1", "2026-11-11", "Quarta", "Rodagem Leve", "5", "", "Sessão perdida"],
+          ],
+        },
+      });
+      const pullPlanBase = {
+        id: "wp-p1",
+        planExternalId: "plan-p1",
+        plannedDate: new Date("2026-11-11T12:00:00.000Z"),
+        dayOfWeek: "Quarta",
+        activityType: "rodagem_leve",
+        targetDistanceKm: 5,
+        targetPaceFormatted: null,
+        description: "Sessão perdida",
+        status: "Planejado",
+        matchedSessionId: null,
+      };
+      mockPrisma.weeklyPlanItem.findMany
+        .mockResolvedValueOnce([]) // pullWeeklyPlanFromSheets
+        .mockResolvedValueOnce([pullPlanBase]) // reconcileWeeklyPlansWithSessions
+        .mockResolvedValueOnce([{ ...pullPlanBase, status: "Perdido" }]); // pushWeeklyPlanStatusToSheets
+
+      const pullReport = await syncWithGoogleSheets(
+        { direction: "pull" },
+        { now: () => fixedNow, generateId: () => "wp-p1" }
+      );
+      expect(pullReport.weeklyPlan).toEqual({
+        imported: 1,
+        updated: 0,
+        removed: 0,
+        matched: 0,
+        missed: 1,
+        pushed: 1,
+        sheetMissingOrEmpty: false,
+      });
+      expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledWith({
+        spreadsheetId: "spreadsheet-123",
+        requestBody: {
+          valueInputOption: "USER_ENTERED",
+          data: [{ range: "Plano_Semanal!H2:I2", values: [["Perdido", ""]] }],
+        },
+      });
+
+      // 3) direction: "push" reconcilia localmente e envia H:I sem importar prescrições A:G
+      vi.clearAllMocks();
+      mockPrisma.tafAttempt.findMany.mockResolvedValue([]);
+      mockPrisma.tafGoal.findFirst.mockResolvedValue(null);
+      mockPrisma.userProfile.findFirst.mockResolvedValue(null);
+      fakeSheets.spreadsheets.values.batchGet.mockResolvedValueOnce({
+        data: { valueRanges: [{ values: [] }, { values: [] }, { values: [] }] },
+      });
+      mockPrisma.weeklyPlanItem.findMany
+        .mockResolvedValueOnce([createdPlan]) // reconcile
+        .mockResolvedValueOnce([matchedPlan]); // push
+      mockPrisma.trainingSession.findMany
+        .mockResolvedValueOnce([]) // syncHistoricalDataToSheets
+        .mockResolvedValueOnce([
+          {
+            id: "trn-match",
+            sessionDate: new Date("2026-11-14T09:00:00.000Z"),
+            activityType: "corrida_continua",
+            distanceKm: 5,
+            durationSeconds: 1500,
+          },
+        ]); // reconcileWeeklyPlansWithSessions
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["plan-s1", "2026-11-14", "Sábado", "Corrida Contínua", "5", "5:00", "Treino alvo", "Planejado", ""],
+          ],
+        },
+      });
+
+      const pushReport = await syncWithGoogleSheets(
+        { direction: "push" },
+        { now: () => fixedNow }
+      );
+      expect(pushReport.weeklyPlan).toEqual({
+        imported: 0,
+        updated: 0,
+        removed: 0,
+        matched: 1,
+        missed: 0,
+        pushed: 1,
+        sheetMissingOrEmpty: false,
+      });
+      expect(mockPrisma.weeklyPlanItem.create).not.toHaveBeenCalled();
+    });
+
+    it("reconcileWeeklyPlansWithSessions reavalia editedSessionId entre múltiplos planos do mesmo dia e faz retry em P2002 transitório", async () => {
+      const sameDayPlanA = {
+        id: "wp-a",
+        planExternalId: "plan-a",
+        plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+        dayOfWeek: "Quarta",
+        activityType: "rodagem_leve",
+        targetDistanceKm: 5,
+        status: "Concluído",
+        matchedSessionId: "trn-edited",
+      };
+      const sameDayPlanB = {
+        id: "wp-b",
+        planExternalId: "plan-b",
+        plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+        dayOfWeek: "Quarta",
+        activityType: "tempo_run",
+        targetDistanceKm: 10,
+        status: "Planejado",
+        matchedSessionId: null,
+      };
+      const editedSession = {
+        id: "trn-edited",
+        sessionDate: new Date("2026-11-18T10:00:00.000Z"),
+        activityType: "tempo_run",
+        distanceKm: 10,
+        durationSeconds: 2700,
+      };
+
+      const p2002Error = new Prisma.PrismaClientKnownRequestError(
+        "Unique constraint failed on matched_session_id",
+        { code: "P2002", clientVersion: "5.22.0" }
+      );
+
+      mockPrisma.weeklyPlanItem.findMany
+        .mockResolvedValueOnce([sameDayPlanA, sameDayPlanB]) // 1ª tentativa (falha no $transaction)
+        .mockResolvedValueOnce([sameDayPlanA, sameDayPlanB]); // 2ª tentativa (sucesso)
+      mockPrisma.trainingSession.findMany
+        .mockResolvedValueOnce([editedSession])
+        .mockResolvedValueOnce([editedSession]);
+      mockPrisma.$transaction
+        .mockRejectedValueOnce(p2002Error)
+        .mockImplementationOnce(async (arg: unknown) =>
+          (arg as (tx: typeof mockPrisma) => Promise<unknown>)(mockPrisma)
+        );
+
+      const result = await reconcileWeeklyPlansWithSessions(
+        { editedSessionId: "trn-edited" },
+        { now: () => fixedNow }
+      );
+
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(2);
+      expect(result.updatedCount).toBe(2);
+      expect(mockPrisma.weeklyPlanItem.update).toHaveBeenCalledWith({
+        where: { id: "wp-a" },
+        data: { status: "Planejado", matchedSessionId: null },
+      });
+      expect(mockPrisma.weeklyPlanItem.update).toHaveBeenCalledWith({
+        where: { id: "wp-b" },
+        data: { status: "Concluído", matchedSessionId: "trn-edited" },
+      });
+    });
+
+    it("pullWeeklyPlanFromSheets ignora duplicata com data inválida no snapshot, propaga warnings e reporta aba vazia sem erro", async () => {
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["", "2026-11-18", "Quarta", "corrida_continua", "5"], // aviso sem ID
+            ["plan-dup-bad", "31/02/2026", "Quinta", "tempo_run", "8"], // aviso data inválida
+            ["plan-ok", "2026-11-18", "Quarta", "rodagem_leve", "5", "5:30", "Leve", "Concluído", "trn-x"],
+          ],
+        },
+      });
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wp-ok",
+          planExternalId: "plan-ok",
+          plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+          dayOfWeek: "Quarta",
+          activityType: "rodagem_leve",
+          targetDistanceKm: 5,
+          targetPaceFormatted: "5:30",
+          description: "Leve",
+          status: "Concluído",
+          matchedSessionId: "trn-x",
+        },
+      ]);
+
+      const pullWithWarnings = await pullWeeklyPlanFromSheets();
+      expect(pullWithWarnings.stats).toEqual({
+        imported: 0,
+        updated: 0,
+        removed: 0,
+        sheetMissingOrEmpty: false,
+      });
+      expect(pullWithWarnings.warnings).toHaveLength(2);
+      expect(mockPrisma.weeklyPlanItem.update).not.toHaveBeenCalled();
+
+      // Aba vazia retorna sheetMissingOrEmpty: true sem erros
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({ data: { values: [] } });
+      const pullEmpty = await pullWeeklyPlanFromSheets();
+      expect(pullEmpty.sheetMissing).toBe(false);
+      expect(pullEmpty.stats.sheetMissingOrEmpty).toBe(true);
+
+      // Snapshot de push ignora 1ª linha duplicada com data inválida e usa a 2ª linha válida
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wp-dup",
+          planExternalId: "plan-dup",
+          plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+          activityType: "corrida_continua",
+          status: "Concluído",
+          matchedSessionId: "trn-valid",
+        },
+      ]);
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["plan-dup", "data-ruim", "Quarta", "corrida_continua", "5", "", "", "Planejado", ""],
+            ["plan-dup", "2026-11-18", "Quarta", "corrida_continua", "5", "", "", "Planejado", ""],
+          ],
+        },
+      });
+
+      const pushRes = await pushWeeklyPlanStatusToSheets();
+      expect(pushRes).toEqual({ pushed: 1, sheetMissingOrEmpty: false });
+      expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            data: [{ range: "Plano_Semanal!H3:I3", values: [["Concluído", "trn-valid"]] }],
+          }),
         })
       );
     });

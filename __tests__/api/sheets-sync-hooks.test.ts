@@ -7,6 +7,7 @@ const {
   mockSyncProfileAndGoalToSheet,
   mockDeleteTrainingSessionFromSheet,
   mockDeleteTafAttemptFromSheet,
+  mockPushWeeklyPlanStatusToSheets,
 } = vi.hoisted(() => ({
   mockIsGoogleSheetsConfigured: vi.fn(() => true),
   mockSyncTrainingSessionToSheet: vi.fn(),
@@ -14,6 +15,7 @@ const {
   mockSyncProfileAndGoalToSheet: vi.fn(),
   mockDeleteTrainingSessionFromSheet: vi.fn(),
   mockDeleteTafAttemptFromSheet: vi.fn(),
+  mockPushWeeklyPlanStatusToSheets: vi.fn(),
 }));
 
 vi.mock("@/lib/env", async (importOriginal) => {
@@ -33,17 +35,26 @@ vi.mock("@/lib/googleSheets", async (importOriginal) => {
     syncProfileAndGoalToSheet: mockSyncProfileAndGoalToSheet,
     deleteTrainingSessionFromSheet: mockDeleteTrainingSessionFromSheet,
     deleteTafAttemptFromSheet: mockDeleteTafAttemptFromSheet,
+    pushWeeklyPlanStatusToSheets: mockPushWeeklyPlanStatusToSheets,
   };
 });
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const transactionMock = vi.fn();
+  const prismaMock = {
     trainingSession: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
       upsert: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+    },
+    weeklyPlanItem: {
+      findMany: vi.fn(),
+      update: vi.fn(),
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
     },
     tafAttempt: {
       findUnique: vi.fn(),
@@ -69,13 +80,25 @@ vi.mock("@/lib/prisma", () => ({
       create: vi.fn(),
       delete: vi.fn(),
     },
-  },
-}));
+    $transaction: transactionMock,
+  };
 
+  transactionMock.mockImplementation(async (arg: unknown) => {
+    if (typeof arg === "function") {
+      return (arg as (tx: typeof prismaMock) => Promise<unknown>)(prismaMock);
+    }
+    return Promise.all(arg as Promise<unknown>[]);
+  });
+
+  return { prisma: prismaMock };
+});
+
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { shouldSkipSheetsSync, syncRecordWithSheets } from "@/lib/api/sheetsSync";
 import { POST as postTraining } from "@/app/api/taf/trainings/route";
 import {
+  GET as getTrainingById,
   PUT as putTraining,
   DELETE as deleteTraining,
 } from "@/app/api/taf/trainings/[id]/route";
@@ -108,6 +131,17 @@ describe("Fase 4 — Hooks de Sincronização em Tempo Real nas Rotas REST", () 
     });
     mockDeleteTrainingSessionFromSheet.mockResolvedValue({ deletedRows: 1 });
     mockDeleteTafAttemptFromSheet.mockResolvedValue({ deletedRows: 1 });
+    mockPushWeeklyPlanStatusToSheets.mockReset().mockResolvedValue({ pushed: 0 });
+    vi.mocked(prisma.weeklyPlanItem.findMany).mockReset().mockResolvedValue([]);
+    vi.mocked(prisma.weeklyPlanItem.update)
+      .mockReset()
+      .mockImplementation(
+        (async (args: { where: { id: string }; data: Record<string, unknown> }) => ({
+          id: args.where.id,
+          ...args.data,
+        })) as never
+      );
+    vi.mocked(prisma.trainingSession.findMany).mockReset().mockResolvedValue([]);
   });
 
   describe("Utilitário lib/api/sheetsSync.ts", () => {
@@ -261,6 +295,72 @@ describe("Fase 4 — Hooks de Sincronização em Tempo Real nas Rotas REST", () 
       expect(updateRes.status).toBe(200);
       expect((await updateRes.json()).data.syncedToSheetsAt).toBe(syncedDate.toISOString());
       expect(mockSyncTrainingSessionToSheet).toHaveBeenCalledTimes(2);
+      expect(mockPushWeeklyPlanStatusToSheets).toHaveBeenCalledTimes(2);
+    });
+
+    it("POST com onDuplicate=update reavalia plano previamente vinculado quando sessão reimportada encurta abaixo de 40%", async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date("2026-11-18T12:00:00.000Z"));
+
+        const existingSession = {
+          ...baseTrainingRecord,
+          id: "trn-reimport-1",
+          externalId: "fit_reimport_1",
+          sessionDate: new Date("2026-11-14T08:00:00.000Z"),
+          distanceKm: 10,
+          splits: [],
+        };
+        const shrunkSession = {
+          ...existingSession,
+          distanceKm: 2, // 20% da meta de 10 km (< 40%) -> desvincular plano
+        };
+
+        vi.mocked(prisma.trainingSession.findUnique).mockResolvedValueOnce(existingSession as never);
+        vi.mocked(prisma.trainingSession.update).mockResolvedValueOnce(shrunkSession as never);
+        vi.mocked(prisma.weeklyPlanItem.findMany).mockResolvedValueOnce([
+          {
+            id: "plan-reimport-1",
+            planExternalId: "p-reimport-1",
+            plannedDate: new Date("2026-11-14T12:00:00.000Z"),
+            dayOfWeek: "Sábado",
+            activityType: "Rodagem Leve",
+            targetDistanceKm: 10,
+            targetPaceFormatted: "5:50",
+            description: null,
+            status: "Concluído",
+            matchedSessionId: "trn-reimport-1",
+          },
+        ] as never);
+        vi.mocked(prisma.trainingSession.findMany).mockResolvedValueOnce([shrunkSession] as never);
+
+        const res = await postTraining(
+          new Request("http://localhost:3000/api/taf/trainings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...validTrainingBody,
+              distanceKm: 2,
+              externalId: "fit_reimport_1",
+              onDuplicate: "update",
+            }),
+          })
+        );
+
+        expect(res.status).toBe(200);
+        expect(prisma.weeklyPlanItem.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: "plan-reimport-1" },
+            data: {
+              status: "Perdido",
+              matchedSessionId: null,
+            },
+          })
+        );
+        expect(mockPushWeeklyPlanStatusToSheets).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("POST com ?skipSheetsSync=true ignora Google Sheets e erro no Sheets não derruba criação", async () => {
@@ -334,6 +434,320 @@ describe("Fase 4 — Hooks de Sincronização em Tempo Real nas Rotas REST", () 
       expect(resFallback.status).toBe(200);
       expect(errorSpy).toHaveBeenCalled();
       errorSpy.mockRestore();
+    });
+
+    it("GET /api/taf/trainings/[id] retorna 200 quando encontrado e 404 padronizado quando ausente", async () => {
+      vi.mocked(prisma.trainingSession.findUnique).mockResolvedValueOnce(
+        baseTrainingRecord as never
+      );
+      const resFound = await getTrainingById(
+        new Request("http://localhost:3000/api/taf/trainings/trn-1"),
+        { params: { id: "trn-1" } }
+      );
+      expect(resFound.status).toBe(200);
+      const foundJson = await resFound.json();
+      expect(foundJson.data.id).toBe("trn-1");
+
+      vi.mocked(prisma.trainingSession.findUnique).mockResolvedValueOnce(null);
+      const resMissing = await getTrainingById(
+        new Request("http://localhost:3000/api/taf/trainings/inexistente"),
+        { params: { id: "inexistente" } }
+      );
+      expect(resMissing.status).toBe(404);
+      const missingJson = await resMissing.json();
+      expect(missingJson.success).toBe(false);
+    });
+
+    it("POST reconcilia plano semanal após salvar, dispara pushWeeklyPlanStatusToSheets e respeita ?skipSheetsSync=true", async () => {
+      const planItem = {
+        id: "plan-post-1",
+        planExternalId: "p-post-1",
+        plannedDate: new Date("2026-11-14T12:00:00.000Z"),
+        dayOfWeek: "Sábado",
+        activityType: "Rodagem Leve",
+        targetDistanceKm: 5,
+        targetPaceFormatted: "6:00",
+        description: null,
+        status: "Planejado",
+        matchedSessionId: null,
+      };
+      vi.mocked(prisma.trainingSession.create).mockResolvedValue(baseTrainingRecord as never);
+      vi.mocked(prisma.weeklyPlanItem.findMany).mockResolvedValue([planItem] as never);
+      vi.mocked(prisma.trainingSession.findMany).mockResolvedValue([baseTrainingRecord] as never);
+
+      const resSynced = await postTraining(
+        new Request("http://localhost:3000/api/taf/trainings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(validTrainingBody),
+        })
+      );
+      expect(resSynced.status).toBe(201);
+      expect(prisma.weeklyPlanItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "plan-post-1" },
+          data: {
+            status: "Concluído",
+            matchedSessionId: "trn-1",
+          },
+        })
+      );
+      expect(mockPushWeeklyPlanStatusToSheets).toHaveBeenCalledTimes(1);
+
+      vi.clearAllMocks();
+      mockPushWeeklyPlanStatusToSheets.mockResolvedValue({ pushed: 0 });
+      vi.mocked(prisma.trainingSession.create).mockResolvedValue(baseTrainingRecord as never);
+      vi.mocked(prisma.weeklyPlanItem.findMany).mockResolvedValue([planItem] as never);
+      vi.mocked(prisma.trainingSession.findMany).mockResolvedValue([baseTrainingRecord] as never);
+
+      const resSkipped = await postTraining(
+        new Request("http://localhost:3000/api/taf/trainings?skipSheetsSync=true", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(validTrainingBody),
+        })
+      );
+      expect(resSkipped.status).toBe(201);
+      expect(prisma.weeklyPlanItem.update).toHaveBeenCalled();
+      expect(mockSyncTrainingSessionToSheet).not.toHaveBeenCalled();
+      expect(mockPushWeeklyPlanStatusToSheets).not.toHaveBeenCalled();
+    });
+
+    it("PUT com editedSessionId rebaixa plano de Concluído para Parcial após edição de distância e atualiza Plano_Semanal", async () => {
+      const reducedSession = {
+        ...baseTrainingRecord,
+        id: "trn-edit-1",
+        distanceKm: 6, // 60% da meta de 10 km => Parcial
+      };
+      vi.mocked(prisma.trainingSession.update).mockResolvedValue(reducedSession as never);
+      vi.mocked(prisma.weeklyPlanItem.findMany).mockResolvedValueOnce([
+        {
+          id: "plan-edit-1",
+          planExternalId: "p-edit-1",
+          plannedDate: new Date("2026-11-14T12:00:00.000Z"),
+          dayOfWeek: "Sábado",
+          activityType: "Rodagem Leve",
+          targetDistanceKm: 10,
+          targetPaceFormatted: "5:50",
+          description: null,
+          status: "Concluído",
+          matchedSessionId: "trn-edit-1",
+        },
+      ] as never);
+      vi.mocked(prisma.trainingSession.findMany).mockResolvedValue([reducedSession] as never);
+
+      const res = await putTraining(
+        new Request("http://localhost:3000/api/taf/trainings/trn-edit-1", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            activityType: "rodagem_leve",
+            distanceKm: 6,
+            durationSeconds: 2100,
+          }),
+        }),
+        { params: { id: "trn-edit-1" } }
+      );
+
+      expect(res.status).toBe(200);
+      expect(prisma.weeklyPlanItem.update).toHaveBeenCalledTimes(1);
+      expect(prisma.weeklyPlanItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "plan-edit-1" },
+          data: {
+            status: "Parcial",
+            matchedSessionId: "trn-edit-1",
+          },
+        })
+      );
+      expect(mockPushWeeklyPlanStatusToSheets).toHaveBeenCalledTimes(1);
+    });
+
+    it("DELETE detecta plano órfão pós ON DELETE SET NULL, reverte de Concluído para Perdido em data passada e respeita ?skipSheetsSync=true", async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date("2026-11-18T12:00:00.000Z"));
+        const orphanedPastPlan = {
+          id: "plan-orphan-1",
+          planExternalId: "p-orphan-1",
+          plannedDate: new Date("2026-11-14T12:00:00.000Z"),
+          dayOfWeek: "Sábado",
+          activityType: "Rodagem Leve",
+          targetDistanceKm: 8,
+          targetPaceFormatted: "5:50",
+          description: null,
+          // Simula estado no DB imediatamente após ON DELETE SET NULL da sessão
+          status: "Concluído",
+          matchedSessionId: null,
+        };
+        vi.mocked(prisma.trainingSession.delete).mockResolvedValue(baseTrainingRecord as never);
+        vi.mocked(prisma.weeklyPlanItem.findMany).mockResolvedValue([orphanedPastPlan] as never);
+        vi.mocked(prisma.trainingSession.findMany).mockResolvedValue([]);
+
+        const res = await deleteTraining(
+          new Request("http://localhost:3000/api/taf/trainings/trn-1", {
+            method: "DELETE",
+          }),
+          { params: { id: "trn-1" } }
+        );
+        expect(res.status).toBe(200);
+        expect(prisma.weeklyPlanItem.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: "plan-orphan-1" },
+            data: {
+              status: "Perdido",
+              matchedSessionId: null,
+            },
+          })
+        );
+        expect(mockDeleteTrainingSessionFromSheet).toHaveBeenCalledWith("trn-1");
+        expect(mockPushWeeklyPlanStatusToSheets).toHaveBeenCalledTimes(1);
+
+        vi.clearAllMocks();
+        mockDeleteTrainingSessionFromSheet.mockResolvedValue({ deletedRows: 1 });
+        mockPushWeeklyPlanStatusToSheets.mockResolvedValue({ pushed: 0 });
+        vi.mocked(prisma.trainingSession.delete).mockResolvedValue(baseTrainingRecord as never);
+        vi.mocked(prisma.weeklyPlanItem.findMany).mockResolvedValue([orphanedPastPlan] as never);
+        vi.mocked(prisma.trainingSession.findMany).mockResolvedValue([]);
+
+        const resSkip = await deleteTraining(
+          new Request("http://localhost:3000/api/taf/trainings/trn-1?skipSheetsSync=true", {
+            method: "DELETE",
+          }),
+          { params: { id: "trn-1" } }
+        );
+        expect(resSkip.status).toBe(200);
+        expect(prisma.weeklyPlanItem.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: "plan-orphan-1" },
+            data: {
+              status: "Perdido",
+              matchedSessionId: null,
+            },
+          })
+        );
+        expect(mockDeleteTrainingSessionFromSheet).not.toHaveBeenCalled();
+        expect(mockPushWeeklyPlanStatusToSheets).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("retorna 400 para datas inválidas em POST/PUT/Simulados, isola falha na reconciliação pós-commit e trata 404 em DELETE", async () => {
+      // 1) Datas inválidas retornam 400 (nunca RangeError 500)
+      const badTrainingDateRes = await postTraining(
+        new Request("http://localhost:3000/api/taf/trainings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...validTrainingBody,
+            sessionDate: "2026-02-30",
+          }),
+        })
+      );
+      expect(badTrainingDateRes.status).toBe(400);
+
+      const badAttemptDateRes = await postAttempt(
+        new Request("http://localhost:3000/api/taf/attempts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actualDurationSeconds: 720,
+            distanceMeters: 2500,
+            testDate: "data-totalmente-invalida",
+          }),
+        })
+      );
+      expect(badAttemptDateRes.status).toBe(400);
+
+      // 2) POST com externalId não gera falso 409 nem 500 se reconciliação falhar pós-commit
+      const warnSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.mocked(prisma.trainingSession.findUnique).mockResolvedValueOnce(null);
+      vi.mocked(prisma.trainingSession.create).mockResolvedValueOnce({
+        ...baseTrainingRecord,
+        externalId: "fit_ext_safe",
+      } as never);
+      vi.mocked(prisma.weeklyPlanItem.findMany).mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError("Unique constraint", {
+          code: "P2002",
+          clientVersion: "5.22.0",
+        })
+      );
+
+      const postIsolatedRes = await postTraining(
+        new Request("http://localhost:3000/api/taf/trainings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...validTrainingBody,
+            source: "fit_upload",
+            externalId: "fit_ext_safe",
+          }),
+        })
+      );
+      expect(postIsolatedRes.status).toBe(201);
+      expect(mockSyncTrainingSessionToSheet).toHaveBeenCalledTimes(1);
+      expect(mockPushWeeklyPlanStatusToSheets).toHaveBeenCalledTimes(1);
+      warnSpy.mockRestore();
+
+      // 3) PUT desvincula plano ao trocar para caminhada e respeita ?skipSheetsSync=true
+      vi.clearAllMocks();
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date("2026-11-15T12:00:00.000Z"));
+        const linkedWalkSession = {
+          ...baseTrainingRecord,
+          id: "trn-walk-edit",
+          activityType: "caminhada",
+        };
+        vi.mocked(prisma.trainingSession.update).mockResolvedValueOnce(linkedWalkSession as never);
+        vi.mocked(prisma.weeklyPlanItem.findMany).mockResolvedValueOnce([
+          {
+            id: "plan-walk-check",
+            planExternalId: "p-walk",
+            plannedDate: new Date("2026-11-14T12:00:00.000Z"),
+            dayOfWeek: "Sábado",
+            activityType: "Corrida Contínua",
+            targetDistanceKm: 5,
+            status: "Concluído",
+            matchedSessionId: "trn-walk-edit",
+          },
+        ] as never);
+        vi.mocked(prisma.trainingSession.findMany).mockResolvedValueOnce([linkedWalkSession] as never);
+
+        const putSkipRes = await putTraining(
+          new Request("http://localhost:3000/api/taf/trainings/trn-walk-edit?skipSheetsSync=true", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ activityType: "caminhada" }),
+          }),
+          { params: { id: "trn-walk-edit" } }
+        );
+        expect(putSkipRes.status).toBe(200);
+        expect(prisma.weeklyPlanItem.update).toHaveBeenCalledWith({
+          where: { id: "plan-walk-check" },
+          data: { status: "Planejado", matchedSessionId: null },
+        });
+        expect(mockSyncTrainingSessionToSheet).not.toHaveBeenCalled();
+        expect(mockPushWeeklyPlanStatusToSheets).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+
+      // 4) DELETE inexistente (Prisma P2025) retorna 404
+      vi.mocked(prisma.trainingSession.delete).mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError("Record to delete does not exist.", {
+          code: "P2025",
+          clientVersion: "5.22.0",
+        })
+      );
+      const deleteMissingRes = await deleteTraining(
+        new Request("http://localhost:3000/api/taf/trainings/inexistente", {
+          method: "DELETE",
+        }),
+        { params: { id: "inexistente" } }
+      );
+      expect(deleteMissingRes.status).toBe(404);
     });
   });
 

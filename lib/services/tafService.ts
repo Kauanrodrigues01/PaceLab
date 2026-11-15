@@ -9,6 +9,16 @@ import {
   TafAttempt,
   TrainingSession,
   TafGoalConfig,
+  WeeklyPlanData,
+} from "@/types";
+export type {
+  WeeklyPlanAdherenceSummaryDto,
+  WeeklyPlanData,
+  WeeklyPlanExtraSummaryDto,
+  WeeklyPlanItemDto,
+  WeeklyPlanRollingAverageDto,
+  WeeklyPlanRollingWeekDto,
+  WeeklyPlanStatus,
 } from "@/types";
 import type {
   SheetsSyncOptions,
@@ -468,6 +478,21 @@ export const tafService = {
     return unwrapApiResponse<TrainingSession[]>(json);
   },
 
+  async getTrainingById(id: string): Promise<TrainingSession> {
+    const res = await fetch(`/api/taf/trainings/${encodeURIComponent(id)}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const { message, code } = await extractApiErrorInfo(
+        res,
+        "Erro ao carregar treino no banco de dados"
+      );
+      throw new TafApiError(message, res.status, code);
+    }
+    const json = await res.json();
+    return unwrapApiResponse<TrainingSession>(json);
+  },
+
   async saveTraining(
     training: TrainingSession,
     isUpdate = false,
@@ -643,6 +668,25 @@ export const tafService = {
 
     const json = await res.json();
     return unwrapApiResponse<SheetsSyncReport>(json);
+  },
+
+  // ─── Plano Semanal & Aderência ──────────────────────────────────────────────
+  async getWeeklyPlan(weekStart?: string): Promise<WeeklyPlanData> {
+    const qs = weekStart
+      ? `?weekStart=${encodeURIComponent(weekStart)}`
+      : "";
+    const res = await fetch(`/api/weekly-plan${qs}`, { cache: "no-store" });
+
+    if (!res.ok) {
+      const { message, code } = await extractApiErrorInfo(
+        res,
+        "Erro ao carregar plano semanal e aderência"
+      );
+      throw new TafApiError(message, res.status, code);
+    }
+
+    const json = await res.json();
+    return unwrapApiResponse<WeeklyPlanData>(json);
   },
 
   // ─── Backup & Exportação (JSON / CSV) ──────────────────────────────────────

@@ -15,7 +15,9 @@ import { parseSafeDate } from "@/lib/math/evolution";
 import { TrainingForm } from "@/components/meu-taf/TrainingForm";
 import { TrainingList } from "@/components/meu-taf/TrainingList";
 import { GpxImportPanel } from "@/components/treinos/GpxImportPanel";
+import { TrainingDetailModal } from "@/components/treinos/TrainingDetailModal";
 import { TrainingEvolutionDashboard } from "@/components/treinos/TrainingEvolutionDashboard";
+import { WeeklyAdherenceCard } from "@/components/dashboard/WeeklyAdherenceCard";
 import { Button } from "@/components/ui/Button";
 import {
   Activity,
@@ -68,7 +70,13 @@ export default function TreinosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncingSheets, setIsSyncingSheets] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [weeklyRefreshTrigger, setWeeklyRefreshTrigger] = useState(0);
+  const [selectedDetailTraining, setSelectedDetailTraining] = useState<TrainingSession | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const bumpWeeklyRefresh = useCallback(() => {
+    setWeeklyRefreshTrigger((prev) => prev + 1);
+  }, []);
 
   const [notification, setNotification] = useState<{
     type: "success" | "error";
@@ -148,6 +156,51 @@ export default function TreinosPage() {
     loadTrainings();
   }, [loadTrainings]);
 
+  // Abre modal de detalhes automaticamente quando ?trainingId= está presente na URL
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const trainingIdParam = params.get("trainingId")?.trim();
+    if (!trainingIdParam) return;
+
+    let cancelled = false;
+    const clearTrainingIdFromUrl = () => {
+      try {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has("trainingId")) return;
+        url.searchParams.delete("trainingId");
+        const remainingSearch = url.searchParams.toString();
+        window.history.replaceState(
+          window.history.state,
+          "",
+          remainingSearch ? `${url.pathname}?${remainingSearch}` : url.pathname
+        );
+      } catch {}
+    };
+
+    const openByTrainingId = async () => {
+      try {
+        const session = await tafService.getTrainingById(trainingIdParam);
+        if (!cancelled) {
+          setSelectedDetailTraining(session);
+        }
+      } catch {
+        if (!cancelled) {
+          showToast("Treino selecionado não encontrado no diário.", "error");
+        }
+      } finally {
+        if (!cancelled) {
+          clearTrainingIdFromUrl();
+        }
+      }
+    };
+
+    void openByTrainingId();
+    return () => {
+      cancelled = true;
+    };
+  }, [showToast]);
+
   // Salvar treino (novo ou atualização)
   const handleSaveTraining = async (session: TrainingSession) => {
     try {
@@ -163,6 +216,7 @@ export default function TreinosPage() {
         setCachedTrainings(updated);
         return updated;
       });
+      bumpWeeklyRefresh();
 
       setEditingTraining(null);
       setIsFormOpen(false);
@@ -206,6 +260,7 @@ export default function TreinosPage() {
       setCachedTrainings(updated);
       return updated;
     });
+    bumpWeeklyRefresh();
 
     setEditingTraining(null);
     setIsFormOpen(false);
@@ -229,7 +284,8 @@ export default function TreinosPage() {
       setCachedTrainings(updated);
       return updated;
     });
-  }, []);
+    bumpWeeklyRefresh();
+  }, [bumpWeeklyRefresh]);
 
   // Callback ao importar Simulado TAF via .FIT / .GPX no Diário de Treinos
   const handleImportedAttempt = (
@@ -238,6 +294,7 @@ export default function TreinosPage() {
     meta?: { mirrored?: boolean; mirrorError?: string | null }
   ) => {
     clearCrossPageSheetsCaches({ includeGoal: false });
+    bumpWeeklyRefresh();
     setEditingTraining(null);
     setIsFormOpen(false);
     setFormMode("manual");
@@ -266,6 +323,7 @@ export default function TreinosPage() {
     async (summary: BatchImportSummary) => {
       clearCrossPageSheetsCaches({ includeGoal: false });
       await loadTrainings();
+      bumpWeeklyRefresh();
       if (summary.failedCount === 0 && !summary.aborted) {
         setEditingTraining(null);
         setIsFormOpen(false);
@@ -274,7 +332,7 @@ export default function TreinosPage() {
       const toast = formatBatchImportToast(summary);
       showToast(toast.message, toast.type);
     },
-    [loadTrainings, showToast]
+    [loadTrainings, bumpWeeklyRefresh, showToast]
   );
 
   // Sincronização manual bidirecional com Google Sheets
@@ -288,6 +346,7 @@ export default function TreinosPage() {
       });
 
       clearCrossPageSheetsCaches();
+      bumpWeeklyRefresh();
 
       const reloaded = await loadTrainings();
       if (!reloaded) {
@@ -321,9 +380,13 @@ export default function TreinosPage() {
         setCachedTrainings(updated);
         return updated;
       });
+      bumpWeeklyRefresh();
       if (editingTraining?.id === id) {
         setEditingTraining(null);
         setIsFormOpen(false);
+      }
+      if (selectedDetailTraining?.id === id) {
+        setSelectedDetailTraining(null);
       }
       showToast("Treino excluído com sucesso.");
     } catch {
@@ -562,7 +625,7 @@ export default function TreinosPage() {
 
       {/* Seletor de Abas da Página */}
       <div
-        className="flex items-center gap-2 border-b border-[#1E2942] pb-3"
+        className="flex flex-wrap items-center gap-2 border-b border-[#1E2942] pb-3"
         role="tablist"
       >
         <button
@@ -752,6 +815,12 @@ export default function TreinosPage() {
             </div>
           </div>
 
+          {/* Plano Semanal & Aderência */}
+          <WeeklyAdherenceCard
+            refreshTrigger={weeklyRefreshTrigger}
+            onOpenSession={(session) => setSelectedDetailTraining(session)}
+          />
+
           {/* Formulário de Registro / Importação / Edição (exibido quando aberto ou editando) */}
           {isFormOpen && (
             <div className="pt-2 space-y-3 animate-in fade-in slide-in-from-top-4 duration-200">
@@ -760,7 +829,7 @@ export default function TreinosPage() {
                   role="tablist"
                   aria-label="Modo de registro de treino"
                   data-testid="training-entry-mode-switcher"
-                  className="inline-flex items-center p-1 bg-[#131A2E] border border-[#1E2942] rounded-2xl"
+                  className="inline-flex flex-wrap items-center gap-1 p-1 bg-[#131A2E] border border-[#1E2942] rounded-2xl max-w-full"
                 >
                   <button
                     type="button"
@@ -833,6 +902,16 @@ export default function TreinosPage() {
           </div>
         </>
       )}
+
+      <TrainingDetailModal
+        training={selectedDetailTraining}
+        isOpen={Boolean(selectedDetailTraining)}
+        onClose={() => setSelectedDetailTraining(null)}
+        onEdit={(training) => {
+          setSelectedDetailTraining(null);
+          handleEdit(training);
+        }}
+      />
     </div>
   );
 }

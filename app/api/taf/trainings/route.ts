@@ -1,12 +1,46 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withApiHandler, apiSuccess, apiConflict } from "@/lib/api/response";
-import { shouldSkipSheetsSync, syncRecordWithSheets } from "@/lib/api/sheetsSync";
-import { syncTrainingSessionToSheet } from "@/lib/googleSheets";
+import {
+  safeReconcileWeeklyPlans,
+  shouldSkipSheetsSync,
+  syncRecordWithSheets,
+} from "@/lib/api/sheetsSync";
+import {
+  pushWeeklyPlanStatusToSheets,
+  safeAutoSync,
+  syncTrainingSessionToSheet,
+} from "@/lib/googleSheets";
 import {
   CreateTrainingSessionSchema,
   PaginationQuerySchema,
 } from "@/lib/validations/taf";
+
+async function syncTrainingWithWeeklyPlan<
+  T extends Parameters<typeof syncTrainingSessionToSheet>[0] & {
+    id: string;
+    syncedToSheetsAt?: Date | null;
+  }
+>(
+  record: T,
+  options: { skipSheetsSync: boolean; isUpdate: boolean }
+) {
+  await safeReconcileWeeklyPlans(
+    options.isUpdate ? { editedSessionId: record.id } : undefined
+  );
+
+  const syncedRecord = await syncRecordWithSheets(
+    record,
+    () => syncTrainingSessionToSheet(record),
+    { skip: options.skipSheetsSync }
+  );
+
+  if (!options.skipSheetsSync) {
+    await safeAutoSync(() => pushWeeklyPlanStatusToSheets());
+  }
+
+  return syncedRecord;
+}
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -175,18 +209,18 @@ export async function POST(request: Request) {
           },
         });
 
-        const syncedUpdated = await syncRecordWithSheets(
-          updated,
-          () => syncTrainingSessionToSheet(updated),
-          { skip: skipSheetsSync }
-        );
+        const syncedUpdated = await syncTrainingWithWeeklyPlan(updated, {
+          skipSheetsSync,
+          isUpdate: true,
+        });
 
         return apiSuccess(syncedUpdated, 200);
       }
     }
 
+    let created: Awaited<ReturnType<typeof prisma.trainingSession.create>>;
     try {
-      const created = validated.id
+      created = validated.id
         ? await prisma.trainingSession.upsert({
             where: { id: validated.id },
             create: {
@@ -198,14 +232,6 @@ export async function POST(request: Request) {
         : await prisma.trainingSession.create({
             data: trainingData,
           });
-
-      const syncedCreated = await syncRecordWithSheets(
-        created,
-        () => syncTrainingSessionToSheet(created),
-        { skip: skipSheetsSync }
-      );
-
-      return apiSuccess(syncedCreated, 201);
     } catch (err) {
       if (
         validated.externalId &&
@@ -222,5 +248,12 @@ export async function POST(request: Request) {
       }
       throw err;
     }
+
+    const syncedCreated = await syncTrainingWithWeeklyPlan(created, {
+      skipSheetsSync,
+      isUpdate: Boolean(validated.id),
+    });
+
+    return apiSuccess(syncedCreated, 201);
   });
 }

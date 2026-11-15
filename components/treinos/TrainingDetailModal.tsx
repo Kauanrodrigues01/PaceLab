@@ -139,7 +139,7 @@ export function TrainingDetailModal({
       <div className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto bg-[#0F1629] border border-[#1E2942] rounded-2xl shadow-2xl p-4 sm:p-6 space-y-5 my-auto">
         {/* Cabeçalho do Modal */}
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#1E2942] pb-4">
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 min-w-0 max-w-full">
             <div className="flex flex-wrap items-center gap-2">
               <span
                 className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${activityConfig.badgeClass}`}
@@ -153,7 +153,7 @@ export function TrainingDetailModal({
               {training.externalId && (
                 <span
                   data-testid="training-detail-external-id"
-                  className="inline-flex items-center text-[11px] font-mono px-2 py-0.5 rounded-md bg-[#0B1020] text-[#8E9BB0] border border-[#1E2942]"
+                  className="inline-flex items-center text-[11px] font-mono px-2 py-0.5 rounded-md bg-[#0B1020] text-[#8E9BB0] border border-[#1E2942] break-all max-w-full"
                 >
                   ID: {training.externalId}
                 </span>
@@ -232,7 +232,11 @@ export function TrainingDetailModal({
               Pace / Velocidade
             </span>
             <p className="text-base sm:text-lg font-black text-[#B7F34A] mt-0.5">
-              {training.paceFormatted} /km
+              {training.paceFormatted &&
+              training.paceFormatted.trim() !== "" &&
+              training.paceSeconds > 0
+                ? `${training.paceFormatted} /km`
+                : "—"}
             </p>
             <p className="text-[11px] text-[#8E9BB0]">{speedDisplay}</p>
           </div>
@@ -323,7 +327,7 @@ export function TrainingDetailModal({
               <FileText className="w-3.5 h-3.5 text-[#B7F34A]" />
               Notas e Observações
             </span>
-            <p className="text-sm text-white/90 whitespace-pre-wrap">
+            <p className="text-sm text-white/90 whitespace-pre-wrap break-words">
               {training.notes}
             </p>
           </div>

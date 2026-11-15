@@ -5,6 +5,7 @@ import { TafGoalConfig, TafAttempt, TrainingSession } from "@/types";
 import type { SheetsSyncReport, SheetsSyncStatus } from "@/lib/googleSheets/types";
 import { tafService } from "@/lib/services/tafService";
 import {
+  clearCrossPageSheetsCaches,
   formatSheetsSyncReportSummary,
   getSheetsSyncErrorMessage,
 } from "@/lib/sheetsSyncUi";
@@ -305,6 +306,7 @@ export function GoalAndBackupSettings({
         showToast(
           `Backup restaurado com sucesso: ${res.attemptsCount} simulados e ${res.trainingsCount} treinos carregados!${skippedMsg}`
         );
+        clearCrossPageSheetsCaches({ includeGoal: false });
         onDataRefreshed();
         await loadSheetsStatus();
       } else {
@@ -557,7 +559,7 @@ export function GoalAndBackupSettings({
               Sincronização Google Sheets (Treinos_Corrida)
             </h3>
             <p className="text-xs text-[#8E9BB0] mt-0.5">
-              Integração bidirecional com as abas Log_Treinos, Simulados_TAF e Perfil_e_Metas.
+              Integração bidirecional com as abas Log_Treinos, Simulados_TAF, Perfil_e_Metas e Plano_Semanal.
             </p>
           </div>
 

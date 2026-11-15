@@ -72,6 +72,22 @@ export function formatSheetsSyncBadge(
 /**
  * Gera a mensagem resumida em português exibida no toast após sincronização bem-sucedida.
  */
+function formatWeeklyPlanActivityDetail(
+  weeklyPlan: SheetsSyncReport["weeklyPlan"]
+): string | null {
+  if (!weeklyPlan) return null;
+
+  const parts: string[] = [];
+  if (weeklyPlan.imported > 0) parts.push(`${weeklyPlan.imported} plano(s) importado(s)`);
+  if (weeklyPlan.updated > 0) parts.push(`${weeklyPlan.updated} plano(s) atualizado(s)`);
+  if (weeklyPlan.removed > 0) parts.push(`${weeklyPlan.removed} plano(s) removido(s)`);
+  if (weeklyPlan.matched > 0) parts.push(`${weeklyPlan.matched} treino(s) conciliado(s)`);
+  if (weeklyPlan.pushed > 0) parts.push(`${weeklyPlan.pushed} status enviado(s)`);
+
+  if (parts.length === 0) return null;
+  return `Plano Semanal: ${parts.join(", ")}`;
+}
+
 export function formatSheetsSyncReportSummary(report: SheetsSyncReport): string {
   const pushedNew = report.pushedAppended + report.tafPushedAppended;
   const updatedCount =
@@ -84,13 +100,20 @@ export function formatSheetsSyncReportSummary(report: SheetsSyncReport): string 
   const importedNew = report.pulledCreated + report.tafPulledCreated;
   const warningSuffix =
     report.warnings.length > 0 ? ` (${report.warnings.length} aviso(s))` : "";
+  const weeklyDetail = formatWeeklyPlanActivityDetail(report.weeklyPlan);
 
   if (pushedNew > 0 || updatedCount > 0 || importedNew > 0) {
-    return `Planilha sincronizada: ${pushedNew} enviado(s), ${updatedCount} atualizado(s), ${importedNew} importado(s) do Sheets${warningSuffix}`;
+    const weeklySuffix = weeklyDetail ? ` (${weeklyDetail})` : "";
+    return `Planilha sincronizada: ${pushedNew} enviado(s), ${updatedCount} atualizado(s), ${importedNew} importado(s) do Sheets${weeklySuffix}${warningSuffix}`;
   }
 
   if (report.profileSynced) {
-    return `Planilha sincronizada: Perfil/Meta atualizados no Sheets${warningSuffix}`;
+    const weeklySuffix = weeklyDetail ? `; ${weeklyDetail}` : "";
+    return `Planilha sincronizada: Perfil/Meta atualizados no Sheets${weeklySuffix}${warningSuffix}`;
+  }
+
+  if (weeklyDetail) {
+    return `Planilha sincronizada (${weeklyDetail})${warningSuffix}`;
   }
 
   return `Planilha já estava atualizada (nenhuma pendência encontrada)${warningSuffix}`;
@@ -205,6 +228,7 @@ export const CROSS_PAGE_SHEETS_CACHE_KEYS = {
   tafAttempts: "pacelab_cache_taf_attempts",
   tafTrainings: "pacelab_cache_taf_trainings",
   tafGoal: "pacelab_cache_taf_goal",
+  weeklyPlan: "pacelab_cache_weekly_plan",
 } as const;
 
 /**
@@ -219,6 +243,7 @@ export function clearCrossPageSheetsCaches(
     CROSS_PAGE_SHEETS_CACHE_KEYS.trainings,
     CROSS_PAGE_SHEETS_CACHE_KEYS.tafAttempts,
     CROSS_PAGE_SHEETS_CACHE_KEYS.tafTrainings,
+    CROSS_PAGE_SHEETS_CACHE_KEYS.weeklyPlan,
     ...(includeGoal ? [CROSS_PAGE_SHEETS_CACHE_KEYS.tafGoal] : []),
   ];
 

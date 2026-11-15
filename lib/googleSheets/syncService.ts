@@ -19,6 +19,7 @@ import {
   SheetWeightRecordInput,
   ParsedTafAttemptSheetRow,
   ParsedTrainingSheetRow,
+  ParsedWeeklyPlanSheetRow,
   formatDateFortaleza,
   hasProfileGoalRowDivergence,
   hasTafAttemptRowDivergence,
@@ -27,8 +28,10 @@ import {
   mapProfileAndGoalToRow,
   mapTafAttemptToRow,
   mapTrainingSessionToRow,
+  parseSheetDate,
   parseTafAttemptRowFromSheet,
   parseTrainingRowFromSheet,
+  parseWeeklyPlanRowFromSheet,
 } from "@/lib/googleSheets/mapper";
 import {
   SafeAutoSyncResult,
@@ -38,8 +41,18 @@ import {
   SheetsSyncOptions,
   SheetsSyncReport,
   SheetsSyncStatus,
+  WeeklyPlanStandaloneSyncResult,
+  WeeklyPlanSyncStats,
 } from "@/lib/googleSheets/types";
 import { buildCaloriePayload, estimateTrainingCalories } from "@/lib/math/calories";
+import {
+  computeUnmatchedPlanStatus,
+  computeWeeklyReconciliation,
+  evaluateLinkedSessionValidity,
+  getFortalezaWeekBounds,
+  isRestPlanActivity,
+  toFortalezaDateKey,
+} from "@/lib/math/weeklyAdherence";
 import { prisma } from "@/lib/prisma";
 
 const BATCH_CHUNK_SIZE = 200;
@@ -59,12 +72,14 @@ const TAB_HEADER_RANGE_MAP: Record<SheetTabName, string> = {
   [SHEET_TABS.LOG_TREINOS]: `${SHEET_TABS.LOG_TREINOS}!A1:O1`,
   [SHEET_TABS.SIMULADOS_TAF]: `${SHEET_TABS.SIMULADOS_TAF}!A1:J1`,
   [SHEET_TABS.PERFIL_E_METAS]: `${SHEET_TABS.PERFIL_E_METAS}!A1:I1`,
+  [SHEET_TABS.PLANO_SEMANAL]: `${SHEET_TABS.PLANO_SEMANAL}!A1:I1`,
 };
 
 const TAB_HEADERS_MAP: Record<SheetTabName, readonly string[]> = {
   [SHEET_TABS.LOG_TREINOS]: SHEET_HEADERS.LOG_TREINOS,
   [SHEET_TABS.SIMULADOS_TAF]: SHEET_HEADERS.SIMULADOS_TAF,
   [SHEET_TABS.PERFIL_E_METAS]: SHEET_HEADERS.PERFIL_E_METAS,
+  [SHEET_TABS.PLANO_SEMANAL]: SHEET_HEADERS.PLANO_SEMANAL,
 };
 
 export interface SheetsSyncDependencies {
@@ -380,9 +395,40 @@ async function ensureSpreadsheetSchema(
   }
 }
 
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const rec = error as Error & {
+      response?: { data?: { error?: { message?: unknown } } };
+    };
+    if (typeof rec.response?.data?.error?.message === "string") {
+      return `${error.message} ${rec.response.data.error.message}`;
+    }
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const rec = error as {
+      message?: unknown;
+      response?: { data?: { error?: { message?: unknown } } };
+      errors?: Array<{ message?: unknown }>;
+    };
+    if (typeof rec.response?.data?.error?.message === "string") {
+      return rec.response.data.error.message;
+    }
+    if (typeof rec.message === "string") {
+      return rec.message;
+    }
+    if (typeof rec.errors?.[0]?.message === "string") {
+      return rec.errors[0].message;
+    }
+  }
+
+  return String(error ?? "");
+}
+
 function isMissingTabError(error: unknown): boolean {
   const status = extractGoogleApiStatus(error);
-  const msg = error instanceof Error ? error.message : String(error ?? "");
+  const msg = extractErrorMessage(error);
   if (status === 404) return true;
   if (status === 400 && /unable to parse range/i.test(msg)) return true;
   return /aba\s+["'].*["']\s+não encontrada/i.test(msg);
@@ -1431,6 +1477,648 @@ export async function pullChangesFromSheets(
   };
 }
 
+export interface WeeklyPlanRowSnapshot {
+  rowNumber: number;
+  statusText: string;
+  matchedSessionIdText: string;
+}
+
+export interface PullWeeklyPlanResult {
+  stats: Pick<WeeklyPlanSyncStats, "imported" | "updated" | "removed" | "sheetMissingOrEmpty">;
+  parsedCount: number;
+  sheetMissing: boolean;
+  warnings: SheetRowWarning[];
+  sheetSnapshots: Map<string, WeeklyPlanRowSnapshot>;
+}
+
+export interface ReconcileWeeklyPlanResult {
+  matched: number;
+  missed: number;
+  updatedCount: number;
+}
+
+export interface PushWeeklyPlanResult {
+  pushed: number;
+  sheetMissingOrEmpty: boolean;
+}
+
+async function readWeeklyPlanSheetRows(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string
+): Promise<{ sheetMissing: boolean; rows: unknown[][] }> {
+  try {
+    const res = await withSheetsRetry(() =>
+      sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: SHEET_RANGES.PLANO_SEMANAL_DATA,
+        valueRenderOption: "FORMATTED_VALUE",
+      })
+    );
+    return {
+      sheetMissing: false,
+      rows: res.data.values ?? [],
+    };
+  } catch (error) {
+    if (isMissingTabError(error)) {
+      return {
+        sheetMissing: true,
+        rows: [],
+      };
+    }
+    throw error;
+  }
+}
+
+function collectWeeklyPlanSheetSnapshots(
+  rows: unknown[][]
+): Map<string, WeeklyPlanRowSnapshot> {
+  const snapshots = new Map<string, WeeklyPlanRowSnapshot>();
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i] ?? [];
+    if (isBlankSheetRow(row) || isRestPlanActivity(row[3])) {
+      continue;
+    }
+
+    const planExternalId = normalizeCellString(row[0]);
+    if (!planExternalId || snapshots.has(planExternalId)) {
+      continue;
+    }
+
+    // Alinha com pullWeeklyPlanFromSheets para que linhas duplicadas com 1ª ocorrência de data inválida não capturem o snapshot.
+    if (!parseSheetDate(row[1])) {
+      continue;
+    }
+
+    snapshots.set(planExternalId, {
+      rowNumber: i + 2,
+      statusText: normalizeCellString(row[7]),
+      matchedSessionIdText: normalizeCellString(row[8]),
+    });
+  }
+
+  return snapshots;
+}
+
+function hasWeeklyPlanPrescriptionDivergence(
+  existing: {
+    plannedDate: Date;
+    dayOfWeek: string;
+    activityType: string;
+    targetDistanceKm: number | null;
+    targetPaceFormatted: string | null;
+    description: string | null;
+  },
+  parsed: ParsedWeeklyPlanSheetRow
+): boolean {
+  if (toFortalezaDateKey(existing.plannedDate) !== toFortalezaDateKey(parsed.plannedDate)) {
+    return true;
+  }
+  if (existing.dayOfWeek !== parsed.dayOfWeek || existing.activityType !== parsed.activityType) {
+    return true;
+  }
+
+  const existingDistNull = existing.targetDistanceKm == null;
+  const parsedDistNull = parsed.targetDistanceKm == null;
+  if (existingDistNull !== parsedDistNull) {
+    return true;
+  }
+  if (
+    !existingDistNull &&
+    !parsedDistNull &&
+    Math.abs((existing.targetDistanceKm as number) - (parsed.targetDistanceKm as number)) > 1e-6
+  ) {
+    return true;
+  }
+
+  if ((existing.targetPaceFormatted ?? null) !== (parsed.targetPaceFormatted ?? null)) {
+    return true;
+  }
+  if ((existing.description ?? null) !== (parsed.description ?? null)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Lê a aba opcional `Plano_Semanal!A2:I` sem erro se estiver ausente ou vazia,
+ * sincronizando prescrições (colunas A-G) com o PostgreSQL e limpando pendências
+ * não concluídas de semanas regeneradas ou linhas removidas.
+ */
+export async function pullWeeklyPlanFromSheets(
+  deps?: SheetsSyncDependencies
+): Promise<PullWeeklyPlanResult> {
+  const { generateId } = resolveDeps(deps);
+  const { sheets, spreadsheetId } = getGoogleSheetsClient();
+  const { sheetMissing, rows } = await readWeeklyPlanSheetRows(sheets, spreadsheetId);
+
+  if (sheetMissing) {
+    return {
+      stats: {
+        imported: 0,
+        updated: 0,
+        removed: 0,
+        sheetMissingOrEmpty: true,
+      },
+      parsedCount: 0,
+      sheetMissing: true,
+      warnings: [],
+      sheetSnapshots: new Map(),
+    };
+  }
+
+  const warnings: SheetRowWarning[] = [];
+  const parsedItems: ParsedWeeklyPlanSheetRow[] = [];
+  const seenPlanIds = new Set<string>();
+  const pulledWeekStarts = new Set<string>();
+  const sheetSnapshots = new Map<string, WeeklyPlanRowSnapshot>();
+  let nonBlankRowsCount = 0;
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i] ?? [];
+    const rowNumber = i + 2;
+    if (isBlankSheetRow(row)) {
+      continue;
+    }
+
+    nonBlankRowsCount += 1;
+    const parsed = parseWeeklyPlanRowFromSheet(row, rowNumber);
+
+    if (!parsed.valid) {
+      warnings.push({
+        tab: SHEET_TABS.PLANO_SEMANAL,
+        rowNumber,
+        message: parsed.warning,
+      });
+      continue;
+    }
+
+    if (parsed.kind === "rest") {
+      const restDate = parseSheetDate(row[1]);
+      if (restDate) {
+        pulledWeekStarts.add(getFortalezaWeekBounds(restDate).weekStart);
+      }
+      continue;
+    }
+
+    for (const warningMsg of parsed.warnings) {
+      warnings.push({
+        tab: SHEET_TABS.PLANO_SEMANAL,
+        rowNumber,
+        message: warningMsg,
+      });
+    }
+
+    if (seenPlanIds.has(parsed.data.planExternalId)) {
+      warnings.push({
+        tab: SHEET_TABS.PLANO_SEMANAL,
+        rowNumber,
+        message: `Linha ${rowNumber} (Plano_Semanal): ID "${parsed.data.planExternalId}" duplicado na planilha; cópia ignorada.`,
+      });
+      continue;
+    }
+
+    seenPlanIds.add(parsed.data.planExternalId);
+    pulledWeekStarts.add(getFortalezaWeekBounds(parsed.data.plannedDate).weekStart);
+    sheetSnapshots.set(parsed.data.planExternalId, {
+      rowNumber,
+      statusText: normalizeCellString(row[7]),
+      matchedSessionIdText: normalizeCellString(row[8]),
+    });
+    parsedItems.push(parsed.data);
+  }
+
+  const existingPlans = await prisma.weeklyPlanItem.findMany();
+  const existingByExternalId = new Map(
+    existingPlans.map((item) => [item.planExternalId, item])
+  );
+
+  let imported = 0;
+  let updated = 0;
+  let removed = 0;
+
+  for (const item of parsedItems) {
+    const existing = existingByExternalId.get(item.planExternalId);
+    if (!existing) {
+      await prisma.weeklyPlanItem.create({
+        data: {
+          id: generateId(),
+          planExternalId: item.planExternalId,
+          plannedDate: item.plannedDate,
+          dayOfWeek: item.dayOfWeek,
+          activityType: item.activityType,
+          targetDistanceKm: item.targetDistanceKm,
+          targetPaceFormatted: item.targetPaceFormatted,
+          description: item.description,
+          status: "Planejado",
+          matchedSessionId: null,
+        },
+      });
+      imported += 1;
+      continue;
+    }
+
+    if (hasWeeklyPlanPrescriptionDivergence(existing, item)) {
+      await prisma.weeklyPlanItem.update({
+        where: { id: existing.id },
+        data: {
+          plannedDate: item.plannedDate,
+          dayOfWeek: item.dayOfWeek,
+          activityType: item.activityType,
+          targetDistanceKm: item.targetDistanceKm,
+          targetPaceFormatted: item.targetPaceFormatted,
+          description: item.description,
+        },
+      });
+      updated += 1;
+    }
+  }
+
+  if (parsedItems.length > 0 || pulledWeekStarts.size > 0) {
+    const idsToDelete: string[] = [];
+
+    for (const existing of existingPlans) {
+      if (seenPlanIds.has(existing.planExternalId)) continue;
+      if (existing.matchedSessionId !== null) continue;
+      if (existing.status === "Concluído" || existing.status === "Parcial") continue;
+
+      const existingWeekKey = getFortalezaWeekBounds(existing.plannedDate).weekStart;
+      const isPlannedUnlinked = existing.status === "Planejado";
+      const isMissedInPulledWeek =
+        existing.status === "Perdido" && pulledWeekStarts.has(existingWeekKey);
+
+      if (isPlannedUnlinked || isMissedInPulledWeek) {
+        idsToDelete.push(existing.id);
+      }
+    }
+
+    if (idsToDelete.length > 0) {
+      const deleteResult = await prisma.weeklyPlanItem.deleteMany({
+        where: { id: { in: idsToDelete } },
+      });
+      removed = deleteResult.count ?? idsToDelete.length;
+    }
+  }
+
+  return {
+    stats: {
+      imported,
+      updated,
+      removed,
+      sheetMissingOrEmpty: nonBlankRowsCount === 0,
+    },
+    parsedCount: parsedItems.length,
+    sheetMissing: false,
+    warnings,
+    sheetSnapshots,
+  };
+}
+
+function isRetryableReconciliationConflict(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === "P2002" || error.code === "P2025")
+  );
+}
+
+/**
+ * Reconcilia `WeeklyPlanItem` e `TrainingSession` 100% localmente no PostgreSQL:
+ * reverte vínculos órfãos pós-`DELETE`, revalida sessões editadas (`PUT`),
+ * executa reconciliação em 2 passadas e persiste alterações em transação atômica.
+ */
+export async function reconcileWeeklyPlansWithSessions(
+  options: { editedSessionId?: string; now?: Date } = {},
+  deps?: SheetsSyncDependencies
+): Promise<ReconcileWeeklyPlanResult> {
+  const MAX_ATTEMPTS = 2;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await runReconcileWeeklyPlansOnce(options, deps);
+    } catch (error) {
+      if (attempt < MAX_ATTEMPTS && isRetryableReconciliationConflict(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+  return { matched: 0, missed: 0, updatedCount: 0 };
+}
+
+async function runReconcileWeeklyPlansOnce(
+  options: { editedSessionId?: string; now?: Date } = {},
+  deps?: SheetsSyncDependencies
+): Promise<ReconcileWeeklyPlanResult> {
+  const referenceNow = options.now ?? resolveDeps(deps).now();
+  const todayFortalezaKey = toFortalezaDateKey(referenceNow);
+  if (!todayFortalezaKey) {
+    return { matched: 0, missed: 0, updatedCount: 0 };
+  }
+
+  const allPlans = await prisma.weeklyPlanItem.findMany({
+    orderBy: [{ plannedDate: "asc" }, { planExternalId: "asc" }],
+  });
+
+  if (allPlans.length === 0) {
+    return { matched: 0, missed: 0, updatedCount: 0 };
+  }
+
+  const linkedSessionIds = Array.from(
+    new Set(
+      allPlans
+        .map((plan) => plan.matchedSessionId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    )
+  );
+
+  const sessions = await prisma.trainingSession.findMany({
+    where: {
+      OR: [
+        { weeklyPlanItem: { is: null } },
+        ...(linkedSessionIds.length > 0 ? [{ id: { in: linkedSessionIds } }] : []),
+        ...(options.editedSessionId ? [{ id: options.editedSessionId }] : []),
+      ],
+    },
+    select: {
+      id: true,
+      sessionDate: true,
+      activityType: true,
+      distanceKm: true,
+      durationSeconds: true,
+    },
+    orderBy: { sessionDate: "asc" },
+  });
+
+  const sessionsById = new Map(sessions.map((session) => [session.id, session]));
+  const occupiedPlanDateKeys = new Set<string>();
+  const unlinkedPlanDateKeys = new Set<string>();
+  for (const plan of allPlans) {
+    if (isRestPlanActivity(plan.activityType)) continue;
+    const key = toFortalezaDateKey(plan.plannedDate);
+    if (key) {
+      occupiedPlanDateKeys.add(key);
+      if (plan.matchedSessionId === null) {
+        unlinkedPlanDateKeys.add(key);
+      }
+    }
+  }
+
+  const workingPlans = allPlans.map((plan) => ({
+    id: plan.id,
+    planExternalId: plan.planExternalId,
+    plannedDate: plan.plannedDate,
+    activityType: plan.activityType,
+    targetDistanceKm: plan.targetDistanceKm,
+    status: plan.status,
+    matchedSessionId: plan.matchedSessionId,
+  }));
+
+  const currentlyLinkedSessionIds = new Set<string>();
+
+  for (const plan of workingPlans) {
+    if (isRestPlanActivity(plan.activityType)) {
+      continue;
+    }
+
+    if (plan.matchedSessionId === null) {
+      if (plan.status === "Concluído" || plan.status === "Parcial") {
+        plan.status = computeUnmatchedPlanStatus(plan.plannedDate, todayFortalezaKey);
+      }
+      continue;
+    }
+
+    const linkedSession = sessionsById.get(plan.matchedSessionId);
+    if (!linkedSession) {
+      plan.matchedSessionId = null;
+      plan.status = computeUnmatchedPlanStatus(plan.plannedDate, todayFortalezaKey);
+      continue;
+    }
+
+    // Quando a sessão foi recém-editada (`PUT`) e há outro plano livre na mesma data,
+    // libera temporariamente o vínculo em memória para recomparar competitivamente na Passada 1.
+    const editedSessionDateKey = toFortalezaDateKey(linkedSession.sessionDate);
+    if (
+      options.editedSessionId &&
+      linkedSession.id === options.editedSessionId &&
+      Boolean(editedSessionDateKey && unlinkedPlanDateKeys.has(editedSessionDateKey))
+    ) {
+      plan.matchedSessionId = null;
+      plan.status = computeUnmatchedPlanStatus(plan.plannedDate, todayFortalezaKey);
+      continue;
+    }
+
+    const validity = evaluateLinkedSessionValidity(plan, linkedSession, {
+      occupiedPlanDateKeys,
+    });
+    if (!validity.valid || !validity.nextStatus) {
+      plan.matchedSessionId = null;
+      plan.status = computeUnmatchedPlanStatus(plan.plannedDate, todayFortalezaKey);
+      continue;
+    }
+
+    plan.status = validity.nextStatus;
+    currentlyLinkedSessionIds.add(linkedSession.id);
+  }
+
+  const freeSessions = sessions.filter((session) => !currentlyLinkedSessionIds.has(session.id));
+  const reconciliation = computeWeeklyReconciliation(
+    workingPlans,
+    freeSessions,
+    todayFortalezaKey,
+    { occupiedPlanDateKeys }
+  );
+
+  const workingById = new Map(workingPlans.map((plan) => [plan.id, plan]));
+  for (const match of reconciliation.matches) {
+    const target = workingById.get(match.planId);
+    if (target) {
+      target.status = match.status;
+      target.matchedSessionId = match.sessionId;
+    }
+  }
+
+  for (const change of reconciliation.unmatchedUpdates) {
+    const target = workingById.get(change.planId);
+    if (target) {
+      target.status = change.nextStatus;
+    }
+  }
+
+  const changedPairs = allPlans
+    .map((orig) => {
+      const next = workingById.get(orig.id);
+      if (!next) return null;
+      if (
+        next.status === orig.status &&
+        (next.matchedSessionId ?? null) === (orig.matchedSessionId ?? null)
+      ) {
+        return null;
+      }
+      return { orig, next };
+    })
+    .filter(
+      (
+        entry
+      ): entry is {
+        orig: (typeof allPlans)[number];
+        next: (typeof workingPlans)[number];
+      } => entry !== null
+    );
+
+  if (changedPairs.length > 0) {
+    await prisma.$transaction(async (tx) => {
+      // Phase 1: liberar matchedSessionId antigos antes de vincular novos para evitar colisão @unique
+      for (const { orig, next } of changedPairs) {
+        if (orig.matchedSessionId !== null && next.matchedSessionId !== orig.matchedSessionId) {
+          if (next.matchedSessionId === null) {
+            await tx.weeklyPlanItem.update({
+              where: { id: next.id },
+              data: {
+                status: next.status,
+                matchedSessionId: null,
+              },
+            });
+          } else {
+            await tx.weeklyPlanItem.update({
+              where: { id: next.id },
+              data: {
+                matchedSessionId: null,
+              },
+            });
+          }
+        }
+      }
+
+      // Phase 2: aplicar estado final (status e/ou novo vínculo matchedSessionId)
+      for (const { orig, next } of changedPairs) {
+        if (orig.matchedSessionId !== null && next.matchedSessionId === null) {
+          continue;
+        }
+        await tx.weeklyPlanItem.update({
+          where: { id: next.id },
+          data: {
+            status: next.status,
+            matchedSessionId: next.matchedSessionId,
+          },
+        });
+      }
+    });
+  }
+
+  return {
+    matched: reconciliation.matches.length,
+    missed: reconciliation.missedCount,
+    updatedCount: changedPairs.length,
+  };
+}
+
+/**
+ * Grava apenas as colunas `H:I` (`Status` e `ID Treino Realizado`) na aba `Plano_Semanal`,
+ * exclusivamente para linhas cuja situação atual no Sheets diverge do PostgreSQL.
+ */
+export async function pushWeeklyPlanStatusToSheets(
+  deps?: SheetsSyncDependencies,
+  cachedSheetContext?: {
+    sheetMissing: boolean;
+    sheetSnapshots: Map<string, WeeklyPlanRowSnapshot>;
+  }
+): Promise<PushWeeklyPlanResult> {
+  if (cachedSheetContext?.sheetMissing) {
+    return { pushed: 0, sheetMissingOrEmpty: true };
+  }
+
+  const plans = await prisma.weeklyPlanItem.findMany({
+    orderBy: [{ plannedDate: "asc" }, { planExternalId: "asc" }],
+  });
+
+  if (plans.length === 0) {
+    return {
+      pushed: 0,
+      sheetMissingOrEmpty: cachedSheetContext ? cachedSheetContext.sheetSnapshots.size === 0 : true,
+    };
+  }
+
+  const { sheets, spreadsheetId } = getGoogleSheetsClient();
+  let snapshots: Map<string, WeeklyPlanRowSnapshot>;
+
+  if (cachedSheetContext) {
+    snapshots = cachedSheetContext.sheetSnapshots;
+  } else {
+    const { sheetMissing, rows } = await readWeeklyPlanSheetRows(sheets, spreadsheetId);
+    if (sheetMissing) {
+      return { pushed: 0, sheetMissingOrEmpty: true };
+    }
+    snapshots = collectWeeklyPlanSheetSnapshots(rows);
+  }
+
+  if (snapshots.size === 0) {
+    return { pushed: 0, sheetMissingOrEmpty: true };
+  }
+
+  const updateEntries: SheetUpdateEntry[] = [];
+  for (const plan of plans) {
+    const snapshot = snapshots.get(plan.planExternalId);
+    if (!snapshot) continue;
+
+    const desiredStatus = plan.status;
+    const desiredMatchedId = plan.matchedSessionId ?? "";
+    if (
+      snapshot.statusText === desiredStatus &&
+      snapshot.matchedSessionIdText === desiredMatchedId
+    ) {
+      continue;
+    }
+
+    updateEntries.push({
+      range: `${SHEET_TABS.PLANO_SEMANAL}!H${snapshot.rowNumber}:I${snapshot.rowNumber}`,
+      values: [[desiredStatus, desiredMatchedId]],
+    });
+  }
+
+  for (const chunk of chunkArray(updateEntries, BATCH_CHUNK_SIZE)) {
+    await withSheetsRetry(() =>
+      sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          valueInputOption: "USER_ENTERED",
+          data: chunk,
+        },
+      })
+    );
+  }
+
+  return {
+    pushed: updateEntries.length,
+    sheetMissingOrEmpty: false,
+  };
+}
+
+/**
+ * Executa o fluxo completo dedicado do Plano Semanal:
+ * `pullWeeklyPlanFromSheets` -> `reconcileWeeklyPlansWithSessions` -> `pushWeeklyPlanStatusToSheets`.
+ */
+export async function syncWeeklyPlanFromSheets(
+  deps?: SheetsSyncDependencies
+): Promise<WeeklyPlanStandaloneSyncResult> {
+  const pullRes = await pullWeeklyPlanFromSheets(deps);
+  const reconcileRes = await reconcileWeeklyPlansWithSessions(undefined, deps);
+  const pushRes = await pushWeeklyPlanStatusToSheets(deps, {
+    sheetMissing: pullRes.sheetMissing,
+    sheetSnapshots: pullRes.sheetSnapshots,
+  });
+
+  return {
+    imported: pullRes.stats.imported,
+    updated: pullRes.stats.updated,
+    removed: pullRes.stats.removed,
+    matched: reconcileRes.matched,
+    missed: reconcileRes.missed,
+    pushed: pushRes.pushed,
+    sheetMissingOrEmpty: pullRes.stats.sheetMissingOrEmpty,
+    syncedPlans: pullRes.parsedCount,
+  };
+}
+
 /**
  * Retorna o status leve da integração Google Sheets e a contagem de treinos e simulados
  * pendentes de sincronização no PostgreSQL, sem consumir quota da Google API.
@@ -1501,15 +2189,68 @@ export async function syncWithGoogleSheets(
     syncedAt: now(),
   };
 
+  let weeklyPlanStats: WeeklyPlanSyncStats = {
+    imported: 0,
+    updated: 0,
+    removed: 0,
+    matched: 0,
+    missed: 0,
+    pushed: 0,
+    sheetMissingOrEmpty: true,
+  };
+
   if (direction === "pull") {
     pullResult = await pullChangesFromSheets(deps);
+    const weeklyPull = await pullWeeklyPlanFromSheets(deps);
+    const weeklyReconcile = await reconcileWeeklyPlansWithSessions(undefined, deps);
+    const weeklyPush = await pushWeeklyPlanStatusToSheets(deps, {
+      sheetMissing: weeklyPull.sheetMissing,
+      sheetSnapshots: weeklyPull.sheetSnapshots,
+    });
+    pullResult.warnings.push(...weeklyPull.warnings);
+    weeklyPlanStats = {
+      imported: weeklyPull.stats.imported,
+      updated: weeklyPull.stats.updated,
+      removed: weeklyPull.stats.removed,
+      matched: weeklyReconcile.matched,
+      missed: weeklyReconcile.missed,
+      pushed: weeklyPush.pushed,
+      sheetMissingOrEmpty: weeklyPull.stats.sheetMissingOrEmpty,
+    };
   } else if (direction === "push") {
     pushResult = await syncHistoricalDataToSheets({ forceFullResync }, deps);
+    const weeklyReconcile = await reconcileWeeklyPlansWithSessions(undefined, deps);
+    const weeklyPush = await pushWeeklyPlanStatusToSheets(deps);
+    weeklyPlanStats = {
+      imported: 0,
+      updated: 0,
+      removed: 0,
+      matched: weeklyReconcile.matched,
+      missed: weeklyReconcile.missed,
+      pushed: weeklyPush.pushed,
+      sheetMissingOrEmpty: weeklyPush.sheetMissingOrEmpty,
+    };
   } else {
     pullResult = await pullChangesFromSheets(deps, {
       onlyUnlinkedRows: forceFullResync,
     });
+    const weeklyPull = await pullWeeklyPlanFromSheets(deps);
+    const weeklyReconcile = await reconcileWeeklyPlansWithSessions(undefined, deps);
     pushResult = await syncHistoricalDataToSheets({ forceFullResync }, deps);
+    const weeklyPush = await pushWeeklyPlanStatusToSheets(deps, {
+      sheetMissing: weeklyPull.sheetMissing,
+      sheetSnapshots: weeklyPull.sheetSnapshots,
+    });
+    pullResult.warnings.push(...weeklyPull.warnings);
+    weeklyPlanStats = {
+      imported: weeklyPull.stats.imported,
+      updated: weeklyPull.stats.updated,
+      removed: weeklyPull.stats.removed,
+      matched: weeklyReconcile.matched,
+      missed: weeklyReconcile.missed,
+      pushed: weeklyPush.pushed,
+      sheetMissingOrEmpty: weeklyPull.stats.sheetMissingOrEmpty,
+    };
   }
 
   const completedAt = direction === "pull" ? now() : pushResult.syncedAt;
@@ -1528,6 +2269,7 @@ export async function syncWithGoogleSheets(
     tafPushedAppended: pushResult.tafPushedAppended,
     tafPushedUpdated: pushResult.tafPushedUpdated,
     profileSynced: pushResult.profileSynced,
+    weeklyPlan: weeklyPlanStats,
     skipped: pullResult.skipped,
     warnings: pullResult.warnings,
     durationMs: Math.max(0, Date.now() - startedAtMs),

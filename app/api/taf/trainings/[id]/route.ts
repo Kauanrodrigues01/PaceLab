@@ -1,8 +1,13 @@
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess } from "@/lib/api/response";
-import { shouldSkipSheetsSync, syncRecordWithSheets } from "@/lib/api/sheetsSync";
+import { withApiHandler, apiSuccess, apiError } from "@/lib/api/response";
+import {
+  safeReconcileWeeklyPlans,
+  shouldSkipSheetsSync,
+  syncRecordWithSheets,
+} from "@/lib/api/sheetsSync";
 import {
   deleteTrainingSessionFromSheet,
+  pushWeeklyPlanStatusToSheets,
   safeAutoSync,
   syncTrainingSessionToSheet,
 } from "@/lib/googleSheets";
@@ -10,6 +15,23 @@ import { UpdateTrainingSessionSchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+export async function GET(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  return withApiHandler(async () => {
+    const session = await prisma.trainingSession.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!session) {
+      return apiError("Treino não encontrado no banco de dados", 404);
+    }
+
+    return apiSuccess(session);
+  });
+}
 
 export async function PUT(
   request: Request,
@@ -100,26 +122,40 @@ export async function PUT(
       },
     });
 
+    await safeReconcileWeeklyPlans({ editedSessionId: id });
+
     const syncedUpdated = await syncRecordWithSheets(
       updated,
       () => syncTrainingSessionToSheet(updated),
       { skip: skipSheetsSync }
     );
 
+    if (!skipSheetsSync) {
+      await safeAutoSync(() => pushWeeklyPlanStatusToSheets());
+    }
+
     return apiSuccess(syncedUpdated);
   });
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   return withApiHandler(async () => {
     const { id } = params;
+    const skipSheetsSync = shouldSkipSheetsSync(request);
+
     await prisma.trainingSession.delete({
       where: { id },
     });
-    await safeAutoSync(() => deleteTrainingSessionFromSheet(id));
+    await safeReconcileWeeklyPlans();
+
+    if (!skipSheetsSync) {
+      await safeAutoSync(() => deleteTrainingSessionFromSheet(id));
+      await safeAutoSync(() => pushWeeklyPlanStatusToSheets());
+    }
+
     return apiSuccess({ success: true, deletedId: id });
   });
 }

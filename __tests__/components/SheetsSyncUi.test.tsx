@@ -870,11 +870,13 @@ describe("Fase 6 — Frontend & UX: Sincronização Google Sheets", () => {
       sessionStorage.setItem("pacelab_cache_trainings", "[]");
       sessionStorage.setItem("pacelab_cache_taf_attempts", "[]");
       sessionStorage.setItem("pacelab_cache_taf_trainings", "[]");
+      sessionStorage.setItem("pacelab_cache_weekly_plan", "{}");
       sessionStorage.setItem("pacelab_cache_taf_goal", "{}");
       clearCrossPageSheetsCaches({ includeGoal: false });
       expect(sessionStorage.getItem("pacelab_cache_trainings")).toBeNull();
       expect(sessionStorage.getItem("pacelab_cache_taf_attempts")).toBeNull();
       expect(sessionStorage.getItem("pacelab_cache_taf_trainings")).toBeNull();
+      expect(sessionStorage.getItem("pacelab_cache_weekly_plan")).toBeNull();
       expect(sessionStorage.getItem("pacelab_cache_taf_goal")).toBe("{}");
 
       clearCrossPageSheetsCaches({ includeGoal: true });
@@ -933,6 +935,91 @@ describe("Fase 6 — Frontend & UX: Sincronização Google Sheets", () => {
           })
         )
       ).toBe("Planilha já estava atualizada (nenhuma pendência encontrada) (1 aviso(s))");
+
+      expect(
+        formatSheetsSyncReportSummary(
+          makeSyncReport({
+            pushedAppended: 0,
+            pushedUpdated: 0,
+            pulledUpdated: 0,
+            pulledLinked: 0,
+            pulledCreated: 0,
+            tafPushedAppended: 0,
+            tafPushedUpdated: 0,
+            tafPulledUpdated: 0,
+            tafPulledLinked: 0,
+            tafPulledCreated: 0,
+            profileSynced: false,
+            weeklyPlan: {
+              imported: 0,
+              updated: 0,
+              removed: 0,
+              matched: 0,
+              missed: 1,
+              pushed: 0,
+              sheetMissingOrEmpty: true,
+            },
+          })
+        )
+      ).toBe("Planilha já estava atualizada (nenhuma pendência encontrada)");
+
+      expect(
+        formatSheetsSyncReportSummary(
+          makeSyncReport({
+            pushedAppended: 0,
+            pushedUpdated: 0,
+            pulledUpdated: 0,
+            pulledLinked: 0,
+            pulledCreated: 0,
+            tafPushedAppended: 0,
+            tafPushedUpdated: 0,
+            tafPulledUpdated: 0,
+            tafPulledLinked: 0,
+            tafPulledCreated: 0,
+            profileSynced: false,
+            weeklyPlan: {
+              imported: 4,
+              updated: 0,
+              removed: 1,
+              matched: 2,
+              missed: 0,
+              pushed: 2,
+              sheetMissingOrEmpty: false,
+            },
+          })
+        )
+      ).toBe(
+        "Planilha sincronizada (Plano Semanal: 4 plano(s) importado(s), 1 plano(s) removido(s), 2 treino(s) conciliado(s), 2 status enviado(s))"
+      );
+
+      expect(
+        formatSheetsSyncReportSummary(
+          makeSyncReport({
+            pushedAppended: 1,
+            pushedUpdated: 0,
+            pulledUpdated: 0,
+            pulledLinked: 0,
+            pulledCreated: 0,
+            tafPushedAppended: 0,
+            tafPushedUpdated: 0,
+            tafPulledUpdated: 0,
+            tafPulledLinked: 0,
+            tafPulledCreated: 0,
+            profileSynced: false,
+            weeklyPlan: {
+              imported: 0,
+              updated: 1,
+              removed: 0,
+              matched: 1,
+              missed: 0,
+              pushed: 1,
+              sheetMissingOrEmpty: false,
+            },
+          })
+        )
+      ).toBe(
+        "Planilha sincronizada: 1 enviado(s), 0 atualizado(s), 0 importado(s) do Sheets (Plano Semanal: 1 plano(s) atualizado(s), 1 treino(s) conciliado(s), 1 status enviado(s))"
+      );
     });
 
     it("atualiza pendências em GoalAndBackupSettings quando trainings/attempts mudam e após salvar meta", async () => {

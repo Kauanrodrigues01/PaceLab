@@ -1,6 +1,15 @@
 import { vi } from "vitest";
-import { TafGoalConfig, TafAttempt, TrainingSession, UserProfile, WeightRecord } from "@/types";
+import {
+  TafGoalConfig,
+  TafAttempt,
+  TrainingSession,
+  UserProfile,
+  WeightRecord,
+  WeeklyPlanData,
+} from "@/types";
 import { DEFAULT_GOAL } from "@/lib/services/tafService";
+import { getFortalezaWeekBounds, toFortalezaDateKey } from "@/lib/math/weeklyAdherence";
+import { WeeklyPlanQuerySchema } from "@/lib/validations/taf";
 
 export interface MockTafStore {
   goal: TafGoalConfig;
@@ -8,6 +17,9 @@ export interface MockTafStore {
   trainings: TrainingSession[];
   profile: UserProfile | null;
   weights: WeightRecord[];
+  weeklyPlan?:
+    | WeeklyPlanData
+    | ((weekStart: string, store: MockTafStore) => WeeklyPlanData);
 }
 
 export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
@@ -29,6 +41,7 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
             updatedAt: new Date().toISOString(),
           },
     weights: initialState?.weights ? [...initialState.weights] : [],
+    weeklyPlan: initialState?.weeklyPlan,
   };
 
   const mockFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -152,12 +165,127 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
       }
     }
 
+    // 3b. Weekly Plan
+    if (url.includes("/api/weekly-plan") && method === "GET") {
+      const parsedUrl = new URL(url, "http://localhost");
+      const rawWeekStart = parsedUrl.searchParams.get("weekStart")?.trim() || undefined;
+      const queryValidation = WeeklyPlanQuerySchema.safeParse({ weekStart: rawWeekStart });
+      if (!queryValidation.success) {
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({
+            success: false,
+            error: "Parâmetros inválidos",
+            timestamp: new Date().toISOString(),
+          }),
+        } as Response;
+      }
+
+      const weekStartParam = queryValidation.data.weekStart;
+      const currentBounds = getFortalezaWeekBounds();
+      const targetBounds = weekStartParam
+        ? getFortalezaWeekBounds(weekStartParam)
+        : currentBounds;
+      const isCurrentWeek = targetBounds.weekStart === currentBounds.weekStart;
+
+      let payload: WeeklyPlanData;
+      if (typeof store.weeklyPlan === "function") {
+        payload = store.weeklyPlan(targetBounds.weekStart, store);
+      } else if (
+        store.weeklyPlan &&
+        (!weekStartParam || store.weeklyPlan.weekStart === targetBounds.weekStart)
+      ) {
+        payload = store.weeklyPlan;
+      } else {
+        const extraSessions = store.trainings.filter((t) => {
+          const dateKey = toFortalezaDateKey(t.sessionDate);
+          return (
+            Boolean(dateKey) &&
+            dateKey! >= targetBounds.weekStart &&
+            dateKey! <= targetBounds.weekEnd
+          );
+        });
+        const totalDistanceKm = Number(
+          extraSessions
+            .reduce(
+              (sum, s) => sum + (Number.isFinite(s.distanceKm) ? s.distanceKm : 0),
+              0
+            )
+            .toFixed(2)
+        );
+        payload = {
+          weekStart: targetBounds.weekStart,
+          weekEnd: targetBounds.weekEnd,
+          weekLabel: targetBounds.label,
+          isCurrentWeek,
+          hasNextPlannedWeek: Boolean(
+            store.weeklyPlan && store.weeklyPlan.weekStart > targetBounds.weekEnd
+          ),
+          items: [],
+          summary: {
+            totalPlanned: 0,
+            completed: 0,
+            partial: 0,
+            planned: 0,
+            missed: 0,
+            adherencePercent: null,
+          },
+          rollingFourWeeksAverage: {
+            averagePercent: null,
+            weeksCount: 0,
+            weeks: [],
+          },
+          extraSessions,
+          extraSummary: {
+            count: extraSessions.length,
+            totalDistanceKm,
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          data: payload,
+          timestamp: new Date().toISOString(),
+        }),
+      } as Response;
+    }
+
     // 4. Trainings
-    if (url.includes("/api/taf/trainings")) {
+    if (url.includes("/api/taf/trainings") && !url.includes("/api/taf/trainings/gpx-preview")) {
       const matchId = url.match(/\/api\/taf\/trainings\/([^/?]+)/);
       const trainingId = matchId ? decodeURIComponent(matchId[1]) : null;
 
       if (method === "GET") {
+        if (trainingId) {
+          const found = store.trainings.find((t) => t.id === trainingId);
+          if (!found) {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({
+                success: false,
+                error: "Treino não encontrado no banco de dados",
+                timestamp: new Date().toISOString(),
+              }),
+            } as Response;
+          }
+
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              success: true,
+              data: found,
+              timestamp: new Date().toISOString(),
+            }),
+          } as Response;
+        }
+
         return {
           ok: true,
           status: 200,

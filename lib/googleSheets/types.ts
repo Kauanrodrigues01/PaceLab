@@ -1,4 +1,24 @@
-export type SheetTabName = "Log_Treinos" | "Simulados_TAF" | "Perfil_e_Metas";
+export type SheetTabName =
+  | "Log_Treinos"
+  | "Simulados_TAF"
+  | "Perfil_e_Metas"
+  | "Plano_Semanal";
+
+export type WeeklyPlanStatus = "Planejado" | "Concluído" | "Parcial" | "Perdido";
+
+export interface WeeklyPlanSyncStats {
+  imported: number;
+  updated: number;
+  removed: number;
+  matched: number;
+  missed: number;
+  pushed: number;
+  sheetMissingOrEmpty: boolean;
+}
+
+export interface WeeklyPlanStandaloneSyncResult extends WeeklyPlanSyncStats {
+  syncedPlans: number;
+}
 
 export type SheetsSyncDirection = "bidirectional" | "push" | "pull";
 
@@ -27,6 +47,7 @@ export interface SheetsSyncReport {
   tafPushedAppended: number;
   tafPushedUpdated: number;
   profileSynced: boolean;
+  weeklyPlan?: WeeklyPlanSyncStats;
   skipped: number;
   warnings: SheetRowWarning[];
   durationMs: number;

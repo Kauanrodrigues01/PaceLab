@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import TreinosPage from "@/app/treinos/page";
 import { tafService } from "@/lib/services/tafService";
@@ -435,6 +435,85 @@ describe("TreinosPage (Fase 4 - Diário de Treinos Completo)", () => {
     // Painel continua aberto para retry e treino salvo já aparece na lista
     expect(screen.getByTestId("gpx-import-panel")).toBeInTheDocument();
     expect(screen.getByText("Parcial Ok")).toBeInTheDocument();
+  });
+
+  it("recarrega o WeeklyAdherenceCard automaticamente após registrar novo treino", async () => {
+    const user = userEvent.setup();
+    const { mockFetch } = setupMockTafApi({ trainings: [] });
+
+    render(<TreinosPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("weekly-adherence-card")).toBeInTheDocument();
+    });
+
+    const weeklyCallsBefore = mockFetch.mock.calls.filter(([input]) =>
+      String(input).includes("/api/weekly-plan")
+    ).length;
+    expect(weeklyCallsBefore).toBeGreaterThanOrEqual(1);
+
+    await user.click(screen.getByRole("button", { name: /Registrar Treino/i }));
+    await user.click(
+      screen.getByRole("button", { name: /Registrar Treino no Diário/i })
+    );
+
+    await waitFor(() => {
+      const weeklyCallsAfter = mockFetch.mock.calls.filter(([input]) =>
+        String(input).includes("/api/weekly-plan")
+      ).length;
+      expect(weeklyCallsAfter).toBeGreaterThan(weeklyCallsBefore);
+    });
+  });
+
+  it("abre o TrainingDetailModal automaticamente via ?trainingId= buscando GET /api/taf/trainings/{id} e limpa a query da URL", async () => {
+    const deepLinkedTraining: TrainingSession = {
+      ...mockTrainingSession,
+      id: "trn-deep-link-99",
+      notes: "Treino aberto via deep link Fase 5",
+      distanceKm: 11.5,
+      paceFormatted: "",
+      paceSeconds: 0,
+    };
+
+    setupMockTafApi({ trainings: [deepLinkedTraining] });
+    const prevUrl = window.location.href;
+    window.history.replaceState({}, "", "/treinos?trainingId=trn-deep-link-99");
+
+    try {
+      render(<TreinosPage />);
+
+      await waitFor(() => {
+        const modal = screen.getByTestId("training-detail-modal");
+        expect(
+          within(modal).getByText("Treino aberto via deep link Fase 5")
+        ).toBeInTheDocument();
+        expect(within(modal).queryByText(/^\s*\/km$/)).not.toBeInTheDocument();
+      });
+
+      await waitFor(() => {
+        expect(window.location.search).toBe("");
+      });
+    } finally {
+      window.history.replaceState({}, "", prevUrl);
+    }
+  });
+
+  it("exibe toast amigável quando ?trainingId= aponta para treino inexistente", async () => {
+    setupMockTafApi({ trainings: [] });
+    const prevUrl = window.location.href;
+    window.history.replaceState({}, "", "/treinos?trainingId=nao-existe-999");
+
+    try {
+      render(<TreinosPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("toast-notification")).toHaveTextContent(
+          /Treino selecionado não encontrado no diário/i
+        );
+      });
+    } finally {
+      window.history.replaceState({}, "", prevUrl);
+    }
   });
 });
 

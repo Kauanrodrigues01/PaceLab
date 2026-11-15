@@ -6,13 +6,13 @@ Aplicação web completa para **corredores, praticantes de caminhada e candidato
 
 ## ✨ Principais Módulos & Funcionalidades
 
-- **🏠 Dashboard Principal (`/`):** Resumo tático com Quick Pace Widget, contagem regressiva para a prova, índice de prontidão multimodal do TAF e atalhos rápidos.
+- **🏠 Dashboard Principal (`/`):** Resumo tático com Quick Pace Widget, contagem regressiva para a prova, índice de prontidão multimodal do TAF, widget **`WeeklyAdherenceCard`** (aderência ao `Plano_Semanal` com navegação semanal, comparativo contra média móvel de 4 semanas e abertura de detalhes do treino) e atalhos rápidos.
 - **⏱️ Calculadora de Pace (`/calculadora`):** Cálculo de ritmo (`min/km`), velocidade (`km/h`), parciais quilômetro a quilômetro, histórico local e conversão para o Diário de Treinos.
 - **🏅 Simulador TAF 12 min (`/taf`):** Projeção de distância em 12 minutos (Cooper), régua de aprovação alinhada à meta do edital, tática por volta na pista de 400 m e estimativa de VO2 Máx.
 - **⚡ Treino Intervalado (`/intervalado`):** Simulação de aquecimento, tiros, recuperação e desaquecimento com gráfico de perfil de velocidade e modal **Cartão de Pista** de alto contraste.
 - **🎯 Estratégias de Metas (`/metas`):** Planejamento de corrida com ritmo constante, *negative split* e progressivo com projeção de parciais.
 - **📝 Histórico Local (`/historico`) & 📅 Diário de Treinos (`/treinos`):**
-  - Registro de treinos com cálculo calórico pelo **Compêndio de Atividades Físicas 2024 (MET)**, espelhamento automático na planilha Google Sheets (`Log_Treinos`) e botão **"Sincronizar Planilha"** para sincronização bidirecional rápida.
+  - Registro de treinos com cálculo calórico pelo **Compêndio de Atividades Físicas 2024 (MET)**, espelhamento automático na planilha Google Sheets (`Log_Treinos`), reconciliação automática com a aba **`Plano_Semanal`**, widget **`WeeklyAdherenceCard`** integrado (com deep link `?trainingId=` para o modal de detalhes) e botão **"Sincronizar Planilha"** para sincronização bidirecional rápida.
   - **Importação Unificada `.FIT` (Prioritário) + `.GPX` (Complementar/Fallback):**
     - Suporte a upload isolado (`.fit` ou `.gpx`), combinado (`.fit` + `.gpx` do mesmo treino) e **Importação em Massa (Lote)**.
     - **Importação e Preenchimento em Massa:** Envio de múltiplos arquivos simultaneamente (até 50 atividades por lote) com pareamento automático `.FIT + .GPX` de mesmo nome (e opção de desagrupar), **seleção única global** (*Todos como Treinos do Diário* ou *Todos como Simulados TAF*), preenchimento rápido em massa (tipo de treino/local do teste, peso corporal para MET, tênis e RPE), política configurável para duplicados (*Pular* ou *Atualizar existentes*), resiliência a erros parciais com retry apenas dos falhos e **1 único push consolidado** para Google Sheets ao final.
@@ -22,7 +22,7 @@ Aplicação web completa para **corredores, praticantes de caminhada e candidato
     - **Documentação Técnica do Leitor:** Veja [`docs/architecture/01_leitura_fit_gpx_e_divergencias_strava.md`](docs/architecture/01_leitura_fit_gpx_e_divergencias_strava.md) para detalhes sobre cálculo de pausas/movimento e divergências de métricas com o Strava.
 - **📈 Meu TAF (`/meu-taf`):** Histórico completo no banco de dados (PostgreSQL/Supabase via Prisma), recordes pessoais, gráfico de evolução dos 12 minutos, comparador de períodos (14d, 30d, mensal), acompanhamento de exercícios complementares (Barra, Flexão, Abdominal), **Sincronização Bidirecional com Google Sheets (`Treinos_Corrida`)** e **Central de Backup v3 & Exportação CSV** (com neutralização contra Formula Injection).
 - **👤 Perfil do Atleta (`/perfil`):** Dados biométricos, histórico de pesagens, cálculo de zonas metabólicas e configuração da meta do edital com presets rápidos (PMPR, PF, PRF, PMESP, PCERJ), sincronizando automaticamente a aba `Perfil_e_Metas` no Google Sheets.
-- **📘 Documentação Interativa da API (`/docs`):** Swagger UI alimentado dinamicamente pela especificação OpenAPI 3.0 em `/api/docs/spec` (incluindo os contratos de `/api/sync/sheets`).
+- **📘 Documentação Interativa da API (`/docs`):** Swagger UI alimentado dinamicamente pela especificação OpenAPI 3.0 em `/api/docs/spec` (incluindo os contratos de `/api/sync/sheets` e `/api/weekly-plan`).
 
 ---
 
@@ -92,15 +92,21 @@ Acesse [http://localhost:3000](http://localhost:3000) e a documentação da API 
 
 O PaceLab utiliza o **PostgreSQL (Supabase via Prisma)** como banco de dados primário de alta performance e oferece sincronização completa e bidirecional com uma planilha do Google Sheets (**`Treinos_Corrida`**) atuando como espelho vivo e legível por humanos.
 
-### Como a arquitetura de 3 abas funciona
+### Como a arquitetura de 4 abas funciona
 
-Quando a integração está configurada, o motor de sincronização cria e mantém automaticamente os cabeçalhos (sem duplicar linhas) em três abas da planilha:
+Quando a integração está configurada, o motor de sincronização mantém uma arquitetura de até quatro abas na planilha (criando e formatando automaticamente os cabeçalhos das 3 abas principais — sem duplicar linhas — e integrando a aba opcional `Plano_Semanal` quando ela existir):
 
 1. **`Log_Treinos`:** Espelho completo dos treinos registrados no diário (`TrainingSession`), incluindo `ID` (coluna `A`), data, origem (`manual`, `gpx_upload`, `fit_upload`, `sheets`), tipo, distância, tempo em movimento, pace médio, FC média/máx, elevação, cadência, RPE, peso, tênis e observações.
    - *Push (Banco → Sheets):* Faz *upsert* idempotente usando a coluna `ID`.
    - *Pull (Sheets → Banco):* Permite inserir novos treinos diretamente na planilha (o PaceLab cria o registro no PostgreSQL, gera o ID e grava de volta na coluna `ID`) e editar células seguras de treinos existentes sem provocar exclusões em cascata.
 2. **`Simulados_TAF`:** Espelho dos simulados de 12 minutos (`TafAttempt`), contendo as colunas `ID` (coluna `A`), `Data`, `Local`, `Tempo Alvo (s)`, `Tempo Real (s)`, `Distância (m)`, `Pace (min/km)`, `Vel. (km/h)`, `Status Meta` (`Meta Segurança Atingida`, `Aprovado (Mínimo)` ou `Abaixo do Mínimo`) e `Observações`.
 3. **`Perfil_e_Metas`:** Snapshot determinístico em linha única (`A2:I2`) com `Nome`, `Idade`, `Altura (cm)`, `Peso Atual (kg)`, `Edital Alvo`, `Distância Mínima (m)`, `Distância Alvo (m)`, `Tempo Prova (min)` e `Data Prova`, atualizado sem gerar linhas duplicadas.
+4. **`Plano_Semanal` *(opcional)*:** Plano semanal de treinos prescritos (por exemplo, pelo seu Treinador IA) com as 9 colunas **`A..I`**: `ID`, `Data`, `Dia da Semana`, `Tipo`, `Distância Alvo (km)`, `Pace Alvo (min/km)`, `Descrição / Observação`, `Status` (`Planejado`, `Concluído`, `Parcial`, `Perdido`) e `ID Treino Realizado`. Se a aba ainda não existir na planilha, a sincronização segue normalmente sem erro até que você (ou seu Treinador IA) a crie com esse cabeçalho.
+   - *Reconciliação automática em 2 passadas (`America/Fortaleza`):*
+     - **Passada 1 (`D+0`):** vincula treinos livres do mesmo dia com modalidade compatível, aplicando corte mínimo de **40%** da distância alvo antes do ranking (`Concluído` ≥ 85% ou sem meta numérica; `Parcial` entre 40% e 84,9%).
+     - **Passada 2 (`±1 dia`):** vincula treinos realizados no dia anterior ou posterior **apenas** quando o dia do treino realizado não possui outro plano ativo registrado.
+     - Itens não vinculados só recebem `Perdido` quando `Data < ontem`; dias de `Descanso` são preservados; exclusões de treinos desvinculam órfãos e devolvem o item para `Planejado`/`Perdido`.
+   - *Write-back & Visualização (`WeeklyAdherenceCard`):* Atualiza exclusivamente as colunas `H` (`Status`) e `I` (`ID Treino Realizado`) de volta na planilha (preservando `A..G`) e alimenta o widget **`WeeklyAdherenceCard`** em `/` e `/treinos` com navegação semanal, aderência consolidada, média móvel de até 4 semanas com plano, treinos extras e abertura do modal de detalhes.
 
 > **Nota:** Se as variáveis do Google Sheets não estiverem preenchidas, o PaceLab continua funcionando normalmente com o PostgreSQL/Supabase e ignora o espelhamento de forma graciosa.
 
@@ -132,7 +138,7 @@ Quando a integração está configurada, o motor de sincronização cria e mant�
 4. Cole o valor de **`client_email`** da sua Conta de Serviço (encontrado dentro do `.json`, no formato `...@...iam.gserviceaccount.com`).
 5. Defina a permissão como **Editor**, **desmarque** *"Notificar pessoas"* (contas de serviço não recebem e-mails) e confirme o compartilhamento.
 
-> As abas `Log_Treinos`, `Simulados_TAF` e `Perfil_e_Metas` serão criadas e formatadas automaticamente pelo PaceLab na primeira sincronização — você não precisa criar cabeçalhos manualmente.
+> As abas principais `Log_Treinos`, `Simulados_TAF` e `Perfil_e_Metas` serão criadas e formatadas automaticamente pelo PaceLab na primeira sincronização — você não precisa criar cabeçalhos manualmente. Já a aba opcional `Plano_Semanal` pode ser criada manualmente ou pelo seu Treinador IA seguindo o cabeçalho `A..I` descrito acima (caso ela ainda não exista, a sincronização segue normalmente sem erro).
 
 ### Passo 4 — Converter o arquivo `.json` para Base64 em linha única
 
@@ -192,6 +198,7 @@ GOOGLE_CREDENTIALS_BASE64="sua_string_base64_em_linha_unica_aqui"
   - Acompanhe o indicador de configuração (**`Configurada` / `Não configurada`**) e o quadro **Status de Pendências de Envio**;
   - Clique em **"Sincronizar Agora (Bidirecional)"** para enviar pendências ao Sheets e puxar novidades editadas na planilha;
   - Clique em **"Reenviar Histórico Completo (Full Backfill)"** (e confirme no alerta) quando quiser reenviar todos os registros históricos do banco para a planilha de forma idempotente.
-- **API REST (`/api/sync/sheets`):**
+- **API REST (`/api/sync/sheets` e `/api/weekly-plan`):**
   - `GET /api/sync/sheets`: retorna `configured`, `error` (se não configurada) e contagens pendentes (`pendingTrainingsCount`, `pendingAttemptsCount`, `totalPendingCount`) sem expor credenciais;
-  - `POST /api/sync/sheets`: aceita `{ "direction": "bidirectional" | "push" | "pull", "forceFullResync": boolean }` e retorna o relatório completo da sincronização (`syncedAt`, contagens e `warnings`), documentado em `/docs`.
+  - `POST /api/sync/sheets`: aceita `{ "direction": "bidirectional" | "push" | "pull", "forceFullResync": boolean }` e retorna o relatório completo da sincronização (`syncedAt`, contagens incluindo `weeklyPlan` e `warnings`), documentado em `/docs`;
+  - `GET /api/weekly-plan?weekStart=YYYY-MM-DD`: retorna os itens prescritos da semana em `America/Fortaleza`, resumo de aderência, média móvel de até 4 semanas com plano, sessões vinculadas completas e treinos extras fora do plano.

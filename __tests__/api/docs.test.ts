@@ -29,6 +29,7 @@ describe("Documentação Swagger / OpenAPI 3.0 (/api/docs/spec)", () => {
       "/api/profile/weight",
       "/api/profile/weight/{id}",
       "/api/sync/sheets",
+      "/api/weekly-plan",
       "/api/taf/health",
     ];
 
@@ -71,6 +72,9 @@ describe("Documentação Swagger / OpenAPI 3.0 (/api/docs/spec)", () => {
     expect(paths["/api/sync/sheets"]).toHaveProperty("get");
     expect(paths["/api/sync/sheets"]).toHaveProperty("post");
 
+    // Weekly Plan: GET
+    expect(paths["/api/weekly-plan"]).toHaveProperty("get");
+
     // Health: GET
     expect(paths["/api/taf/health"]).toHaveProperty("get");
   });
@@ -89,6 +93,13 @@ describe("Documentação Swagger / OpenAPI 3.0 (/api/docs/spec)", () => {
     expect(schemas).toHaveProperty("SheetsSyncRequest");
     expect(schemas).toHaveProperty("SheetsSyncStatusResponse");
     expect(schemas).toHaveProperty("SheetsSyncReportResponse");
+    expect(schemas).toHaveProperty("WeeklyPlanResponse");
+
+    const sheetsReportProps = (
+      (schemas.SheetsSyncReportResponse.properties as Record<string, Record<string, unknown>>)
+        .data.properties as Record<string, Record<string, unknown>>
+    );
+    expect(sheetsReportProps).toHaveProperty("weeklyPlan");
 
     const trainingProps = schemas.CreateTrainingInput.properties as Record<
       string,
@@ -119,8 +130,12 @@ describe("Documentação Swagger / OpenAPI 3.0 (/api/docs/spec)", () => {
     const trainingPutParams = paths["/api/taf/trainings/{id}"].put.parameters as Array<{
       name: string;
     }>;
+    const trainingDeleteParams = paths["/api/taf/trainings/{id}"].delete.parameters as Array<{
+      name: string;
+    }>;
     expect(attemptPutParams.some((p) => p.name === "skipSheetsSync")).toBe(true);
     expect(trainingPutParams.some((p) => p.name === "skipSheetsSync")).toBe(true);
+    expect(trainingDeleteParams.some((p) => p.name === "skipSheetsSync")).toBe(true);
 
     const healthSchema = schemas.HealthResponse as {
       properties: Record<string, unknown>;

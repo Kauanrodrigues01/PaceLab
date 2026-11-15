@@ -141,6 +141,15 @@ describe("Fase 5 — Endpoint /api/sync/sheets", () => {
       tafPushedAppended: 1,
       tafPushedUpdated: 0,
       profileSynced: true,
+      weeklyPlan: {
+        imported: 4,
+        updated: 1,
+        removed: 0,
+        matched: 2,
+        missed: 1,
+        pushed: 3,
+        sheetMissingOrEmpty: false,
+      },
       skipped: 0,
       warnings: [],
       durationMs: 420,
@@ -191,6 +200,15 @@ describe("Fase 5 — Endpoint /api/sync/sheets", () => {
         forceFullResync: false,
       });
       expect(json.data).toEqual(sampleReport);
+      expect(json.data.weeklyPlan).toEqual({
+        imported: 4,
+        updated: 1,
+        removed: 0,
+        matched: 2,
+        missed: 1,
+        pushed: 3,
+        sheetMissingOrEmpty: false,
+      });
     });
 
     it("repassa direction='push' e forceFullResync=true para backfill completo", async () => {

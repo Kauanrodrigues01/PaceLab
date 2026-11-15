@@ -241,6 +241,7 @@ export default function MeuTafPage() {
         try {
           sessionStorage.setItem(TAF_TRAININGS_CACHE_KEY, JSON.stringify(updated));
           sessionStorage.removeItem(CROSS_PAGE_SHEETS_CACHE_KEYS.trainings);
+          sessionStorage.removeItem(CROSS_PAGE_SHEETS_CACHE_KEYS.weeklyPlan);
         } catch {}
       }
       return updated;

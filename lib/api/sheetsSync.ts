@@ -1,4 +1,8 @@
-import { safeAutoSync, SingleSyncResult } from "@/lib/googleSheets";
+import {
+  reconcileWeeklyPlansWithSessions,
+  safeAutoSync,
+  SingleSyncResult,
+} from "@/lib/googleSheets";
 
 /**
  * Verifica se a requisição solicitou bypass da sincronização automática
@@ -11,6 +15,20 @@ export function shouldSkipSheetsSync(request: Request): boolean {
     return value === "true" || value === "1";
   } catch {
     return false;
+  }
+}
+
+/**
+ * Executa a reconciliação local com `Plano_Semanal` após mutações já comitadas no banco,
+ * isolando eventuais falhas secundárias para não mascarar o sucesso da operação principal.
+ */
+export async function safeReconcileWeeklyPlans(options?: {
+  editedSessionId?: string;
+}): Promise<void> {
+  try {
+    await reconcileWeeklyPlansWithSessions(options);
+  } catch (err) {
+    console.error("[WeeklyPlan] Falha não bloqueante na reconciliação local:", err);
   }
 }
 

@@ -100,4 +100,16 @@ describe("Home Page (Fase 9)", () => {
     expect(screen.getByTestId("athlete-active-status-card")).toBeInTheDocument();
     expect(screen.getByText("Painel do Atleta")).toBeInTheDocument();
   });
+
+  it("renderiza o WeeklyAdherenceCard abaixo do AthleteActiveStatusCard na Home", async () => {
+    await renderHome();
+
+    const activeCard = screen.getByTestId("athlete-active-status-card");
+    const weeklyCard = screen.getByTestId("weekly-adherence-card");
+    expect(weeklyCard).toBeInTheDocument();
+    expect(screen.getByText("Plano Semanal & Aderência")).toBeInTheDocument();
+    expect(
+      activeCard.compareDocumentPosition(weeklyCard) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
 });

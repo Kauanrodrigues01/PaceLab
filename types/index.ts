@@ -502,3 +502,64 @@ export interface BatchImportSummary {
   aborted?: boolean;
 }
 
+// ─── Plano Semanal & Aderência ──────────────────────────────────────────────
+export type WeeklyPlanStatus = "Planejado" | "Concluído" | "Parcial" | "Perdido";
+
+export interface WeeklyPlanItemDto {
+  id: string;
+  planExternalId: string;
+  plannedDate: string; // YYYY-MM-DD (America/Fortaleza) ou ISO
+  dayOfWeek: string;
+  activityType: string;
+  isRestDay: boolean;
+  targetDistanceKm: number | null;
+  targetPaceFormatted: string | null;
+  description: string | null;
+  status: WeeklyPlanStatus;
+  matchedSessionId: string | null;
+  matchedSession: TrainingSession | null;
+}
+
+export interface WeeklyPlanAdherenceSummaryDto {
+  totalPlanned: number;
+  completed: number;
+  partial: number;
+  planned: number;
+  missed: number;
+  adherencePercent: number | null;
+}
+
+export interface WeeklyPlanRollingWeekDto {
+  weekStart: string;
+  weekEnd: string;
+  label: string;
+  adherencePercent: number;
+  completed: number;
+  partial: number;
+  totalPlanned: number;
+}
+
+export interface WeeklyPlanRollingAverageDto {
+  averagePercent: number | null;
+  weeksCount: number;
+  weeks: WeeklyPlanRollingWeekDto[];
+}
+
+export interface WeeklyPlanExtraSummaryDto {
+  count: number;
+  totalDistanceKm: number;
+}
+
+export interface WeeklyPlanData {
+  weekStart: string;
+  weekEnd: string;
+  weekLabel: string;
+  isCurrentWeek: boolean;
+  hasNextPlannedWeek: boolean;
+  items: WeeklyPlanItemDto[];
+  summary: WeeklyPlanAdherenceSummaryDto;
+  rollingFourWeeksAverage: WeeklyPlanRollingAverageDto;
+  extraSessions: TrainingSession[];
+  extraSummary: WeeklyPlanExtraSummaryDto;
+}
+

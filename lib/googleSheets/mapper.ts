@@ -1,8 +1,17 @@
 import { formatPace, parseTime } from "@/lib/formatting/time";
+import { WeeklyPlanStatus } from "@/lib/googleSheets/types";
 import { calculateAge } from "@/lib/math/cooper";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import {
-  ACTIVITY_LABELS,
+  ACTIVITY_ALIAS_MAP,
+  getFortalezaWeekdayLabel,
+  isRestPlanActivity,
+  normalizeActivityLookupKey,
+  normalizePlanActivityType,
+  normalizeWeeklyPlanStatus,
+  toFortalezaDateKey,
+} from "@/lib/math/weeklyAdherence";
+import {
   ACTIVITY_SOURCES,
   ACTIVITY_TYPES,
   ActivitySource,
@@ -15,6 +24,7 @@ export const SHEET_TABS = {
   LOG_TREINOS: "Log_Treinos",
   SIMULADOS_TAF: "Simulados_TAF",
   PERFIL_E_METAS: "Perfil_e_Metas",
+  PLANO_SEMANAL: "Plano_Semanal",
 } as const;
 
 export const SHEET_RANGES = {
@@ -26,6 +36,9 @@ export const SHEET_RANGES = {
   SIMULADOS_TAF_IDS: `${SHEET_TABS.SIMULADOS_TAF}!A2:A`,
   PERFIL_E_METAS_ALL: `${SHEET_TABS.PERFIL_E_METAS}!A1:I2`,
   PERFIL_E_METAS_ROW: `${SHEET_TABS.PERFIL_E_METAS}!A2:I2`,
+  PLANO_SEMANAL_ALL: `${SHEET_TABS.PLANO_SEMANAL}!A1:I`,
+  PLANO_SEMANAL_DATA: `${SHEET_TABS.PLANO_SEMANAL}!A2:I`,
+  PLANO_SEMANAL_IDS: `${SHEET_TABS.PLANO_SEMANAL}!A2:A`,
 } as const;
 
 export const SHEET_HEADERS = {
@@ -68,6 +81,17 @@ export const SHEET_HEADERS = {
     "Distância Alvo (m)",
     "Tempo Prova (min)",
     "Data Prova",
+  ],
+  PLANO_SEMANAL: [
+    "ID",
+    "Data",
+    "Dia da Semana",
+    "Tipo",
+    "Distância Alvo (km)",
+    "Pace Alvo (min/km)",
+    "Descrição / Observação",
+    "Status",
+    "ID Treino Realizado",
   ],
 } as const;
 
@@ -174,67 +198,38 @@ export type ParsedRowResult<T> =
   | { valid: true; data: T; warnings: string[] }
   | { valid: false; warning: string };
 
-const FORTALEZA_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "America/Fortaleza",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
+export interface ParsedWeeklyPlanSheetRow {
+  rowNumber: number;
+  planExternalId: string;
+  plannedDate: Date;
+  dayOfWeek: string;
+  activityType: string;
+  targetDistanceKm: number | null;
+  targetPaceFormatted: string | null;
+  description: string | null;
+  status: WeeklyPlanStatus;
+  matchedSessionId: string | null;
+}
+
+export type ParsedWeeklyPlanRowResult =
+  | { valid: true; kind: "item"; data: ParsedWeeklyPlanSheetRow; warnings: string[] }
+  | { valid: true; kind: "rest"; planExternalId: string | null; rawActivityType: string }
+  | { valid: false; warning: string };
 
 const FORMULA_TRIGGER_REGEX = /^[=+\-@\t\r]/;
 const VALID_SOURCES_SET = new Set<string>(ACTIVITY_SOURCES);
 const VALID_ACTIVITIES_SET = new Set<string>(ACTIVITY_TYPES);
 
-function normalizeLookupKey(raw: string): string {
-  return raw
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[\s/_-]+/g, "_");
-}
-
-const ACTIVITY_ALIAS_MAP: Record<string, ActivityType> = {
-  ...Object.fromEntries(ACTIVITY_TYPES.map((type) => [normalizeLookupKey(type), type])),
-  ...Object.fromEntries(
-    Object.entries(ACTIVITY_LABELS).map(([type, label]) => [
-      normalizeLookupKey(label),
-      type as ActivityType,
-    ])
-  ),
-  rodagem: "rodagem_leve",
-  leve: "rodagem_leve",
-  regenerativo: "rodagem_leve",
-  easy: "rodagem_leve",
-  easy_run: "rodagem_leve",
-  corrida: "corrida_continua",
-  continua: "corrida_continua",
-  continuo: "corrida_continua",
-  run: "corrida_continua",
-  tempo: "tempo_run",
-  ritmo: "tempo_run",
-  teste_taf: "tempo_run",
-  simulado_taf: "tempo_run",
-  taf: "tempo_run",
-  intervalado: "corrida_intervalada",
-  intervalada: "corrida_intervalada",
-  tiros: "corrida_intervalada",
-  fartlek: "corrida_intervalada",
-  longo: "longao",
-  long_run: "longao",
-  walk: "caminhada",
-};
-
 const LOCATION_ALIAS_MAP: Record<string, LocationType> = {
   ...Object.fromEntries(
     Object.keys(LOCATION_LABELS).map((loc) => [
-      normalizeLookupKey(loc),
+      normalizeActivityLookupKey(loc),
       loc as LocationType,
     ])
   ),
   ...Object.fromEntries(
     Object.entries(LOCATION_LABELS).map(([loc, label]) => [
-      normalizeLookupKey(label),
+      normalizeActivityLookupKey(label),
       loc as LocationType,
     ])
   ),
@@ -279,27 +274,7 @@ function isUtcMidnightDate(date: Date): boolean {
  * Formata uma data no fuso `America/Fortaleza` (`YYYY-MM-DD`).
  */
 export function formatDateFortaleza(dateInput: Date | string | null | undefined): string {
-  if (dateInput === null || dateInput === undefined) return "";
-
-  if (typeof dateInput === "string") {
-    const trimmed = dateInput.trim();
-    if (!trimmed) return "";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      return trimmed;
-    }
-  }
-
-  const parsed = dateInput instanceof Date ? dateInput : new Date(dateInput);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-
-  const parts = FORTALEZA_DATE_FORMATTER.formatToParts(parsed);
-  const year = parts.find((p) => p.type === "year")?.value;
-  const month = parts.find((p) => p.type === "month")?.value;
-  const day = parts.find((p) => p.type === "day")?.value;
-
-  return year && month && day ? `${year}-${month}-${day}` : "";
+  return toFortalezaDateKey(dateInput);
 }
 
 function formatCalendarDateForSheet(dateInput: Date | string | null | undefined): string {
@@ -663,13 +638,54 @@ export function normalizeSheetActivityType(value: unknown): {
     return { activityType: raw as ActivityType, matched: true, raw };
   }
 
-  const key = normalizeLookupKey(raw);
+  const key = normalizeActivityLookupKey(raw);
   const mapped = ACTIVITY_ALIAS_MAP[key];
   if (mapped) {
     return { activityType: mapped, matched: true, raw };
   }
 
   return { activityType: "corrida_continua", matched: false, raw };
+}
+
+/**
+ * Normaliza `Pace Alvo (min/km)` vindo da aba `Plano_Semanal!F`.
+ * Remove apóstrofo inicial e sufixos (`/km`, `min/km`), corrige `:00` via `parseSheetPaceFormatted`
+ * e preserva faixas como `"5:45-6:00"` ou `"5:45–6:00"`.
+ */
+export function parseWeeklyPlanTargetPace(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+
+  const cleaned = stripLeadingApostrophe(value.trim())
+    .trim()
+    .replace(/\s*(?:min\s*\/\s*km|\/\s*km)/gi, "")
+    .trim();
+
+  if (!cleaned) return null;
+
+  const lower = cleaned.toLowerCase();
+  if (lower === "-" || lower === "--" || lower === "—" || lower === "n/a" || lower === "na") {
+    return null;
+  }
+
+  const single = parseSheetPaceFormatted(cleaned);
+  if (single) {
+    return single;
+  }
+
+  const rangeMatch =
+    /^(\d{1,2}:\d{2}(?::00)?)\s*([-–—]|a|até)\s*(\d{1,2}:\d{2}(?::00)?)$/i.exec(cleaned);
+  if (rangeMatch) {
+    const start = parseSheetPaceFormatted(rangeMatch[1]);
+    const end = parseSheetPaceFormatted(rangeMatch[3]);
+    if (!start || !end) {
+      return null;
+    }
+    const rawSep = rangeMatch[2].toLowerCase();
+    const sep = rawSep === "-" ? "-" : "–";
+    return `${start}${sep}${end}`;
+  }
+
+  return null;
 }
 
 /**
@@ -691,7 +707,7 @@ export function normalizeSheetLocationType(value: unknown): LocationType | null 
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  return LOCATION_ALIAS_MAP[normalizeLookupKey(trimmed)] ?? null;
+  return LOCATION_ALIAS_MAP[normalizeActivityLookupKey(trimmed)] ?? null;
 }
 
 function parseBoundedMetric(
@@ -1006,4 +1022,107 @@ export function hasProfileGoalRowDivergence(
   }
 
   return false;
+}
+
+/**
+ * Faz o parse e normalização de uma linha da aba `Plano_Semanal!A2:I`.
+ * Linhas de descanso (`Descanso`, `Off`, `Rest`, `Folga`) são sinalizadas com `kind: "rest"`
+ * para serem ignoradas sem warnings espúrios nem contabilização como `"Perdido"`.
+ */
+export function parseWeeklyPlanRowFromSheet(
+  row: unknown[],
+  rowNumber: number
+): ParsedWeeklyPlanRowResult {
+  if (isRestPlanActivity(row[3])) {
+    return {
+      valid: true,
+      kind: "rest",
+      planExternalId: normalizeIdCell(row[0]),
+      rawActivityType: String(row[3] ?? "").trim(),
+    };
+  }
+
+  const planExternalId = normalizeIdCell(row[0]);
+  if (!planExternalId) {
+    return {
+      valid: false,
+      warning: `Linha ${rowNumber} (Plano_Semanal): ID ausente.`,
+    };
+  }
+
+  const plannedDate = parseSheetDate(row[1]);
+  if (!plannedDate) {
+    return {
+      valid: false,
+      warning: `Linha ${rowNumber} (Plano_Semanal): Data inválida ou ausente.`,
+    };
+  }
+
+  const warnings: string[] = [];
+  const dayOfWeek =
+    unsanitizeSheetText(row[2], 30) ?? getFortalezaWeekdayLabel(plannedDate);
+
+  const rawType = unsanitizeSheetText(row[3], 60);
+  let activityType = "corrida_continua";
+  if (!rawType) {
+    warnings.push(
+      `Linha ${rowNumber} (Plano_Semanal): Tipo ausente, assumido "corrida_continua".`
+    );
+  } else {
+    const normalized = normalizePlanActivityType(rawType);
+    if (normalized) {
+      activityType = normalized;
+    } else {
+      activityType = rawType;
+      warnings.push(
+        `Linha ${rowNumber} (Plano_Semanal): Tipo "${rawType}" não corresponde a alias padrão de corrida/caminhada.`
+      );
+    }
+  }
+
+  const rawDistText =
+    row[4] === null || row[4] === undefined
+      ? ""
+      : stripLeadingApostrophe(String(row[4]).trim()).trim();
+  const rawDistLower = rawDistText.toLowerCase();
+  const isNeutralDistPlaceholder =
+    rawDistText === "" ||
+    rawDistLower === "-" ||
+    rawDistLower === "--" ||
+    rawDistLower === "—" ||
+    rawDistLower === "n/a" ||
+    rawDistLower === "na" ||
+    rawDistLower === "tempo";
+
+  const parsedDist = parseSheetNumber(rawDistText);
+  let targetDistanceKm: number | null = null;
+  if (parsedDist !== null && parsedDist > 0) {
+    targetDistanceKm = Number(parsedDist.toFixed(3));
+  } else if (parsedDist !== null && parsedDist < 0) {
+    warnings.push(
+      `Linha ${rowNumber} (Plano_Semanal): Distância Alvo inválida (${rawDistText}), tratada como treino por tempo.`
+    );
+  } else if (parsedDist === null && !isNeutralDistPlaceholder) {
+    warnings.push(
+      `Linha ${rowNumber} (Plano_Semanal): Distância Alvo inválida (${rawDistText}), tratada como treino por tempo.`
+    );
+  }
+
+  return {
+    valid: true,
+    kind: "item",
+    warnings,
+    data: {
+      rowNumber,
+      planExternalId,
+      plannedDate,
+      dayOfWeek,
+      activityType,
+      targetDistanceKm,
+      targetPaceFormatted: parseWeeklyPlanTargetPace(row[5]),
+      description: unsanitizeSheetText(row[6], 500),
+      status: normalizeWeeklyPlanStatus(row[7]),
+      matchedSessionId: normalizeIdCell(row[8]),
+    },
+  };
 }

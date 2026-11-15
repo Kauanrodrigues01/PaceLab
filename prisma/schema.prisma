@@ -142,11 +142,14 @@ model TrainingSession {
   totalCalories         Float?         @map("total_calories")
   metValue              Float?         @map("met_value")
   calorieMethod         String?        @map("calorie_method")
-  calorieSource         String?        @map("calorie_source")
-  calorieMetadata       Json?          @map("calorie_metadata")
+  calorieSource         String?         @map("calorie_source")
+  calorieMetadata       Json?           @map("calorie_metadata")
 
-  createdAt             DateTime       @default(now()) @map("created_at")
-  updatedAt             DateTime       @updatedAt @map("updated_at")
+  // ─── Relação com Plano Semanal (Google Sheets / IA) ───
+  weeklyPlanItem        WeeklyPlanItem?
+
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
 
   @@index([userId, sessionDate(sort: Desc)])
   @@index([userId, activityType])
@@ -182,5 +185,26 @@ model WeightRecord {
 
   @@index([profileId, recordedAt(sort: Desc)])
   @@map("weight_records")
+}
+
+// 6. Plano Semanal Prescrito (Google Sheets / IA)
+model WeeklyPlanItem {
+  id                  String           @id @default(uuid())
+  userId              String?          @map("user_id")
+  planExternalId      String           @unique @map("plan_external_id")
+  plannedDate         DateTime         @map("planned_date")
+  dayOfWeek           String           @map("day_of_week")
+  activityType        String           @map("activity_type")
+  targetDistanceKm    Float?           @map("target_distance_km")
+  targetPaceFormatted String?          @map("target_pace_formatted")
+  description         String?          @map("description")
+  status              String           @default("Planejado") @map("status")
+  matchedSessionId    String?          @unique @map("matched_session_id")
+  matchedSession      TrainingSession? @relation(fields: [matchedSessionId], references: [id], onDelete: SetNull)
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  @@index([plannedDate])
+  @@map("weekly_plan_items")
 }
 

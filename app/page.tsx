@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { AthleteActiveStatusCard } from "@/components/home/AthleteActiveStatusCard";
 import { QuickPaceWidget } from "@/components/home/QuickPaceWidget";
+import { WeeklyAdherenceCard } from "@/components/dashboard/WeeklyAdherenceCard";
 
 export default function Home() {
   const tools = [
@@ -115,6 +116,9 @@ export default function Home() {
 
       {/* Card de Status Ativo do Atleta (TAF, Peso, Calorias e Prova) */}
       <AthleteActiveStatusCard />
+
+      {/* Plano Semanal & Aderência */}
+      <WeeklyAdherenceCard />
 
       {/* Card Especial de Destaque do Meu TAF (Fase G) */}
       <div

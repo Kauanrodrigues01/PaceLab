@@ -1085,4 +1085,114 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
       );
     });
   });
+
+  describe("Plano Semanal & Busca Direta de Treino", () => {
+    it("getTrainingById consulta /api/taf/trainings/{id} e propaga TafApiError 404", async () => {
+      const sampleTraining: TrainingSession = {
+        id: "trn-direct-1",
+        sessionDate: "2026-10-12T08:00:00Z",
+        activityType: "rodagem_leve",
+        distanceKm: 6,
+        durationSeconds: 2100,
+        speedKmh: 10.29,
+        paceSeconds: 350,
+        paceFormatted: "5:50",
+        createdAt: "2026-10-12T08:00:00Z",
+        updatedAt: "2026-10-12T08:00:00Z",
+      };
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: sampleTraining }),
+      });
+
+      const found = await tafService.getTrainingById("trn-direct-1");
+      expect(found.id).toBe("trn-direct-1");
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/taf/trainings/trn-direct-1",
+        expect.objectContaining({ cache: "no-store" })
+      );
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({
+          success: false,
+          error: "Treino não encontrado no banco de dados",
+        }),
+      });
+
+      await expect(tafService.getTrainingById("nao-existe")).rejects.toMatchObject({
+        name: "TafApiError",
+        status: 404,
+      });
+    });
+
+    it("getWeeklyPlan consulta /api/weekly-plan com e sem weekStart", async () => {
+      const weeklyPayload = {
+        weekStart: "2026-10-12",
+        weekEnd: "2026-10-18",
+        weekLabel: "12/10 a 18/10",
+        isCurrentWeek: false,
+        hasNextPlannedWeek: true,
+        items: [],
+        summary: {
+          totalPlanned: 0,
+          completed: 0,
+          partial: 0,
+          planned: 0,
+          missed: 0,
+          adherencePercent: null,
+        },
+        rollingFourWeeksAverage: {
+          averagePercent: null,
+          weeksCount: 0,
+          weeks: [],
+        },
+        extraSessions: [],
+        extraSummary: { count: 0, totalDistanceKm: 0 },
+      };
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ success: true, data: weeklyPayload }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ success: true, data: weeklyPayload }),
+        });
+
+      await tafService.getWeeklyPlan();
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/weekly-plan",
+        expect.objectContaining({ cache: "no-store" })
+      );
+
+      const data = await tafService.getWeeklyPlan("2026-10-12");
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        2,
+        "/api/weekly-plan?weekStart=2026-10-12",
+        expect.objectContaining({ cache: "no-store" })
+      );
+      expect(data.weekStart).toBe("2026-10-12");
+      expect(data.hasNextPlannedWeek).toBe(true);
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          success: false,
+          error: "Dados inválidos",
+        }),
+      });
+
+      await expect(tafService.getWeeklyPlan("invalida")).rejects.toMatchObject({
+        name: "TafApiError",
+        status: 400,
+      });
+    });
+  });
 });

@@ -24,6 +24,9 @@ vi.mock("@/lib/prisma", () => ({
       delete: vi.fn(),
       upsert: vi.fn(),
     },
+    weeklyPlanItem: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 

@@ -2,6 +2,31 @@ import { z } from "zod";
 
 // ─── Enums & Sub-schemas ───────────────────────────────────────────────────────
 
+function isValidCalendarDateString(value: string): boolean {
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return false;
+  const [year, month, day] = trimmed.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
+function isValidDateInput(val: string | Date): boolean {
+  if (val instanceof Date) {
+    return !Number.isNaN(val.getTime());
+  }
+  const trimmed = val.trim();
+  if (!trimmed) return true;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return isValidCalendarDateString(trimmed);
+  }
+  const parsed = new Date(trimmed);
+  return !Number.isNaN(parsed.getTime());
+}
+
 const SyncedToSheetsAtSchema = z
   .union([z.string(), z.date()])
   .nullable()
@@ -9,8 +34,7 @@ const SyncedToSheetsAtSchema = z
   .refine(
     (val) => {
       if (val === undefined || val === null || val === "") return true;
-      const d = val instanceof Date ? val : new Date(val);
-      return !Number.isNaN(d.getTime());
+      return isValidDateInput(val);
     },
     { message: "Data de sincronização inválida" }
   )
@@ -19,6 +43,26 @@ const SyncedToSheetsAtSchema = z
     if (val === null || val === "") return null;
     return (val instanceof Date ? val : new Date(val)).toISOString();
   });
+
+function createDefaultIsoDateSchema(errorMessage: string) {
+  return z
+    .union([z.string(), z.date()])
+    .optional()
+    .refine(
+      (val) => {
+        if (val === undefined) return true;
+        if (typeof val === "string" && val.trim() === "") return true;
+        return isValidDateInput(val);
+      },
+      { message: errorMessage }
+    )
+    .transform((val) => {
+      if (!val || (typeof val === "string" && val.trim() === "")) {
+        return new Date().toISOString();
+      }
+      return (val instanceof Date ? val : new Date(val.trim())).toISOString();
+    });
+}
 
 export const ActivityTypeEnum = z.enum(
   [
@@ -252,10 +296,7 @@ const CreateTafAttemptBaseSchema = z.object({
     .optional(),
   syncedToSheetsAt: SyncedToSheetsAtSchema,
   onDuplicate: DuplicatePolicyEnum.optional(),
-  testDate: z
-    .union([z.string(), z.date()])
-    .optional()
-    .transform((val) => (val ? new Date(val).toISOString() : new Date().toISOString())),
+  testDate: createDefaultIsoDateSchema("Data do simulado inválida"),
   targetDurationSeconds: z.coerce
     .number()
     .int()
@@ -337,7 +378,11 @@ export const UpdateTafAttemptSchema = CreateTafAttemptBaseSchema.omit({
 // ─── Diário de Treinos (TrainingSession) ────────────────────────────────────────
 
 const CreateTrainingSessionBaseSchema = z.object({
-  id: z.string().optional(),
+  id: z
+    .string()
+    .trim()
+    .optional()
+    .transform((val) => (val && val.length > 0 ? val : undefined)),
   userId: z.string().nullable().optional(),
   source: ActivitySourceEnum.optional().default("manual"),
   externalId: z
@@ -349,10 +394,7 @@ const CreateTrainingSessionBaseSchema = z.object({
     .optional(),
   syncedToSheetsAt: SyncedToSheetsAtSchema,
   onDuplicate: DuplicatePolicyEnum.optional(),
-  sessionDate: z
-    .union([z.string(), z.date()])
-    .optional()
-    .transform((val) => (val ? new Date(val).toISOString() : new Date().toISOString())),
+  sessionDate: createDefaultIsoDateSchema("Data da sessão inválida"),
   activityType: ActivityTypeEnum.default("corrida_continua"),
   distanceKm: z.coerce
     .number()
@@ -497,7 +539,18 @@ export const UserProfileInputSchema = z.object({
     .union([z.string(), z.date()])
     .nullable()
     .optional()
-    .transform((val) => (val ? new Date(val).toISOString() : null)),
+    .refine(
+      (val) => {
+        if (val === undefined || val === null || val === "") return true;
+        return isValidDateInput(val);
+      },
+      { message: "Data de nascimento inválida" }
+    )
+    .transform((val) => {
+      if (val === undefined) return undefined;
+      if (val === null || val === "") return null;
+      return (val instanceof Date ? val : new Date(val)).toISOString();
+    }),
   gender: z.enum(["masculino", "feminino", "outro"]).nullable().optional(),
 });
 
@@ -512,10 +565,7 @@ export const CreateWeightRecordSchema = z.object({
     .number()
     .min(30, "O peso corporal informado deve ser de no mínimo 30 kg")
     .max(250, "O peso corporal informado não pode ultrapassar 250 kg"),
-  recordedAt: z
-    .union([z.string(), z.date()])
-    .optional()
-    .transform((val) => (val ? new Date(val).toISOString() : new Date().toISOString())),
+  recordedAt: createDefaultIsoDateSchema("Data da pesagem inválida"),
   notes: z
     .string()
     .trim()
@@ -536,6 +586,18 @@ export const PaginationQuerySchema = z.object({
     .default(50),
   cursor: z.string().trim().min(1).optional(),
   activityType: ActivityTypeEnum.optional(),
+});
+
+export const WeeklyPlanQuerySchema = z.object({
+  weekStart: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "weekStart deve estar no formato YYYY-MM-DD")
+    .refine(
+      isValidCalendarDateString,
+      "weekStart deve representar uma data real válida no calendário"
+    )
+    .optional(),
 });
 
 // ─── Sincronização Google Sheets ───────────────────────────────────────────────
@@ -587,3 +649,4 @@ export type UpdateUserProfileInput = z.infer<typeof UpdateUserProfileSchema>;
 export type CreateWeightRecordInput = z.infer<typeof CreateWeightRecordSchema>;
 export type PaginationQueryInput = z.infer<typeof PaginationQuerySchema>;
 export type SheetsSyncRequestInput = z.infer<typeof SheetsSyncRequestSchema>;
+export type WeeklyPlanQueryInput = z.infer<typeof WeeklyPlanQuerySchema>;

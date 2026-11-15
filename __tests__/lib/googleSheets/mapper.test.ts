@@ -21,6 +21,8 @@ import {
   normalizeSheetLocationType,
   parseTrainingRowFromSheet,
   parseTafAttemptRowFromSheet,
+  parseWeeklyPlanTargetPace,
+  parseWeeklyPlanRowFromSheet,
   hasTrainingRowDivergence,
   hasTafAttemptRowDivergence,
   hasProfileGoalRowDivergence,
@@ -32,18 +34,22 @@ describe("Google Sheets Mapper Bidirecional (lib/googleSheets/mapper.ts)", () =>
   });
 
   describe("Contratos de Abas e Cabeçalhos", () => {
-    it("define exatamente as 3 abas, ranges e cabeçalhos oficiais", () => {
+    it("define exatamente as 4 abas, ranges e cabeçalhos oficiais", () => {
       expect(SHEET_TABS).toEqual({
         LOG_TREINOS: "Log_Treinos",
         SIMULADOS_TAF: "Simulados_TAF",
         PERFIL_E_METAS: "Perfil_e_Metas",
+        PLANO_SEMANAL: "Plano_Semanal",
       });
       expect(SHEET_RANGES.LOG_TREINOS_DATA).toBe("Log_Treinos!A:O");
       expect(SHEET_RANGES.SIMULADOS_TAF_DATA).toBe("Simulados_TAF!A:J");
       expect(SHEET_RANGES.PERFIL_E_METAS_ROW).toBe("Perfil_e_Metas!A2:I2");
+      expect(SHEET_RANGES.PLANO_SEMANAL_DATA).toBe("Plano_Semanal!A2:I");
+      expect(SHEET_RANGES.PLANO_SEMANAL_ALL).toBe("Plano_Semanal!A1:I");
       expect(SHEET_HEADERS.LOG_TREINOS).toHaveLength(15);
       expect(SHEET_HEADERS.SIMULADOS_TAF).toHaveLength(10);
       expect(SHEET_HEADERS.PERFIL_E_METAS).toHaveLength(9);
+      expect(SHEET_HEADERS.PLANO_SEMANAL).toHaveLength(9);
     });
   });
 
@@ -362,6 +368,16 @@ describe("Google Sheets Mapper Bidirecional (lib/googleSheets/mapper.ts)", () =>
         activityType: "corrida_intervalada",
         matched: true,
         raw: "Intervalado / Tiros",
+      });
+      expect(normalizeSheetActivityType("tiro")).toEqual({
+        activityType: "corrida_intervalada",
+        matched: true,
+        raw: "tiro",
+      });
+      expect(normalizeSheetActivityType("esteira")).toEqual({
+        activityType: "corrida_continua",
+        matched: true,
+        raw: "esteira",
       });
       expect(normalizeSheetActivityType("Modalidade Desconhecida")).toEqual({
         activityType: "corrida_continua",
@@ -741,6 +757,178 @@ describe("Google Sheets Mapper Bidirecional (lib/googleSheets/mapper.ts)", () =>
           expectedNoDate
         )
       ).toBe(false);
+    });
+  });
+
+  describe("Plano_Semanal (A2:I) — Parsers pt-BR, Pace Alvo e Linhas de Descanso", () => {
+    it("faz parse tolerante de números pt-BR e en-US e pace alvo (simples, :00 e faixas)", () => {
+      expect(parseSheetNumber("5,0")).toBe(5);
+      expect(parseSheetNumber("5,0 km")).toBe(5);
+      expect(parseSheetNumber("1.200,5")).toBe(1200.5);
+      expect(parseSheetNumber("")).toBeNull();
+      expect(parseSheetNumber("invalido")).toBeNull();
+
+      expect(parseWeeklyPlanTargetPace(" '5:45-6:00 ")).toBe("5:45-6:00");
+      expect(parseWeeklyPlanTargetPace("'5:45–6:00 /km")).toBe("5:45–6:00");
+      expect(parseWeeklyPlanTargetPace("5:45/km - 6:00/km")).toBe("5:45-6:00");
+      expect(parseWeeklyPlanTargetPace("05:45:00 - 06:00:00 min/km")).toBe("5:45-6:00");
+      expect(parseWeeklyPlanTargetPace("5:45 a 6:00")).toBe("5:45–6:00");
+      expect(parseWeeklyPlanTargetPace("'05:50:00 /km")).toBe("5:50");
+      expect(parseWeeklyPlanTargetPace("05:13")).toBe("5:13");
+      expect(parseWeeklyPlanTargetPace("")).toBeNull();
+      expect(parseWeeklyPlanTargetPace("-")).toBeNull();
+      expect(parseWeeklyPlanTargetPace("—")).toBeNull();
+      expect(parseWeeklyPlanTargetPace("99:99")).toBeNull();
+      expect(parseWeeklyPlanTargetPace("5:45-99:99")).toBeNull();
+      expect(parseWeeklyPlanTargetPace("invalido")).toBeNull();
+      expect(parseWeeklyPlanTargetPace(null)).toBeNull();
+    });
+
+    it("faz parse de linha válida da aba Plano_Semanal com fallback de dia da semana e unidades pt-BR", () => {
+      const res = parseWeeklyPlanRowFromSheet(
+        [
+          "PLAN-2026-11-16-1",
+          "16/11/2026",
+          "",
+          "tiro",
+          "5,0 km",
+          " '4:30-4:45 ",
+          "6x400m na pista",
+          "",
+          "",
+        ],
+        2
+      );
+
+      expect(res.valid).toBe(true);
+      if (res.valid && res.kind === "item") {
+        expect(res.warnings).toEqual([]);
+        expect(res.data.planExternalId).toBe("PLAN-2026-11-16-1");
+        expect(res.data.plannedDate.toISOString()).toBe("2026-11-16T12:00:00.000Z");
+        expect(res.data.dayOfWeek).toBe("Segunda");
+        expect(res.data.activityType).toBe("corrida_intervalada");
+        expect(res.data.targetDistanceKm).toBe(5);
+        expect(res.data.targetPaceFormatted).toBe("4:30-4:45");
+        expect(res.data.description).toBe("6x400m na pista");
+        expect(res.data.status).toBe("Planejado");
+        expect(res.data.matchedSessionId).toBeNull();
+      }
+
+      const bigAndTimeOnly = parseWeeklyPlanRowFromSheet(
+        [
+          "PLAN-2026-11-17-2",
+          "2026-11-17",
+          "Terça",
+          "esteira",
+          "1.200,5",
+          "05:50:00",
+          "Treino longo",
+          "concluido",
+          "sess-1",
+        ],
+        3
+      );
+      expect(bigAndTimeOnly.valid).toBe(true);
+      if (bigAndTimeOnly.valid && bigAndTimeOnly.kind === "item") {
+        expect(bigAndTimeOnly.data.activityType).toBe("corrida_continua");
+        expect(bigAndTimeOnly.data.targetDistanceKm).toBe(1200.5);
+        expect(bigAndTimeOnly.data.targetPaceFormatted).toBe("5:50");
+        expect(bigAndTimeOnly.data.status).toBe("Concluído");
+        expect(bigAndTimeOnly.data.matchedSessionId).toBe("sess-1");
+      }
+
+      const timeOnly = parseWeeklyPlanRowFromSheet(
+        ["PLAN-2026-11-18-3", "2026-11-18", "Quarta", "rodagem_leve", "0", "", "30 min Z2"],
+        4
+      );
+      expect(timeOnly.valid).toBe(true);
+      if (timeOnly.valid && timeOnly.kind === "item") {
+        expect(timeOnly.warnings).toEqual([]);
+        expect(timeOnly.data.targetDistanceKm).toBeNull();
+        expect(timeOnly.data.targetPaceFormatted).toBeNull();
+      }
+    });
+
+    it("ignora linhas de descanso (Descanso / Off / Rest / Folga) sem warnings espúrios", () => {
+      for (const label of ["Descanso", "OFF", "Rest", "folga", "Dia de Descanso"]) {
+        const res = parseWeeklyPlanRowFromSheet(
+          ["PLAN-2026-11-22-7", "22/11/2026", "Domingo", label, "-", "", "Recuperação"],
+          8
+        );
+        expect(res).toEqual({
+          valid: true,
+          kind: "rest",
+          planExternalId: "PLAN-2026-11-22-7",
+          rawActivityType: label,
+        });
+      }
+
+      const restWithoutId = parseWeeklyPlanRowFromSheet(["", "2026-11-22", "", "Descanso"], 9);
+      expect(restWithoutId.valid).toBe(true);
+      if (restWithoutId.valid) {
+        expect(restWithoutId.kind).toBe("rest");
+      }
+    });
+
+    it("gera warning estruturado para linhas sem ID ou sem Data válida e tolera distância/tipo incomuns", () => {
+      const noId = parseWeeklyPlanRowFromSheet(["", "2026-11-16", "Segunda", "rodagem_leve", "5"], 2);
+      expect(noId).toEqual({
+        valid: false,
+        warning: "Linha 2 (Plano_Semanal): ID ausente.",
+      });
+
+      const badDate = parseWeeklyPlanRowFromSheet(["PLAN-X", "31/02/2026", "Segunda", "rodagem_leve"], 3);
+      expect(badDate).toEqual({
+        valid: false,
+        warning: "Linha 3 (Plano_Semanal): Data inválida ou ausente.",
+      });
+
+      const customWithBadDist = parseWeeklyPlanRowFromSheet(
+        ["PLAN-CUSTOM", "2026-11-19", "Quinta", "Subida Técnica", "abc", "", "Rampa"],
+        5
+      );
+      expect(customWithBadDist.valid).toBe(true);
+      if (customWithBadDist.valid && customWithBadDist.kind === "item") {
+        expect(customWithBadDist.data.activityType).toBe("Subida Técnica");
+        expect(customWithBadDist.data.targetDistanceKm).toBeNull();
+        expect(customWithBadDist.warnings).toHaveLength(2);
+      }
+
+      const emptyType = parseWeeklyPlanRowFromSheet(["PLAN-EMPTY", "2026-11-20", "", "", "5"], 6);
+      expect(emptyType.valid).toBe(true);
+      if (emptyType.valid && emptyType.kind === "item") {
+        expect(emptyType.data.activityType).toBe("corrida_continua");
+        expect(emptyType.data.dayOfWeek).toBe("Sexta");
+        expect(emptyType.warnings).toHaveLength(1);
+      }
+
+      // Simetria de placeholders ('-' e 'na' sem warning) vs distância negativa (com warning) e pace com 'até'/numérico
+      const apostropheAndNa = parseWeeklyPlanRowFromSheet(
+        ["PLAN-SYM", "2026-11-20", "Sexta", "fartlek", "'-", "'5:10 até 5:30/km", "Fartlek"],
+        7
+      );
+      expect(apostropheAndNa.valid).toBe(true);
+      if (apostropheAndNa.valid && apostropheAndNa.kind === "item") {
+        expect(apostropheAndNa.data.activityType).toBe("corrida_intervalada");
+        expect(apostropheAndNa.data.targetDistanceKm).toBeNull();
+        expect(apostropheAndNa.data.targetPaceFormatted).toBe("5:10–5:30");
+        expect(apostropheAndNa.warnings).toEqual([]);
+      }
+
+      const naDistAndNegative = parseWeeklyPlanRowFromSheet(
+        ["PLAN-NEG", "2026-11-20", "Sexta", "simulado_taf", "-5", "na"],
+        8
+      );
+      expect(naDistAndNegative.valid).toBe(true);
+      if (naDistAndNegative.valid && naDistAndNegative.kind === "item") {
+        expect(naDistAndNegative.data.activityType).toBe("tempo_run");
+        expect(naDistAndNegative.data.targetDistanceKm).toBeNull();
+        expect(naDistAndNegative.data.targetPaceFormatted).toBeNull();
+        expect(naDistAndNegative.warnings).toHaveLength(1);
+      }
+
+      expect(parseWeeklyPlanTargetPace(5.3)).toBeNull();
+      expect(parseWeeklyPlanTargetPace("N/A")).toBeNull();
     });
   });
 });

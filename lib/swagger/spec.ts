@@ -49,7 +49,12 @@ export const swaggerSpec = {
     {
       name: "Sincronização Google Sheets",
       description:
-        "Sincronização manual e bidirecional PostgreSQL ↔ Google Sheets (Log_Treinos, Simulados_TAF e Perfil_e_Metas).",
+        "Sincronização manual e bidirecional PostgreSQL ↔ Google Sheets (Log_Treinos, Simulados_TAF, Perfil_e_Metas e Plano_Semanal).",
+    },
+    {
+      name: "Plano Semanal",
+      description:
+        "Consulta do plano prescrito semanal (Plano_Semanal), aderência consolidada, média móvel de 4 semanas e treinos extras.",
     },
   ],
   paths: {
@@ -366,7 +371,7 @@ export const swaggerSpec = {
         tags: ["Diário de Treinos"],
         summary: "Registrar nova sessão de treino",
         description:
-          "Grava o treino (manual ou importado via .GPX do Strava) calculando ritmo, gasto calórico ativo e total segundo o Compêndio de Atividades Físicas 2024.",
+          "Grava o treino (manual ou importado via .FIT/.GPX do Strava) calculando ritmo, gasto calórico ativo e total segundo o Compêndio de Atividades Físicas 2024, executa reconciliação local com `Plano_Semanal` e agenda espelhamento no Google Sheets (salvo `skipSheetsSync=true`).",
         parameters: [
           {
             name: "skipSheetsSync",
@@ -445,6 +450,8 @@ export const swaggerSpec = {
       put: {
         tags: ["Diário de Treinos"],
         summary: "Atualizar sessão de treino",
+        description:
+          "Atualiza os campos da sessão e executa reconciliação local com `Plano_Semanal` (revalidando vínculos existentes ou encontrando novas correspondências).",
         parameters: [
           {
             name: "id",
@@ -496,12 +503,21 @@ export const swaggerSpec = {
       delete: {
         tags: ["Diário de Treinos"],
         summary: "Excluir sessão de treino",
+        description:
+          "Remove a sessão do banco, limpa vínculos órfãos no `Plano_Semanal` (revertendo itens afetados para `Planejado` ou `Perdido`) e atualiza o Google Sheets salvo `skipSheetsSync=true`.",
         parameters: [
           {
             name: "id",
             in: "path",
             required: true,
             schema: { type: "string" },
+          },
+          {
+            name: "skipSheetsSync",
+            in: "query",
+            required: false,
+            description: "Quando true, ignora a remoção e atualização automática na planilha Google Sheets.",
+            schema: { type: "boolean", default: false },
           },
         ],
         responses: {
@@ -860,6 +876,43 @@ export const swaggerSpec = {
       },
     },
 
+    "/api/weekly-plan": {
+      get: {
+        tags: ["Plano Semanal"],
+        summary: "Consultar plano semanal e aderência consolidada",
+        description:
+          "Retorna os treinos prescritos da semana (segunda a domingo em America/Fortaleza), resumo de aderência, média móvel das até 4 últimas semanas com plano, sessões vinculadas e treinos extras realizados.",
+        parameters: [
+          {
+            name: "weekStart",
+            in: "query",
+            required: false,
+            description:
+              "Data de referência (YYYY-MM-DD, preferencialmente segunda-feira) para consultar a respectiva semana em America/Fortaleza.",
+            schema: { type: "string", format: "date", example: "2026-10-12" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Snapshot semanal consolidado.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/WeeklyPlanResponse",
+                },
+              },
+            },
+          },
+          "400": {
+            $ref: "#/components/responses/ValidationError",
+          },
+          "500": {
+            $ref: "#/components/responses/InternalError",
+          },
+        },
+      },
+    },
+
     "/api/taf/health": {
       get: {
         tags: ["Health & Diagnóstico"],
@@ -1056,13 +1109,33 @@ export const swaggerSpec = {
               tafPushedAppended: { type: "integer" },
               tafPushedUpdated: { type: "integer" },
               profileSynced: { type: "boolean" },
+              weeklyPlan: {
+                type: "object",
+                properties: {
+                  imported: { type: "integer" },
+                  updated: { type: "integer" },
+                  removed: { type: "integer" },
+                  matched: { type: "integer" },
+                  missed: { type: "integer" },
+                  pushed: { type: "integer" },
+                  sheetMissingOrEmpty: { type: "boolean" },
+                },
+              },
               skipped: { type: "integer" },
               warnings: {
                 type: "array",
                 items: {
                   type: "object",
                   properties: {
-                    tab: { type: "string", enum: ["Log_Treinos", "Simulados_TAF", "Perfil_e_Metas"] },
+                    tab: {
+                      type: "string",
+                      enum: [
+                        "Log_Treinos",
+                        "Simulados_TAF",
+                        "Perfil_e_Metas",
+                        "Plano_Semanal",
+                      ],
+                    },
                     rowNumber: { type: "integer" },
                     message: { type: "string" },
                   },
@@ -1272,11 +1345,10 @@ export const swaggerSpec = {
           "activityType",
           "distanceKm",
           "durationSeconds",
-          "speedKmh",
-          "paceSeconds",
-          "paceFormatted",
         ],
         properties: {
+          id: { type: "string", description: "UUID opcional para upsert idempotente." },
+          userId: { type: "string", nullable: true },
           source: {
             type: "string",
             enum: ["manual", "gpx_upload", "fit_upload", "sheets"],
@@ -1312,6 +1384,12 @@ export const swaggerSpec = {
           perceivedEffort: { type: "integer", minimum: 1, maximum: 10, nullable: true, example: 7 },
           bodyWeightKg: { type: "number", minimum: 30, maximum: 250, nullable: true, example: 75 },
           notes: { type: "string", maxLength: 1000, nullable: true },
+          activeCalories: { type: "number", minimum: 0, maximum: 15000, nullable: true, example: 312 },
+          totalCalories: { type: "number", minimum: 0, maximum: 15000, nullable: true, example: 345 },
+          metValue: { type: "number", minimum: 0.5, maximum: 30, nullable: true, example: 11.5 },
+          calorieMethod: { type: "string", nullable: true, example: "compendium_2024_met" },
+          calorieSource: { type: "string", nullable: true, example: "calculated_met" },
+          calorieMetadata: { type: "object", nullable: true },
           splits: {
             type: "array",
             items: { $ref: "#/components/schemas/SplitDetailSchema" },
@@ -1323,6 +1401,7 @@ export const swaggerSpec = {
         type: "object",
         properties: {
           syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
+          sessionDate: { type: "string", format: "date-time" },
           activityType: {
             type: "string",
             enum: [
@@ -1337,6 +1416,9 @@ export const swaggerSpec = {
           distanceKm: { type: "number", minimum: 0.05, maximum: 100 },
           durationSeconds: { type: "integer", minimum: 30, maximum: 86400 },
           elapsedSeconds: { type: "integer", minimum: 30, maximum: 86400, nullable: true },
+          speedKmh: { type: "number" },
+          paceSeconds: { type: "integer" },
+          paceFormatted: { type: "string" },
           avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true },
           maxHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true },
           elevationGainM: { type: "number", minimum: 0, maximum: 10000, nullable: true },
@@ -1345,6 +1427,12 @@ export const swaggerSpec = {
           perceivedEffort: { type: "integer", minimum: 1, maximum: 10, nullable: true },
           bodyWeightKg: { type: "number", minimum: 30, maximum: 250, nullable: true },
           notes: { type: "string", maxLength: 1000, nullable: true },
+          activeCalories: { type: "number", minimum: 0, maximum: 15000, nullable: true },
+          totalCalories: { type: "number", minimum: 0, maximum: 15000, nullable: true },
+          metValue: { type: "number", minimum: 0.5, maximum: 30, nullable: true },
+          calorieMethod: { type: "string", nullable: true },
+          calorieSource: { type: "string", nullable: true },
+          calorieMetadata: { type: "object", nullable: true },
           splits: {
             type: "array",
             items: { $ref: "#/components/schemas/SplitDetailSchema" },
@@ -1359,6 +1447,7 @@ export const swaggerSpec = {
             type: "object",
             properties: {
               id: { type: "string" },
+              userId: { type: "string", nullable: true },
               source: { type: "string", enum: ["manual", "gpx_upload", "fit_upload", "sheets"], example: "manual" },
               externalId: { type: "string", nullable: true },
               syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
@@ -1367,19 +1456,29 @@ export const swaggerSpec = {
               durationSeconds: { type: "integer", example: 1500 },
               elapsedSeconds: { type: "integer", nullable: true, example: 1560 },
               paceFormatted: { type: "string", example: "5:00" },
+              speedKmh: { type: "number", example: 12.0 },
+              paceSeconds: { type: "integer", example: 300 },
               avgHeartRate: { type: "integer", nullable: true, example: 160 },
               maxHeartRate: { type: "integer", nullable: true, example: 178 },
               elevationGainM: { type: "number", nullable: true, example: 35.0 },
               avgCadence: { type: "integer", nullable: true, example: 174 },
               shoeName: { type: "string", nullable: true, example: "Nike Pegasus 40" },
-              activeCalories: { type: "number", example: 312 },
-              totalCalories: { type: "number", example: 345 },
-              metValue: { type: "number", example: 11.5 },
+              perceivedEffort: { type: "integer", nullable: true, example: 7 },
+              bodyWeightKg: { type: "number", nullable: true, example: 75 },
+              notes: { type: "string", nullable: true, example: "Rodagem leve no parque" },
+              activeCalories: { type: "number", nullable: true, example: 312 },
+              totalCalories: { type: "number", nullable: true, example: 345 },
+              metValue: { type: "number", nullable: true, example: 11.5 },
+              calorieMethod: { type: "string", nullable: true, example: "compendium_2024_met" },
+              calorieSource: { type: "string", nullable: true, example: "calculated_met" },
+              calorieMetadata: { type: "object", nullable: true },
               splits: {
                 type: "array",
                 items: { $ref: "#/components/schemas/SplitDetailSchema" },
               },
               sessionDate: { type: "string", format: "date-time" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
             },
           },
           timestamp: { type: "string", format: "date-time" },
@@ -1554,6 +1653,103 @@ export const swaggerSpec = {
               allowedActivityTypes: {
                 type: "array",
                 items: { type: "string" },
+              },
+            },
+          },
+          timestamp: { type: "string", format: "date-time" },
+        },
+        required: ["success", "data", "timestamp"],
+      },
+      WeeklyPlanResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              weekStart: { type: "string", format: "date", example: "2026-10-12" },
+              weekEnd: { type: "string", format: "date", example: "2026-10-18" },
+              weekLabel: { type: "string", example: "12/10 – 18/10" },
+              isCurrentWeek: { type: "boolean", example: true },
+              hasNextPlannedWeek: { type: "boolean", example: false },
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    planExternalId: { type: "string", example: "plan-20261012-rodagem_leve" },
+                    plannedDate: { type: "string", format: "date", example: "2026-10-12" },
+                    dayOfWeek: { type: "string", example: "Segunda" },
+                    activityType: { type: "string", example: "Rodagem Leve" },
+                    isRestDay: { type: "boolean", example: false },
+                    targetDistanceKm: { type: "number", nullable: true, example: 8 },
+                    targetPaceFormatted: { type: "string", nullable: true, example: "5:40" },
+                    description: { type: "string", nullable: true },
+                    status: {
+                      type: "string",
+                      enum: ["Planejado", "Concluído", "Parcial", "Perdido"],
+                    },
+                    matchedSessionId: { type: "string", nullable: true },
+                    matchedSession: {
+                      allOf: [
+                        {
+                          $ref: "#/components/schemas/TrainingSessionResponse/properties/data",
+                        },
+                      ],
+                      nullable: true,
+                      description: "Objeto completo da sessão de treino vinculada.",
+                    },
+                  },
+                },
+              },
+              summary: {
+                type: "object",
+                properties: {
+                  totalPlanned: { type: "integer" },
+                  completed: { type: "integer" },
+                  partial: { type: "integer" },
+                  planned: { type: "integer" },
+                  missed: { type: "integer" },
+                  adherencePercent: { type: "integer", nullable: true, example: 83 },
+                },
+              },
+              rollingFourWeeksAverage: {
+                type: "object",
+                properties: {
+                  averagePercent: { type: "integer", nullable: true, example: 79 },
+                  weeksCount: { type: "integer", example: 4 },
+                  weeks: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        weekStart: { type: "string", format: "date" },
+                        weekEnd: { type: "string", format: "date" },
+                        label: { type: "string" },
+                        adherencePercent: { type: "integer" },
+                        completed: { type: "integer" },
+                        partial: { type: "integer" },
+                        totalPlanned: { type: "integer" },
+                      },
+                    },
+                  },
+                },
+              },
+              extraSessions: {
+                type: "array",
+                items: {
+                  $ref: "#/components/schemas/TrainingSessionResponse/properties/data",
+                },
+                description:
+                  "Sessões realizadas na semana sem vínculo ao plano prescrito.",
+              },
+              extraSummary: {
+                type: "object",
+                properties: {
+                  count: { type: "integer" },
+                  totalDistanceKm: { type: "number" },
+                },
               },
             },
           },
