@@ -136,7 +136,7 @@ describe("HistoricoPage (Fase 8)", () => {
     expect(screen.queryByLabelText("Distância (km)")).not.toBeInTheDocument();
   });
 
-  it("permite excluir um registro com confirmação", async () => {
+  it("permite excluir um registro com confirmação em 2 etapas", async () => {
     historyStorage.save({
       id: "test-del-1",
       date: "2026-10-10",
@@ -149,7 +149,7 @@ describe("HistoricoPage (Fase 8)", () => {
       createdAt: new Date().toISOString(),
     });
 
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirmSpy = vi.spyOn(window, "confirm");
 
     const user = userEvent.setup();
     render(<HistoricoPage />);
@@ -159,13 +159,18 @@ describe("HistoricoPage (Fase 8)", () => {
     const delBtn = screen.getByRole("button", { name: /Excluir treino/i });
     await user.click(delBtn);
 
-    expect(window.confirm).toHaveBeenCalledWith(
-      "Deseja realmente remover esta atividade do histórico?"
-    );
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(screen.getByText("5.00 km")).toBeInTheDocument();
+
+    const confirmBtn = screen.getByRole("button", {
+      name: /Confirmar exclusão do treino/i,
+    });
+    await user.click(confirmBtn);
+
     expect(screen.getByText("Nenhuma atividade salva ainda")).toBeInTheDocument();
   });
 
-  it("permite limpar todo o histórico", async () => {
+  it("permite limpar todo o histórico com confirmação em 2 etapas", async () => {
     historyStorage.save({
       id: "item-1",
       date: "2026-10-10",
@@ -177,7 +182,7 @@ describe("HistoricoPage (Fase 8)", () => {
       createdAt: new Date().toISOString(),
     });
 
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirmSpy = vi.spyOn(window, "confirm");
 
     const user = userEvent.setup();
     render(<HistoricoPage />);
@@ -185,7 +190,13 @@ describe("HistoricoPage (Fase 8)", () => {
     const clearAllBtn = screen.getByRole("button", { name: "Limpar Tudo" });
     await user.click(clearAllBtn);
 
-    expect(window.confirm).toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
+
+    const confirmClearBtn = screen.getByRole("button", {
+      name: "Confirmar exclusão total",
+    });
+    await user.click(confirmClearBtn);
+
     expect(screen.getByText("Nenhuma atividade salva ainda")).toBeInTheDocument();
   });
 
@@ -213,7 +224,7 @@ describe("HistoricoPage (Fase 8)", () => {
     expect(window.URL.createObjectURL).toHaveBeenCalledTimes(2);
   });
 
-  it("não remove o registro se o usuário cancelar a confirmação", async () => {
+  it("não remove o registro se o usuário cancelar a confirmação inline", async () => {
     historyStorage.save({
       id: "item-keep",
       date: "2026-10-10",
@@ -225,8 +236,6 @@ describe("HistoricoPage (Fase 8)", () => {
       createdAt: new Date().toISOString(),
     });
 
-    vi.spyOn(window, "confirm").mockReturnValue(false);
-
     const user = userEvent.setup();
     render(<HistoricoPage />);
 
@@ -234,6 +243,11 @@ describe("HistoricoPage (Fase 8)", () => {
 
     const delBtn = screen.getByRole("button", { name: /Excluir treino/i });
     await user.click(delBtn);
+
+    const cancelBtn = screen.getByRole("button", {
+      name: /Cancelar exclusão do treino/i,
+    });
+    await user.click(cancelBtn);
 
     // Deve permanecer na lista
     expect(screen.getByText("5.00 km")).toBeInTheDocument();
@@ -377,7 +391,7 @@ describe("HistoricoPage (Fase 8)", () => {
     expect(saveTrainingSpy).toHaveBeenCalledTimes(1);
     expect(saveTrainingSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionDate: "2026-10-10",
+        sessionDate: "2026-10-10T15:00:00.000Z",
         activityType: "corrida_continua",
         distanceKm: 5,
         durationSeconds: 1500,
@@ -389,6 +403,43 @@ describe("HistoricoPage (Fase 8)", () => {
     // Deve substituir o botão pelo badge de sucesso
     expect(screen.getByText("Convertido para Treino!")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Converter em Treino do Diário" })).not.toBeInTheDocument();
+  });
+
+  it("valida editDate em branco no modo edição e limpa confirmações ao trocar de filtro", async () => {
+    historyStorage.save({
+      id: "entry-edit-date-1",
+      date: "2026-10-10",
+      distanceKm: 5,
+      timeSeconds: 1500,
+      paceSeconds: 300,
+      paceFormatted: "5:00",
+      speedKmh: 12,
+      notes: "Treino de teste",
+      createdAt: new Date().toISOString(),
+    });
+
+    const user = userEvent.setup();
+    render(<HistoricoPage />);
+
+    // Abre confirmação inline de exclusão e muda de filtro para garantir limpeza
+    await user.click(screen.getByRole("button", { name: /Excluir treino/i }));
+    expect(
+      screen.getByRole("button", { name: /Confirmar exclusão do treino/i })
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /TAF/i }));
+    await user.click(screen.getByRole("button", { name: /Todas/i }));
+    expect(
+      screen.queryByRole("button", { name: /Confirmar exclusão do treino/i })
+    ).not.toBeInTheDocument();
+
+    // Entra em modo edição e limpa o campo Data
+    await user.click(screen.getByRole("button", { name: /Editar treino/i }));
+    const dateInput = screen.getByLabelText("Data");
+    await user.clear(dateInput);
+    await user.click(screen.getByRole("button", { name: "Salvar Alterações" }));
+
+    expect(screen.getByText("Informe a data do treino.")).toBeInTheDocument();
   });
 });
 

@@ -34,37 +34,37 @@ export default function Home() {
       title: "Preparação para o TAF",
       description: "Planeje o ritmo exato para seu concurso militar ou policial com tempo por volta na pista de 400m e barra de aptidão.",
       href: "/taf",
-      icon: <Medal className="w-6 h-6 text-amber-600 dark:text-amber-400" />,
+      icon: <Medal className="w-6 h-6 text-amber-400" />,
       badge: "Concursos",
-      gradient: "from-amber-500/10 to-orange-500/10 dark:from-amber-500/20 dark:to-orange-500/20",
-      accent: "text-amber-600 dark:text-amber-400",
+      gradient: "from-amber-500/20 to-orange-500/20",
+      accent: "text-amber-400",
     },
     {
       title: "Metas & Planilha de Splits",
       description: "Defina seu tempo-alvo ou ritmo para provas (5k, 10k, 21k, 42k) e gere a tabela de passagens quilômetro a quilômetro.",
       href: "/metas",
-      icon: <Target className="w-6 h-6 text-purple-600 dark:text-purple-400" />,
+      icon: <Target className="w-6 h-6 text-purple-400" />,
       badge: "Estratégia",
-      gradient: "from-purple-500/10 to-pink-500/10 dark:from-purple-500/20 dark:to-pink-500/20",
-      accent: "text-purple-600 dark:text-purple-400",
+      gradient: "from-purple-500/20 to-pink-500/20",
+      accent: "text-purple-400",
     },
     {
       title: "Simulador Intervalado (HIIT)",
       description: "Planeje sessões de tiros fortes, trote regenerativo, séries e desaquecimento com cálculo da velocidade média real.",
       href: "/intervalado",
-      icon: <Flame className="w-6 h-6 text-rose-600 dark:text-rose-400" />,
+      icon: <Flame className="w-6 h-6 text-rose-400" />,
       badge: "Tiros & HIIT",
-      gradient: "from-rose-500/10 to-red-500/10 dark:from-rose-500/20 dark:to-red-500/20",
-      accent: "text-rose-600 dark:text-rose-400",
+      gradient: "from-rose-500/20 to-red-500/20",
+      accent: "text-rose-400",
     },
     {
       title: "Histórico de Treinos",
       description: "Diário de bordo local com suas corridas salvas, cálculo em tempo real e exportação dos dados em CSV e JSON.",
       href: "/historico",
-      icon: <History className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />,
+      icon: <History className="w-6 h-6 text-cyan-400" />,
       badge: "Diário",
-      gradient: "from-cyan-500/10 to-blue-500/10 dark:from-cyan-500/20 dark:to-blue-500/20",
-      accent: "text-cyan-600 dark:text-cyan-400",
+      gradient: "from-cyan-500/20 to-blue-500/20",
+      accent: "text-cyan-400",
     },
   ];
 
@@ -72,7 +72,7 @@ export default function Home() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-12">
       {/* Hero Section */}
       <div className="text-center space-y-4 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#B7F34A]/10 border border-[#B7F34A]/30 text-[#B7F34A] text-xs font-bold shadow-xs">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#B7F34A]/10 border border-[#B7F34A]/30 text-[#B7F34A] text-xs font-bold shadow-sm">
           <Sparkles className="w-4 h-4 text-[#B7F34A]" />
           PaceLab • O Laboratório de Corrida e Performance
         </div>
@@ -181,7 +181,7 @@ export default function Home() {
             <Link
               key={tool.href}
               href={tool.href}
-              className="group block p-6 rounded-2xl bg-[#131A2E] border border-[#1E2942] shadow-xs hover:shadow-lg hover:border-[#B7F34A]/50 transition-all duration-200 relative overflow-hidden"
+              className="group block p-6 rounded-2xl bg-[#131A2E] border border-[#1E2942] shadow-sm hover:shadow-lg hover:border-[#B7F34A]/50 transition-all duration-200 relative overflow-hidden"
             >
               {/* Efeito sutil de gradiente de fundo */}
               <div
@@ -190,7 +190,7 @@ export default function Home() {
 
               <div className="relative space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="p-3 rounded-xl bg-[#0B1020] shadow-xs border border-[#1E2942]">
+                  <div className="p-3 rounded-xl bg-[#0B1020] shadow-sm border border-[#1E2942]">
                     {tool.icon}
                   </div>
                   <Badge variant="outline" className="border-[#1E2942] text-[#8E9BB0]">{tool.badge}</Badge>

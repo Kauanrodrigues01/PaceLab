@@ -10,9 +10,9 @@ import "@testing-library/jest-dom";
 
 import TreinosPage from "@/app/treinos/page";
 import MeuTafPage from "@/app/meu-taf/page";
-import { TrainingCard } from "@/components/meu-taf/TrainingCard";
+import { TrainingCard } from "@/components/treinos/TrainingCard";
 import { TafAttemptCard } from "@/components/meu-taf/TafAttemptCard";
-import { TrainingList } from "@/components/meu-taf/TrainingList";
+import { TrainingList } from "@/components/treinos/TrainingList";
 import { GoalAndBackupSettings } from "@/components/meu-taf/GoalAndBackupSettings";
 import { TafAttemptForm } from "@/components/meu-taf/TafAttemptForm";
 import { GpxImportPanel } from "@/components/treinos/GpxImportPanel";

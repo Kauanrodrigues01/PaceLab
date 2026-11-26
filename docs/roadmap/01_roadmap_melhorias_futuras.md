@@ -17,7 +17,6 @@ Dedicado exclusivamente a funcionalidades de conveniência no navegador, garanti
 | **`pacelab_draft_calc`** / **`pacelab_draft_interval`** | JSON (`CalcDraft` / `IntervalDraft`) | `/calculadora`, `/intervalado` | Persistência automática de rascunho dos campos preenchidos pelo usuário nas calculadoras. |
 | **`pacelab_weight_prompt_dismissed_until`** | ISO Timestamp (`DISMISSED_PROMPT_KEY`) | `WeeklyWeightModal` ([`lib/services/profileService.ts`](../../lib/services/profileService.ts)) | Data/hora limite de dispensa temporária do lembrete semanal de pesagem. |
 | **`pacelab_cache_*`** | JSON (`trainings`, `taf_attempts`, `taf_trainings`, `taf_goal`, `weekly_plan`, `profile`, `weights`) | `/treinos`, `/meu-taf`, `/perfil` (`CROSS_PAGE_SHEETS_CACHE_KEYS` e `profileService`) | Cache local rápido (SWR) de leituras da nuvem, invalidado após sincronizações com o Google Sheets. |
-| **`theme`** | String (`"light"` \| `"dark"` \| `"system"`) | Todo o site (`ThemeProvider`) | Preferência visual de tema (modo claro ou modo escuro). |
 
 ### 1.2. Armazenamento na Nuvem (`Supabase • PostgreSQL via Prisma ORM`)
 Camada relacional principal usada pelos módulos **Meu TAF** (`/meu-taf`), **Diário & Dashboard de Treinos** (`/treinos`), **Perfil** (`/perfil`), widgets dinâmicos da **Home** (`/`) e reconciliação semanal (`/api/weekly-plan`), com espelhamento bidirecional opcional para Google Sheets.
@@ -265,6 +264,16 @@ Camada relacional principal usada pelos módulos **Meu TAF** (`/meu-taf`), **Di�
 
 - **Arquitetura Modular Anti-Duplicação (`docs/` + `README.md`):** Separação estrita entre **Arquitetura Técnica** (`docs/architecture/01..03_*`), **Guias Práticos de Integração** (`docs/integrations/01..02_*`), **Documentação Funcional de Produto** (`docs/features/01..03_*`), **Operações & Troubleshooting** (`docs/operations/01_*`) e **Portal Central** (`docs/README.md`).
 - **Atualização Integral Pós-Plano 15:** Promoção de `Plano_Semanal`, `WeeklyPlanItem` e `WeeklyAdherenceCard` para a documentação viva em produção, remoção do rascunho sensível da raiz, correção dos presets oficiais (`PM-SP`, `PF`, `PRF`, `PMPR`) e refatoração do [`README.md`](../../README.md) enxuto na raiz.
+
+---
+
+### Eixo B.12: Padronização de Código, APIs/Swagger, Utilitários Compartilhados, Design System Único e Testes (Plano 17) — ✅ Concluído e Arquivado (Fases 0–6)
+
+> **Guias permanentes:** [`docs/architecture/04_padroes_de_codigo_e_design_system.md`](../architecture/04_padroes_de_codigo_e_design_system.md) · [`docs/operations/02_arquitetura_e_padroes_de_testes.md`](../operations/02_arquitetura_e_padroes_de_testes.md) · **Plano executado:** [`17_plan_padronizacao_codigo_testes_e_design_system.md`](../plans/executed/17_plan_padronizacao_codigo_testes_e_design_system.md)
+
+- **Design System Único *Dark Performance Athletics*:** remoção de `next-themes`, `ThemeProvider`, `ThemeToggle` e `localStorage.theme`; eliminação de classes `dark:` / `bg-white` residuais; tema escuro nativo em `components/docs/swagger-theme.css` e desacoplamento de classes Tailwind/ícones para `components/shared/activityVisuals.ts` e `components/shared/biometricVisuals.ts`.
+- **Contratos de API, Enums Únicos & Swagger via `z.toJSONSchema`:** centralização de enums em `types/constants.ts`; criação dos helpers `lib/api/request.ts`, `lib/api/pagination.ts`, `lib/api/externalIdConflict.ts` e `lib/services/apiClient.ts`; padronização de `ApiErrorCode` no topo do envelope, `apiDeleted(id)`, `PathIdSchema` e `GET /api/taf/attempts/[id]`; geração modular de OpenAPI em `lib/swagger/builders.ts` sincronizada com Zod e `@deprecated` em `/api/taf/trainings/gpx-preview`.
+- **Padronização de UI/Domínio & Testes (`99` suítes / `988` testes, `>= 90%` individual em `lib/`):** helpers de data `America/Fortaleza` em `lib/formatting/date.ts`, eliminação total de `window.confirm` (confirmação inline em 2 etapas), unificação em `lib/validations/calculatorInputs.ts`, reorganização de `components/treinos/` e `components/shared/`, consolidação de `__tests__/helpers/mockTafApi.ts` (sem pasta `test/` paralela) e novos testes dedicados de componentes, serviços e helpers.
 
 ---
 

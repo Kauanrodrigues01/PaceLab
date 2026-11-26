@@ -23,7 +23,7 @@ export function SheetsSyncBadge({ syncedToSheetsAt }: SheetsSyncBadgeProps) {
       className={
         isSynced
           ? "inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950/50 text-emerald-300 border border-emerald-500/30"
-          : "inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-800/70 text-[#8E9BB0] border border-slate-700/80"
+          : "inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#1E2942]/80 text-[#8E9BB0] border border-[#1E2942]"
       }
     >
       {isSynced ? (

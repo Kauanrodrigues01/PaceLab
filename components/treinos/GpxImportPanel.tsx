@@ -1385,7 +1385,7 @@ export function GpxImportPanel({
             onClick={() => handleSwitchImportMode("single")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50 ${
               importMode === "single"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -1401,7 +1401,7 @@ export function GpxImportPanel({
             onClick={() => handleSwitchImportMode("batch")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50 ${
               importMode === "batch"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -1842,7 +1842,7 @@ export function GpxImportPanel({
 
           {/* Preview Somente Leitura + Formulário Pós-Upload Inteligente */}
           {preview && (
-            <div className="space-y-5 animate-in fade-in duration-200">
+            <div className="space-y-5 animate-fade-in">
               {/* 0. Seletor de Destino Pós-Upload: Treino do Diário vs Simulado TAF */}
               <div
                 data-testid="save-target-selector"

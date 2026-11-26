@@ -16,6 +16,7 @@ import {
   resolveTrainingCaloriesPayload,
   validateTrainingWeightKg,
 } from "@/lib/activityParser/batchPayloads";
+import { formatDateTimeFortaleza } from "@/lib/formatting/date";
 import { formatTime } from "@/lib/formatting/time";
 import { GpxPreviewCard } from "@/components/treinos/GpxPreviewCard";
 import {
@@ -63,19 +64,7 @@ interface BatchImportItemRowProps {
 
 function formatShortSessionDate(isoOrInput: string | null | undefined): string {
   if (!isoOrInput) return "Sem data";
-  const parsed = new Date(isoOrInput);
-  if (Number.isNaN(parsed.getTime())) return "Data pendente";
-  try {
-    return parsed.toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return isoOrInput.slice(0, 10);
-  }
+  return formatDateTimeFortaleza(isoOrInput, "Data pendente");
 }
 
 function getStatusBadge(
@@ -120,7 +109,7 @@ function getStatusBadge(
     case "skipped":
       return {
         label: "Pulado",
-        className: "bg-slate-800/70 text-slate-300 border-slate-600/40",
+        className: "bg-[#131A2E] text-[#8E9BB0] border-[#1E2942]",
       };
     case "save_error":
       return {
@@ -130,7 +119,7 @@ function getStatusBadge(
     case "duplicate_in_batch":
       return {
         label: "Repetido neste lote",
-        className: "bg-slate-800/70 text-slate-300 border-slate-600/40",
+        className: "bg-[#131A2E] text-[#8E9BB0] border-[#1E2942]",
       };
     case "needs_manual_fallback":
       return {

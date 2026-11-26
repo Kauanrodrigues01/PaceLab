@@ -1,47 +1,17 @@
+import {
+  getDaysDifferenceFortaleza,
+  getTodayFortalezaDateKey,
+  toFortalezaCalendarDateKey,
+} from "@/lib/formatting/date";
 import { UserProfile, WeightRecord } from "@/types";
+import {
+  throwIfHttpError,
+  unwrapApiResponse,
+} from "@/lib/services/apiClient";
 
 export const PROFILE_CACHE_KEY = "pacelab_cache_profile";
 export const WEIGHTS_CACHE_KEY = "pacelab_cache_weights";
 export const DISMISSED_PROMPT_KEY = "pacelab_weight_prompt_dismissed_until";
-
-// ─── Helpers de Desempacotamento e Erros ──────────────────────────────────────
-
-function unwrapApiResponse<T>(payload: unknown): T {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "data" in payload &&
-    (payload as { data: unknown }).data !== undefined
-  ) {
-    return (payload as { data: T }).data;
-  }
-  return payload as T;
-}
-
-async function extractErrorMessage(res: Response, fallback: string): Promise<string> {
-  try {
-    const errData = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      details?: Array<{ field?: string; message?: string }>;
-    };
-
-    if (Array.isArray(errData.details) && errData.details.length > 0) {
-      const messages = errData.details
-        .map((d) => d.message)
-        .filter((msg): msg is string => Boolean(msg));
-      if (messages.length > 0) {
-        return messages.join("; ");
-      }
-    }
-
-    if (errData.error) {
-      return errData.error;
-    }
-  } catch {
-    // Falha silenciosa
-  }
-  return fallback;
-}
 
 // ─── Cache em SessionStorage ──────────────────────────────────────────────────
 
@@ -89,11 +59,12 @@ export const setCachedWeights = (records: WeightRecord[]) => {
 
 // ─── Utilidades Biométricas (IMC e Pesagem Semanal) ──────────────────────────
 
+export type BmiCategory = "abaixo_do_peso" | "peso_normal" | "sobrepeso" | "obesidade";
+
 export interface BmiResult {
   bmi: number;
-  category: "abaixo_do_peso" | "peso_normal" | "sobrepeso" | "obesidade";
+  category: BmiCategory;
   categoryLabel: string;
-  colorClass: string;
 }
 
 /**
@@ -113,7 +84,6 @@ export function calcBmi(weightKg?: number | null, heightCm?: number | null): Bmi
       bmi,
       category: "abaixo_do_peso",
       categoryLabel: "Abaixo do peso",
-      colorClass: "text-amber-500 bg-amber-500/10 border-amber-500/30",
     };
   }
 
@@ -122,7 +92,6 @@ export function calcBmi(weightKg?: number | null, heightCm?: number | null): Bmi
       bmi,
       category: "peso_normal",
       categoryLabel: "Peso normal",
-      colorClass: "text-emerald-500 bg-emerald-500/10 border-emerald-500/30",
     };
   }
 
@@ -131,7 +100,6 @@ export function calcBmi(weightKg?: number | null, heightCm?: number | null): Bmi
       bmi,
       category: "sobrepeso",
       categoryLabel: "Sobrepeso",
-      colorClass: "text-amber-500 bg-amber-500/10 border-amber-500/30",
     };
   }
 
@@ -139,35 +107,31 @@ export function calcBmi(weightKg?: number | null, heightCm?: number | null): Bmi
     bmi,
     category: "obesidade",
     categoryLabel: "Obesidade",
-    colorClass: "text-rose-500 bg-rose-500/10 border-rose-500/30",
   };
 }
 
 /**
- * Verifica se a pesagem é devida (se hoje for segunda-feira OU se a última pesagem foi há >= 7 dias).
- * Se o usuário já registrou uma pesagem na data de hoje, não incomoda novamente.
+ * Verifica se a pesagem é devida no calendário `America/Fortaleza`
+ * (se hoje for segunda-feira OU se a última pesagem foi há >= 7 dias).
+ * Se o usuário já registrou uma pesagem na data de hoje em Fortaleza, não incomoda novamente.
  */
 export function isWeeklyWeightDue(lastWeightDate?: string | Date | null): boolean {
   if (!lastWeightDate) return true; // Nunca se pesou
 
-  const now = new Date();
-  const lastDate = new Date(lastWeightDate);
+  const todayKey = getTodayFortalezaDateKey();
+  const lastKey = toFortalezaCalendarDateKey(lastWeightDate);
+  if (!lastKey) return true;
 
-  // Se já registrou pesagem hoje, não é devida nova pesagem
-  const isSameDay =
-    now.getFullYear() === lastDate.getFullYear() &&
-    now.getMonth() === lastDate.getMonth() &&
-    now.getDate() === lastDate.getDate();
-
-  if (isSameDay) {
+  // Se já registrou pesagem hoje (em Fortaleza), não é devida nova pesagem
+  if (todayKey === lastKey) {
     return false;
   }
 
-  const isMonday = now.getDay() === 1;
-  const diffTime = now.getTime() - lastDate.getTime();
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  const [year, month, day] = todayKey.split("-").map(Number);
+  const isMondayInFortaleza = new Date(Date.UTC(year, month - 1, day)).getUTCDay() === 1;
+  const daysSinceLast = getDaysDifferenceFortaleza(todayKey, lastKey);
 
-  return isMonday || diffDays >= 7;
+  return isMondayInFortaleza || (daysSinceLast !== null && daysSinceLast >= 7);
 }
 
 /**
@@ -242,10 +206,7 @@ export const profileService = {
       body: JSON.stringify(data),
     });
 
-    if (!res.ok) {
-      const message = await extractErrorMessage(res, "Erro ao salvar dados do perfil");
-      throw new Error(message);
-    }
+    await throwIfHttpError(res, "Erro ao salvar dados do perfil");
 
     const json = await res.json();
     const updated = unwrapApiResponse<UserProfile>(json);
@@ -284,10 +245,7 @@ export const profileService = {
       body: JSON.stringify(record),
     });
 
-    if (!res.ok) {
-      const message = await extractErrorMessage(res, "Erro ao registrar pesagem");
-      throw new Error(message);
-    }
+    await throwIfHttpError(res, "Erro ao registrar pesagem");
 
     const json = await res.json();
     const created = unwrapApiResponse<WeightRecord>(json);
@@ -315,10 +273,7 @@ export const profileService = {
       method: "DELETE",
     });
 
-    if (!res.ok) {
-      const message = await extractErrorMessage(res, "Erro ao excluir pesagem");
-      throw new Error(message);
-    }
+    await throwIfHttpError(res, "Erro ao excluir pesagem");
 
     const remaining = getCachedWeights().filter((w) => w.id !== id);
     setCachedWeights(remaining);

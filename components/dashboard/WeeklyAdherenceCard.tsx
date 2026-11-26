@@ -99,7 +99,7 @@ function getActivityLabel(activityType: string): string {
 }
 
 function getProgressBarColor(adherencePercent: number): string {
-  if (adherencePercent >= 80) return "bg-emerald-500 dark:bg-[#B7F34A]";
+  if (adherencePercent >= 80) return "bg-[#B7F34A]";
   if (adherencePercent >= 50) return "bg-amber-500";
   return "bg-red-500";
 }
@@ -157,27 +157,27 @@ function SessionTriggerCard({
       type="button"
       onClick={() => onSelect(session)}
       aria-label={ariaLabel}
-      className="w-full text-left rounded-xl border border-emerald-200/80 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/25 hover:bg-emerald-100/70 dark:hover:bg-emerald-950/45 px-3 py-2.5 transition-colors cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B7F34A]"
+      className="w-full text-left rounded-xl border border-emerald-900/60 bg-emerald-950/25 hover:bg-emerald-950/45 px-3 py-2.5 transition-colors cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B7F34A]"
     >
       <div className="flex items-center justify-between gap-2 min-w-0">
         <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
           {prefixDate && (
-            <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-white/80 dark:bg-[#0B1020] text-slate-600 dark:text-[#8E9BB0] border border-slate-200 dark:border-[#1E2942] shrink-0">
+            <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-[#0B1020] text-[#8E9BB0] border border-[#1E2942] shrink-0">
               {formatShortDateBr(session.sessionDate)}
             </span>
           )}
-          <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white break-words">
+          <span className="text-xs sm:text-sm font-semibold text-white break-words">
             {getActivityLabel(session.activityType)}
           </span>
         </div>
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-[#B7F34A] shrink-0 group-hover:translate-x-0.5 transition-transform">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#B7F34A] shrink-0 group-hover:translate-x-0.5 transition-transform">
           Detalhes
           <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
       </div>
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-[#8E9BB0] tabular-nums">
-        <span className="font-semibold text-slate-800 dark:text-slate-200">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8E9BB0] tabular-nums">
+        <span className="font-semibold text-[#E2E8F0]">
           {formatSafeDistanceKm(session.distanceKm)} km
         </span>
         <span className="inline-flex items-center gap-1">
@@ -208,11 +208,11 @@ function ExtraSessionsBlock({
   return (
     <div
       data-testid="weekly-extra-sessions"
-      className="pt-4 border-t border-slate-200 dark:border-[#1E2942]"
+      className="pt-4 border-t border-[#1E2942]"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-[#8E9BB0] inline-flex items-center gap-1.5">
-          <Dumbbell className="w-3.5 h-3.5 text-lime-600 dark:text-[#B7F34A]" aria-hidden="true" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-[#8E9BB0] inline-flex items-center gap-1.5">
+          <Dumbbell className="w-3.5 h-3.5 text-[#B7F34A]" aria-hidden="true" />
           {emptyPlanContext
             ? "Treinos registrados na semana"
             : "Treinos extras não prescritos"}
@@ -250,14 +250,14 @@ function PlanDayRow({ item, onSelectSession }: PlanDayRowProps) {
   return (
     <div
       data-testid={`weekly-plan-item-${item.id}`}
-      className="rounded-2xl border border-slate-200 dark:border-[#1E2942] bg-slate-50/70 dark:bg-[#0B1020]/70 p-3.5 sm:p-4"
+      className="rounded-2xl border border-[#1E2942] bg-[#0B1020]/70 p-3.5 sm:p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2 min-w-0 flex-wrap">
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-[#8E9BB0] tabular-nums">
+          <span className="text-xs font-bold uppercase tracking-wide text-[#8E9BB0] tabular-nums">
             {item.dayOfWeek} · {formatShortDateBr(item.plannedDate)}
           </span>
-          <span className="text-sm font-semibold text-slate-900 dark:text-white break-words">
+          <span className="text-sm font-semibold text-white break-words">
             {item.activityType}
           </span>
         </div>
@@ -266,22 +266,22 @@ function PlanDayRow({ item, onSelectSession }: PlanDayRowProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Coluna Planejado */}
-        <div className="rounded-xl border border-slate-200/80 dark:border-[#1E2942] bg-white dark:bg-[#131A2E]/90 px-3 py-2.5 min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#8E9BB0] mb-1">
+        <div className="rounded-xl border border-[#1E2942] bg-[#131A2E]/90 px-3 py-2.5 min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#8E9BB0] mb-1">
             Planejado
           </p>
           {item.isRestDay ? (
-            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200">
+            <p className="text-xs sm:text-sm text-[#E2E8F0]">
               {item.description?.trim() || "Dia de descanso / recuperação"}
             </p>
           ) : (
             <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white tabular-nums">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm font-semibold text-white tabular-nums">
                 {item.targetDistanceKm !== null && (
                   <span>{formatTargetKm(item.targetDistanceKm)}</span>
                 )}
                 {hasValidTargetPace(item.targetPaceFormatted) && (
-                  <span className="text-slate-600 dark:text-[#8E9BB0] font-medium">
+                  <span className="text-[#8E9BB0] font-medium">
                     Alvo: {item.targetPaceFormatted} /km
                   </span>
                 )}
@@ -291,7 +291,7 @@ function PlanDayRow({ item, onSelectSession }: PlanDayRowProps) {
                   )}
               </div>
               {item.description && (
-                <p className="text-xs text-slate-600 dark:text-[#8E9BB0] break-words">
+                <p className="text-xs text-[#8E9BB0] break-words">
                   {item.description}
                 </p>
               )}
@@ -301,7 +301,7 @@ function PlanDayRow({ item, onSelectSession }: PlanDayRowProps) {
 
         {/* Coluna Realizado */}
         <div className="min-w-0 flex flex-col justify-center">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#8E9BB0] mb-1 md:sr-only">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#8E9BB0] mb-1 md:sr-only">
             Realizado
           </p>
           {item.matchedSession ? (
@@ -311,12 +311,12 @@ function PlanDayRow({ item, onSelectSession }: PlanDayRowProps) {
               ariaLabel={`Abrir detalhes do treino realizado de ${item.dayOfWeek}`}
             />
           ) : item.isRestDay && item.status === "Concluído" ? (
-            <div className="rounded-xl border border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/15 px-3 py-2.5 flex items-center gap-2 text-xs sm:text-sm text-emerald-700 dark:text-emerald-300">
+            <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/15 px-3 py-2.5 flex items-center gap-2 text-xs sm:text-sm text-emerald-300">
               <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>Descanso cumprido</span>
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-slate-200 dark:border-[#1E2942] px-3 py-2.5 text-xs text-slate-500 dark:text-[#8E9BB0]">
+            <div className="rounded-xl border border-dashed border-[#1E2942] px-3 py-2.5 text-xs text-[#8E9BB0]">
               {item.status === "Perdido"
                 ? "Nenhum treino registrado neste dia."
                 : "Aguardando realização."}
@@ -447,20 +447,20 @@ export function WeeklyAdherenceCard({
   return (
     <section
       data-testid="weekly-adherence-card"
-      className={`rounded-3xl border border-slate-200 dark:border-[#1E2942] bg-white dark:bg-[#131A2E] p-5 sm:p-6 shadow-sm ${className}`}
+      className={`rounded-3xl border border-[#1E2942] bg-[#131A2E] p-5 sm:p-6 shadow-sm ${className}`}
     >
       {/* Header & Navegação Semanal */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-4 border-b border-slate-200 dark:border-[#1E2942]">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-4 border-b border-[#1E2942]">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-lime-100 dark:bg-[#B7F34A]/15 text-lime-700 dark:text-[#B7F34A] shrink-0">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#B7F34A]/15 text-[#B7F34A] shrink-0">
               <Target className="w-4 h-4" aria-hidden="true" />
             </span>
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+            <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
               Plano Semanal &amp; Aderência
             </h2>
           </div>
-          <p className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-[#8E9BB0] inline-flex items-center gap-1.5">
+          <p className="mt-1 text-xs sm:text-sm text-[#8E9BB0] inline-flex items-center gap-1.5">
             <CalendarDays className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
             <span>{headerWeekTitle}</span>
           </p>
@@ -513,19 +513,19 @@ export function WeeklyAdherenceCard({
             data-testid="weekly-adherence-loading"
             className="space-y-3 animate-pulse"
           >
-            <div className="h-5 w-48 rounded bg-slate-200 dark:bg-[#1E2942]" />
-            <div className="h-3 w-full rounded-full bg-slate-200 dark:bg-[#1E2942]" />
+            <div className="h-5 w-48 rounded bg-[#1E2942]" />
+            <div className="h-3 w-full rounded-full bg-[#1E2942]" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-              <div className="h-20 rounded-2xl bg-slate-100 dark:bg-[#0B1020]" />
-              <div className="h-20 rounded-2xl bg-slate-100 dark:bg-[#0B1020]" />
+              <div className="h-20 rounded-2xl bg-[#0B1020]" />
+              <div className="h-20 rounded-2xl bg-[#0B1020]" />
             </div>
           </div>
         ) : errorMessage && !visibleData ? (
           <div
             data-testid="weekly-adherence-error"
-            className="rounded-2xl border border-slate-200 dark:border-[#1E2942] bg-slate-50 dark:bg-[#0B1020] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+            className="rounded-2xl border border-[#1E2942] bg-[#0B1020] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
           >
-            <div className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-[#8E9BB0]">
+            <div className="flex items-start gap-2.5 text-sm text-[#8E9BB0]">
               <AlertCircle
                 className="w-4 h-4 mt-0.5 text-amber-500 shrink-0"
                 aria-hidden="true"
@@ -545,11 +545,11 @@ export function WeeklyAdherenceCard({
         ) : visibleData && visibleData.summary.totalPlanned === 0 ? (
           /* Estado 2: Semana sem plano prescrito */
           <div data-testid="weekly-adherence-empty" className="space-y-4">
-            <div className="rounded-2xl border border-dashed border-slate-300 dark:border-[#1E2942] bg-slate-50/70 dark:bg-[#0B1020]/60 p-5 text-center sm:text-left">
-              <h3 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white">
+            <div className="rounded-2xl border border-dashed border-[#1E2942] bg-[#0B1020]/60 p-5 text-center sm:text-left">
+              <h3 className="text-sm sm:text-base font-semibold text-white">
                 Nenhum plano semanal registrado para este período
               </h3>
-              <p className="mt-1.5 text-xs sm:text-sm text-slate-600 dark:text-[#8E9BB0] max-w-2xl">
+              <p className="mt-1.5 text-xs sm:text-sm text-[#8E9BB0] max-w-2xl">
                 Peça ao seu Treinador IA no Gemini para prescrever a semana na
                 aba Plano_Semanal e clique em Sincronizar Planilha.
               </p>
@@ -568,7 +568,7 @@ export function WeeklyAdherenceCard({
             {errorMessage && (
               <div
                 role="alert"
-                className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between gap-2"
+                className="rounded-xl border border-amber-900/60 bg-amber-950/30 px-3 py-2 text-xs text-amber-300 flex items-center justify-between gap-2"
               >
                 <span>{errorMessage}</span>
                 <button
@@ -582,16 +582,16 @@ export function WeeklyAdherenceCard({
             )}
 
             {/* Resumo de Aderência + Média Móvel 4 Semanas */}
-            <div className="rounded-2xl border border-slate-200 dark:border-[#1E2942] bg-slate-50/80 dark:bg-[#0B1020]/80 p-4 space-y-3">
+            <div className="rounded-2xl border border-[#1E2942] bg-[#0B1020]/80 p-4 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="flex items-baseline gap-2.5 flex-wrap">
                   <span
                     data-testid="weekly-adherence-percent"
-                    className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tabular-nums"
+                    className="text-2xl sm:text-3xl font-extrabold text-white tabular-nums"
                   >
                     {summary.adherencePercent ?? 0}%
                   </span>
-                  <span className="text-xs sm:text-sm text-slate-600 dark:text-[#8E9BB0]">
+                  <span className="text-xs sm:text-sm text-[#8E9BB0]">
                     de aderência na semana ({summary.completed} concluído
                     {summary.completed === 1 ? "" : "s"}
                     {summary.partial > 0 ? ` · ${summary.partial} parcial` : ""}
@@ -646,7 +646,7 @@ export function WeeklyAdherenceCard({
                 aria-valuenow={summary.adherencePercent ?? 0}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-[#1E2942]"
+                className="h-2.5 w-full overflow-hidden rounded-full bg-[#1E2942]"
               >
                 <div
                   className={`h-full rounded-full transition-all duration-300 ${getProgressBarColor(

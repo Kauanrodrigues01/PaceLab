@@ -1,7 +1,7 @@
 # Modelo de Dados, Persistência Híbrida e Contratos de API
 
 > **Documentação Técnica de Arquitetura — PaceLab**  
-> Referência canônica pós-Plano 15 cobrindo persistência no navegador, schema relacional PostgreSQL/Prisma, regras de fuso horário (`America/Fortaleza`), envelopes REST e catálogo OpenAPI (`/docs`).
+> Referência canônica pós-Plano 17 cobrindo persistência no navegador, schema relacional PostgreSQL/Prisma, regras de fuso horário (`America/Fortaleza`), envelopes REST padronizados (`code` top-level, helpers `lib/api/*`) e catálogo OpenAPI (`/docs`) derivado de Zod.
 
 ---
 
@@ -13,7 +13,6 @@ O PaceLab combina **armazenamento local no navegador** (para privacidade instant
 |---|---|---|---|
 | **`localStorage`** | `pacelab_history_v1` | [`lib/storage/localStorage.ts`](../../lib/storage/localStorage.ts) (`HistoryStorageAdapter`) | Histórico local das calculadoras (`/calculadora`, `/taf`, `/metas`, `/intervalado`) gerenciado e exportável em CSV/JSON na página `/historico`. Permanece entre sessões do navegador. |
 | **`localStorage`** | `pacelab_weight_prompt_dismissed_until` | [`lib/services/profileService.ts`](../../lib/services/profileService.ts) | Marca timestamp até quando o lembrete semanal de pesagem (`WeeklyWeightModal`) foi adiado pelo usuário. |
-| **`localStorage`** | `theme` (padrão `next-themes`) | [`components/providers/ThemeProvider.tsx`](../../components/providers/ThemeProvider.tsx) | Preferência visual de tema (`light` / `dark` / `system`). |
 | **`sessionStorage`** | `pacelab_draft_calc`, `pacelab_draft_interval` | [`app/calculadora/page.tsx`](../../app/calculadora/page.tsx), [`app/intervalado/page.tsx`](../../app/intervalado/page.tsx) | Rascunhos temporários de inputs para evitar perda acidental de formulário ao navegar dentro da mesma aba. Limpos ao limpar formulário/reset. |
 | **`sessionStorage`** | `pacelab_cache_trainings`, `pacelab_cache_weekly_plan`, `pacelab_cache_taf_goal`, `pacelab_cache_taf_attempts`, `pacelab_cache_taf_trainings`, `pacelab_cache_profile`, `pacelab_cache_weights` | [`lib/sheetsSyncUi.ts`](../../lib/sheetsSyncUi.ts), [`lib/services/profileService.ts`](../../lib/services/profileService.ts), [`components/dashboard/WeeklyAdherenceCard.tsx`](../../components/dashboard/WeeklyAdherenceCard.tsx), [`app/treinos/page.tsx`](../../app/treinos/page.tsx), [`app/meu-taf/page.tsx`](../../app/meu-taf/page.tsx) | Caches otimistas de leitura (*stale-while-revalidate* simples em memória de aba) para renderização imediata antes da revalidação via API. |
 | **PostgreSQL (Supabase)** | 6 tabelas + 3 enums (`prisma/schema.prisma`) | [`prisma/schema.prisma`](../../prisma/schema.prisma), [`lib/prisma.ts`](../../lib/prisma.ts) | Persistência transacional definitiva de treinos, simulados, editais, biometria/pesagens e itens do plano semanal reconciliados com o Google Sheets. |
@@ -182,35 +181,41 @@ O PaceLab resolve isso por meio de quatro regras padronizadas:
 Todas as rotas de negócio em `app/api/` retornam JSON no formato definido em [`lib/api/response.ts`](../../lib/api/response.ts):
 
 ```typescript
+export interface ApiMeta {
+  limit?: number;
+  totalCount?: number;
+  nextCursor?: string | null;
+  hasMore?: boolean;
+  [key: string]: unknown;
+}
+
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
+  code?: ApiErrorCode; // Código semântico padronizado no topo (ex.: VALIDATION_ERROR, NOT_FOUND, DUPLICATE_EXTERNAL_ID)
   details?: FormattedZodError[] | Record<string, unknown> | unknown;
-  meta?: {
-    totalCount?: number;
-    nextCursor?: string | null;
-    hasMore?: boolean;
-    [key: string]: unknown;
-  };
+  meta?: ApiMeta;
   timestamp: string; // ISO-8601
 }
 ```
 
-O wrapper central `withApiHandler` mapeia exceções automaticamente para códigos HTTP consistentes:
+O wrapper central `withApiHandler` (apoiado por `lib/api/request.ts`, `lib/api/pagination.ts` e `lib/api/externalIdConflict.ts`) mapeia exceções automaticamente para códigos HTTP e `code` consistentes:
 
 | Condição / Exceção Capturada | HTTP Status | Comportamento / Payload de Saída |
 |---|---|---|
 | Sucesso (`apiSuccess`) | `200` / `201` | `{ success: true, data, meta?, timestamp }`. |
-| `ZodError` (`lib/validations/taf.ts`) | `400` | Primeira mensagem legível + array `details` (`[{ path, message }]`). |
-| `SyntaxError` (JSON malformado) | `400` | `"Corpo da requisição com formato JSON inválido"`. |
-| `AppError` (erro de domínio customizado) | `error.statusCode` | Mensagem e `details` definidos no domínio. |
-| `PrismaClientKnownRequestError` `P2025` | `404` | `"Registro não encontrado no banco de dados"`. |
-| `PrismaClientKnownRequestError` `P2002` | `409` | Se o alvo único envolver `externalId` / `external_id`, retorna `409 Conflict` com `{ code: "DUPLICATE_EXTERNAL_ID" }`; demais chaves únicas retornam `409` genérico. *(Obs.: em `POST /api/taf/trainings`, apenas o `create`/`update` principal do treino fica no bloco de captura de `P2002`, evitando que falhas secundárias na reconciliação pós-commit gerem falso `409`.)* |
-| Arquivo vazio ou inválido no parse `.FIT`/`.GPX` (`apiUnprocessable`) | `422` | Erro semântico de atividade não suportada ou arquivo inválido. |
-| Arquivo > `4 MB` (`apiPayloadTooLarge`) | `413` | `"Arquivo excede o limite máximo permitido (4 MB)"`. |
-| `PrismaClientInitializationError` | `503` | `"Não foi possível conectar ao banco de dados Supabase"`. |
-| Erros upstream Google Sheets (em `/api/sync/sheets`) | `429` / `502` / `503` | `mapSheetsUpstreamError`: `429` (`SHEETS_QUOTA_EXCEEDED`), `502` para `401`/`403` (`SHEETS_PERMISSION_DENIED`), `404` (`SHEETS_NOT_FOUND`) ou outro status HTTP, e `503` para `GoogleSheetsNotConfiguredError` (`SHEETS_NOT_CONFIGURED`) ou indisponibilidade Google (`SHEETS_UNAVAILABLE`). |
+| Exclusão por ID (`apiDeleted(id)`) | `200` | `{ success: true, data: { deletedId: id, deleted: true }, timestamp }` — aplicado em `DELETE` de `attempts/[id]`, `trainings/[id]` e `profile/weight/[id]`. |
+| `ZodError` (`lib/validations/taf.ts`) | `400` | `code: "VALIDATION_ERROR"`, primeira mensagem legível + array `details` (`[{ field, message }]`). |
+| `parsePathId` / `PathIdSchema` inválido | `400` | `code: "INVALID_PATH_ID"` para `[id]` vazio ou acima de `128` caracteres nas 3 rotas dinâmicas `[id]`. |
+| `SyntaxError` (JSON malformado) | `400` | `code: "INVALID_JSON"` — `"Corpo da requisição com formato JSON inválido"`. |
+| `AppError` (erro de domínio customizado) | `error.statusCode` | Mensagem, `code` (explícito ou herdado de `details.code`) e `details` definidos no domínio. |
+| `PrismaClientKnownRequestError` `P2025` | `404` | `code: "NOT_FOUND"` — `"Registro não encontrado no banco de dados"`. |
+| `PrismaClientKnownRequestError` `P2002` | `409` | Se o alvo único envolver `externalId` / `external_id`, retorna `409 Conflict` com `code: "DUPLICATE_EXTERNAL_ID"` e `details: { code: "DUPLICATE_EXTERNAL_ID", existingId? }` (via `buildDuplicateExternalIdResponse`); demais chaves únicas retornam `409` (`code: "CONFLICT"`). *(Obs.: em `POST /api/taf/trainings`, apenas o `create`/`update` principal do treino fica no bloco de captura de `P2002`, evitando que falhas secundárias na reconciliação pós-commit gerem falso `409`.)* |
+| Arquivo vazio ou inválido no parse `.FIT`/`.GPX` (`apiUnprocessable`) | `422` | `code: "UNPROCESSABLE_ENTITY"` (ou código de parse em `details.code`) para atividade não suportada ou arquivo inválido. |
+| Arquivo > `4 MB` (`apiPayloadTooLarge`) | `413` | `code: "PAYLOAD_TOO_LARGE"` / `"FILE_TOO_LARGE"` — `"Arquivo excede o limite máximo permitido (4 MB)"`. |
+| `PrismaClientInitializationError` | `503` | `code: "DATABASE_UNAVAILABLE"` — `"Não foi possível conectar ao banco de dados Supabase"`. |
+| Erros upstream Google Sheets (em `/api/sync/sheets`) | `429` / `502` / `503` | `mapSheetsUpstreamError`: `429` (`SHEETS_QUOTA_EXCEEDED`), `502` para `401`/`403` (`SHEETS_PERMISSION_DENIED`), `404` (`SHEETS_NOT_FOUND`) ou outro status HTTP (`SHEETS_UPSTREAM_ERROR`), e `503` para `GoogleSheetsNotConfiguredError` (`SHEETS_NOT_CONFIGURED`) ou indisponibilidade Google (`SHEETS_UNAVAILABLE`). |
 
 ### 4.2. Paginação Cursor-Based e Bypass `?skipSheetsSync=true`
 
@@ -226,20 +231,20 @@ O wrapper central `withApiHandler` mapeia exceções automaticamente para códig
 
 ## 5. Catálogo Oficial de Endpoints REST & OpenAPI (`/docs`)
 
-A documentação interativa Swagger UI está disponível em `/docs` (`app/docs/page.tsx`), alimentada pela especificação OpenAPI 3.0.3 em [`lib/swagger/spec.ts`](../../lib/swagger/spec.ts) e servida como JSON em `GET /api/docs/spec`.
+A documentação interativa Swagger UI está disponível em `/docs` (`app/docs/page.tsx`), alimentada pela especificação OpenAPI 3.0.3 em [`lib/swagger/spec.ts`](../../lib/swagger/spec.ts) (derivada dos schemas Zod via [`lib/swagger/builders.ts`](../../lib/swagger/builders.ts)) e servida como JSON em `GET /api/docs/spec`.
 
 | Rota | Métodos no App Router (`app/api/`) | Documentação Swagger (`/docs`) | Finalidade Principal |
 |---|---|---|---|
 | `/api/taf/goals` | `GET`, `POST` | `GET`, `POST` | Consulta a meta oficial mais recente (ou fallback padrão em memória) e cria/atualiza edital completo + sync de `Perfil_e_Metas`. |
-| `/api/taf/attempts` | `GET`, `POST` | `GET`, `POST` | Lista simulados com paginação por cursor e cria/atualiza simulado TAF (com `externalId`, `onDuplicate` `"error"` \| `"update"`, `?skipSheetsSync=true` e sync com `Simulados_TAF`). |
-| `/api/taf/attempts/[id]` | `PUT`, `DELETE` | `GET`, `PUT`, `DELETE` | Atualiza ou exclui um simulado específico e reflete na aba `Simulados_TAF`. *(Nota técnica: o método `GET` por ID consta no contrato OpenAPI `/api/taf/attempts/{id}`, enquanto o Route Handler implementa atualmente `PUT` e `DELETE`.)* |
-| `/api/taf/trainings` | `GET`, `POST` | `GET`, `POST` | Lista treinos paginados (com filtro opcional `activityType`) e cria/atualiza treino com reconciliação semanal local (`safeReconcileWeeklyPlans`) + sync de `Log_Treinos` e `Plano_Semanal!H:I`. |
-| `/api/taf/trainings/[id]` | `GET`, `PUT`, `DELETE` | `GET`, `PUT`, `DELETE` | Consulta sessão individual *(Plano 15)*, atualiza sessão (reavaliando vínculo semanal com `editedSessionId`) ou remove sessão (revertendo vínculo via `onDelete: SetNull` + `safeReconcileWeeklyPlans`) e sincroniza com Sheets. |
+| `/api/taf/attempts` | `GET`, `POST` | `GET`, `POST` | Lista simulados com paginação por cursor (`meta: { limit, nextCursor, hasMore }`) e cria/atualiza simulado TAF (com `externalId`, `onDuplicate` `"error"` \| `"update"`, `?skipSheetsSync=true` e sync com `Simulados_TAF`). |
+| `/api/taf/attempts/[id]` | `GET`, `PUT`, `DELETE` | `GET`, `PUT`, `DELETE` | Consulta simulado por ID (`404` se ausente), atualiza ou exclui (`apiDeleted`) um simulado específico com validação `PathIdSchema` e reflexo na aba `Simulados_TAF`. |
+| `/api/taf/trainings` | `GET`, `POST` | `GET`, `POST` | Lista treinos paginados (`meta: { limit, nextCursor, hasMore }`, filtro opcional `activityType`) e cria/atualiza treino com reconciliação semanal local (`safeReconcileWeeklyPlans`) + sync de `Log_Treinos` e `Plano_Semanal!H:I`. |
+| `/api/taf/trainings/[id]` | `GET`, `PUT`, `DELETE` | `GET`, `PUT`, `DELETE` | Consulta sessão individual, atualiza sessão (reavaliando vínculo semanal com `editedSessionId`) ou remove sessão (`apiDeleted`, revertendo vínculo via `onDelete: SetNull` + `safeReconcileWeeklyPlans`) com validação `PathIdSchema` e sync Sheets. |
 | `/api/training-sessions/parse-activity` | `POST` | `POST` | Processa `multipart/form-data` com 1 `.FIT`, 1 `.GPX` ou par `.FIT + .GPX` (`<= 4 MB`/arq.), mescla sensores, extrai `tafWindow`, sugere modalidade e verifica duplicidade nas tabelas `TrainingSession` e `TafAttempt`. |
-| `/api/taf/trainings/gpx-preview` | `POST` | `POST` *(deprecated)* | Alias retrocompatível que reexporta `POST` de `/api/training-sessions/parse-activity`. |
+| `/api/taf/trainings/gpx-preview` | `POST` *(deprecated)* | `POST` *(`deprecated: true`)* | Alias retrocompatível marcado como `@deprecated` que reexporta `POST` de `/api/training-sessions/parse-activity`. |
 | `/api/profile` | `GET`, `PUT` | `GET`, `PUT` | Consulta ou cria perfil único do atleta e atualiza biometria (gerando `WeightRecord` quando `currentWeightKg` muda) + sync de `Perfil_e_Metas`. |
-| `/api/profile/weight` | `GET`, `POST` | `GET`, `POST` | Lista histórico de pesagens em ordem decrescente e registra nova pesagem (atualizando `UserProfile.currentWeightKg` caso seja a mais recente). |
-| `/api/profile/weight/[id]` | `DELETE` | `DELETE` | Remove registro de pesagem de forma idempotente e recalcula `UserProfile.currentWeightKg` pela pesagem remanescente mais recente. |
+| `/api/profile/weight` | `GET`, `POST` | `GET`, `POST` | Lista histórico de pesagens em ordem decrescente (com `?limit=1..365`) e registra nova pesagem (atualizando `UserProfile.currentWeightKg` caso seja a mais recente). |
+| `/api/profile/weight/[id]` | `DELETE` | `DELETE` | Remove registro de pesagem (`apiDeleted`, `404` se inexistente, `400 INVALID_PATH_ID` se inválido) e recalcula `UserProfile.currentWeightKg` pela pesagem remanescente mais recente (ou `null`). |
 | `/api/sync/sheets` | `GET`, `POST` | `GET`, `POST` | `GET` informa `configured`, contadores de pendências locais (`pendingTrainingsCount`, `pendingAttemptsCount`, `totalPendingCount`) sem consumir quota Google; `POST` dispara `syncWithGoogleSheets` (`direction`: `"bidirectional"` \| `"push"` \| `"pull"`, `forceFullResync`), incluindo a 4ª aba opcional `Plano_Semanal`. |
 | `/api/weekly-plan` | `GET` | `GET` | *(Plano 15)* Retorna o snapshot semanal (`WeeklyPlanResponse`) para `?weekStart=YYYY-MM-DD` (ou semana atual em `America/Fortaleza`), itens conciliados, `summary`, `rollingFourWeeksAverage` (até 4 semanas com plano) e `extraSessions` / `extraSummary`. |
 | `/api/taf/health` | `GET` | `GET` | Executa `SELECT 1` no PostgreSQL (Prisma), mede latência em ms e reporta `sheetsConfigured` (`200` conectado, `503` desconectado). |
@@ -250,8 +255,8 @@ A documentação interativa Swagger UI está disponível em `/docs` (`app/docs/p
 ## 6. Referências no Código-Fonte
 
 - Schema relacional e migrations: [`prisma/schema.prisma`](../../prisma/schema.prisma), [`prisma/migrations/`](../../prisma/migrations)
-- Validação Zod e envelopes HTTP: [`lib/validations/taf.ts`](../../lib/validations/taf.ts), [`lib/api/response.ts`](../../lib/api/response.ts), [`lib/api/sheetsSync.ts`](../../lib/api/sheetsSync.ts)
-- Motor de datas e reconciliação semanal: [`lib/math/weeklyAdherence.ts`](../../lib/math/weeklyAdherence.ts)
-- Especificação OpenAPI / Swagger UI: [`lib/swagger/spec.ts`](../../lib/swagger/spec.ts), [`app/api/docs/spec/route.ts`](../../app/api/docs/spec/route.ts)
-- Cliente HTTP e cache entre páginas: [`lib/services/tafService.ts`](../../lib/services/tafService.ts), [`lib/services/profileService.ts`](../../lib/services/profileService.ts), [`lib/sheetsSyncUi.ts`](../../lib/sheetsSyncUi.ts)
-- Arquitetura complementar: [`01_leitura_fit_gpx_e_divergencias_strava.md`](./01_leitura_fit_gpx_e_divergencias_strava.md), [`02_ecossistema_strava_pacelab_sheets_gemini.md`](./02_ecossistema_strava_pacelab_sheets_gemini.md)
+- Validação Zod e envelopes HTTP: [`types/constants.ts`](../../types/constants.ts), [`lib/validations/taf.ts`](../../lib/validations/taf.ts), [`lib/api/response.ts`](../../lib/api/response.ts), [`lib/api/request.ts`](../../lib/api/request.ts), [`lib/api/pagination.ts`](../../lib/api/pagination.ts), [`lib/api/externalIdConflict.ts`](../../lib/api/externalIdConflict.ts), [`lib/api/sheetsSync.ts`](../../lib/api/sheetsSync.ts)
+- Motor de datas e reconciliação semanal: [`lib/formatting/date.ts`](../../lib/formatting/date.ts), [`lib/math/weeklyAdherence.ts`](../../lib/math/weeklyAdherence.ts)
+- Especificação OpenAPI / Swagger UI: [`lib/swagger/builders.ts`](../../lib/swagger/builders.ts), [`lib/swagger/spec.ts`](../../lib/swagger/spec.ts), [`app/api/docs/spec/route.ts`](../../app/api/docs/spec/route.ts)
+- Cliente HTTP e cache entre páginas: [`lib/services/apiClient.ts`](../../lib/services/apiClient.ts), [`lib/services/tafService.ts`](../../lib/services/tafService.ts), [`lib/services/profileService.ts`](../../lib/services/profileService.ts), [`lib/sheetsSyncUi.ts`](../../lib/sheetsSyncUi.ts)
+- Arquitetura complementar: [`01_leitura_fit_gpx_e_divergencias_strava.md`](./01_leitura_fit_gpx_e_divergencias_strava.md), [`02_ecossistema_strava_pacelab_sheets_gemini.md`](./02_ecossistema_strava_pacelab_sheets_gemini.md), [`04_padroes_de_codigo_e_design_system.md`](./04_padroes_de_codigo_e_design_system.md)

@@ -1,20 +1,31 @@
 import React from "react";
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
+import { classifyCooperVo2Max } from "@/lib/math/cooper";
+import { calcBmi } from "@/lib/services/profileService";
+import {
+  getBmiColorClass,
+  getCooperVisuals,
+} from "@/components/shared/biometricVisuals";
 import { render, screen, within } from "@testing-library/react";
 import {
   ACTIVITY_TYPES,
   ACTIVITY_LABELS,
+  ACTIVITY_META,
   ACTIVITY_COLORS,
-  ACTIVITY_CONFIG,
-  ACTIVITY_FORM_OPTIONS,
   PACE_ACTIVITY_OPTIONS,
   ACTIVITY_SOURCES,
   SOURCE_LABELS,
 } from "@/lib/activity";
+import {
+  ACTIVITY_CONFIG,
+  ACTIVITY_FORM_OPTIONS,
+} from "@/components/shared/activityVisuals";
 import { ActivityTypeEnum, ActivitySourceEnum } from "@/lib/validations/taf";
-import { TrainingCard } from "@/components/meu-taf/TrainingCard";
-import { TrainingForm } from "@/components/meu-taf/TrainingForm";
-import { TrainingList } from "@/components/meu-taf/TrainingList";
+import { TrainingCard } from "@/components/treinos/TrainingCard";
+import { TrainingForm } from "@/components/treinos/TrainingForm";
+import { TrainingList } from "@/components/treinos/TrainingList";
 import { EvolutionDashboard } from "@/components/meu-taf/EvolutionDashboard";
 import { TrainingEvolutionDashboard } from "@/components/treinos/TrainingEvolutionDashboard";
 import { TrainingSession } from "@/types";
@@ -49,6 +60,12 @@ describe("Completude de Contratos e Dicionários de ActivityType & ActivitySourc
       expect(ACTIVITY_LABELS[type].trim().length).toBeGreaterThan(0);
 
       expect(ACTIVITY_COLORS[type]).toMatch(/^#[0-9a-fA-F]{6}$/);
+
+      const meta = ACTIVITY_META[type];
+      expect(meta).toBeDefined();
+      expect("icon" in meta).toBe(false);
+      expect("badgeClass" in meta).toBe(false);
+      expect("borderClass" in meta).toBe(false);
 
       const cfg = ACTIVITY_CONFIG[type];
       expect(cfg).toBeDefined();
@@ -135,5 +152,30 @@ describe("Completude de Contratos e Dicionários de ActivityType & ActivitySourc
         within(chartB).getByText(ACTIVITY_CONFIG[type].shortLabel)
       ).toBeInTheDocument();
     }
+  });
+
+  it("garante desacoplamento completo de JSX/React/Tailwind na camada lib/", () => {
+    const libRoot = path.resolve(process.cwd(), "lib");
+    const walk = (dir: string): string[] =>
+      fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const full = path.join(dir, entry.name);
+        return entry.isDirectory() ? walk(full) : [full];
+      });
+
+    const libFiles = walk(libRoot).filter((f) => /\.(ts|tsx)$/.test(f));
+    for (const file of libFiles) {
+      const content = fs.readFileSync(file, "utf8");
+      expect(content).not.toMatch(/from\s+["']lucide-react["']/);
+      expect(content).not.toMatch(/from\s+["']react["']/);
+    }
+
+    const cooperRes = classifyCooperVo2Max(2400, 25, "M") as unknown as Record<string, unknown>;
+    expect(cooperRes).not.toHaveProperty("colorClass");
+    expect(cooperRes).not.toHaveProperty("badgeBgClass");
+    expect(getCooperVisuals(cooperRes.classification as never).badgeBgClass).toContain("border");
+
+    const bmiRes = calcBmi(70, 175) as unknown as Record<string, unknown>;
+    expect(bmiRes).not.toHaveProperty("colorClass");
+    expect(getBmiColorClass(bmiRes.category as never)).toContain("border");
   });
 });

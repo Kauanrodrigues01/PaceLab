@@ -78,5 +78,74 @@ describe("Teste de Cooper - Estimativa de VO2 Máx e Classificação", () => {
       expect(result.genderLabel).toBe("Masculino");
       expect(result.classification).toBeDefined();
     });
+
+    it.each([
+      // Masculino 20-29 anos (cortes VO2: 33.0 / 36.5 / 42.5 / 46.5 / 52.5)
+      { gender: "M", age: 25, distance: 1800, expected: "Muito Fraco", group: "20-29 anos" },
+      { gender: "M", age: 25, distance: 2050, expected: "Fraco", group: "20-29 anos" },
+      { gender: "M", age: 25, distance: 2350, expected: "Médio", group: "20-29 anos" },
+      { gender: "M", age: 25, distance: 2500, expected: "Bom", group: "20-29 anos" },
+      { gender: "M", age: 25, distance: 2750, expected: "Muito Bom", group: "20-29 anos" },
+      { gender: "M", age: 25, distance: 3000, expected: "Excelente", group: "20-29 anos" },
+      // Masculino 30-39 anos (cortes VO2: 31.5 / 35.5 / 41.0 / 45.0 / 49.5)
+      { gender: "M", age: 35, distance: 1800, expected: "Muito Fraco", group: "30-39 anos" },
+      { gender: "M", age: 35, distance: 2000, expected: "Fraco", group: "30-39 anos" },
+      { gender: "M", age: 35, distance: 2250, expected: "Médio", group: "30-39 anos" },
+      { gender: "M", age: 35, distance: 2450, expected: "Bom", group: "30-39 anos" },
+      { gender: "M", age: 35, distance: 2650, expected: "Muito Bom", group: "30-39 anos" },
+      { gender: "M", age: 35, distance: 2850, expected: "Excelente", group: "30-39 anos" },
+      // Masculino 40-49 anos (cortes VO2: 30.2 / 33.6 / 39.0 / 43.8 / 48.1)
+      { gender: "M", age: 45, distance: 1800, expected: "Muito Fraco", group: "40-49 anos" },
+      { gender: "M", age: 45, distance: 1950, expected: "Fraco", group: "40-49 anos" },
+      { gender: "M", age: 45, distance: 2150, expected: "Médio", group: "40-49 anos" },
+      { gender: "M", age: 45, distance: 2400, expected: "Bom", group: "40-49 anos" },
+      { gender: "M", age: 45, distance: 2550, expected: "Muito Bom", group: "40-49 anos" },
+      { gender: "M", age: 45, distance: 2800, expected: "Excelente", group: "40-49 anos" },
+      // Masculino 50+ anos (cortes VO2: 26.1 / 31.0 / 35.8 / 41.0 / 45.4)
+      { gender: "M", age: 55, distance: 1600, expected: "Muito Fraco", group: "50+ anos" },
+      { gender: "M", age: 55, distance: 1800, expected: "Fraco", group: "50+ anos" },
+      { gender: "M", age: 55, distance: 2000, expected: "Médio", group: "50+ anos" },
+      { gender: "M", age: 55, distance: 2250, expected: "Bom", group: "50+ anos" },
+      { gender: "M", age: 55, distance: 2450, expected: "Muito Bom", group: "50+ anos" },
+      { gender: "M", age: 55, distance: 2700, expected: "Excelente", group: "50+ anos" },
+      // Feminino 20-29 anos (cortes VO2: 23.6 / 29.0 / 33.0 / 37.0 / 41.1)
+      { gender: "F", age: 25, distance: 1500, expected: "Muito Fraco", group: "20-29 anos" },
+      { gender: "F", age: 25, distance: 1700, expected: "Fraco", group: "20-29 anos" },
+      { gender: "F", age: 25, distance: 1900, expected: "Médio", group: "20-29 anos" },
+      { gender: "F", age: 25, distance: 2070, expected: "Bom", group: "20-29 anos" },
+      { gender: "F", age: 25, distance: 2250, expected: "Muito Bom", group: "20-29 anos" },
+      { gender: "F", age: 25, distance: 2450, expected: "Excelente", group: "20-29 anos" },
+      // Feminino 30-39 anos (cortes VO2: 22.8 / 27.0 / 31.5 / 35.7 / 40.1)
+      { gender: "F", age: 35, distance: 1450, expected: "Muito Fraco", group: "30-39 anos" },
+      { gender: "F", age: 35, distance: 1650, expected: "Fraco", group: "30-39 anos" },
+      { gender: "F", age: 35, distance: 1850, expected: "Médio", group: "30-39 anos" },
+      { gender: "F", age: 35, distance: 2020, expected: "Bom", group: "30-39 anos" },
+      { gender: "F", age: 35, distance: 2200, expected: "Muito Bom", group: "30-39 anos" },
+      { gender: "F", age: 35, distance: 2400, expected: "Excelente", group: "30-39 anos" },
+      // Feminino 40-49 anos (cortes VO2: 21.0 / 24.5 / 29.0 / 32.9 / 37.0)
+      { gender: "F", age: 45, distance: 1400, expected: "Muito Fraco", group: "40-49 anos" },
+      { gender: "F", age: 45, distance: 1550, expected: "Fraco", group: "40-49 anos" },
+      { gender: "F", age: 45, distance: 1700, expected: "Médio", group: "40-49 anos" },
+      { gender: "F", age: 45, distance: 1900, expected: "Bom", group: "40-49 anos" },
+      { gender: "F", age: 45, distance: 2080, expected: "Muito Bom", group: "40-49 anos" },
+      { gender: "F", age: 45, distance: 2250, expected: "Excelente", group: "40-49 anos" },
+      // Feminino 50+ anos (cortes VO2: 20.2 / 22.8 / 27.0 / 31.5 / 35.8)
+      { gender: "F", age: 55, distance: 1350, expected: "Muito Fraco", group: "50+ anos" },
+      { gender: "F", age: 55, distance: 1470, expected: "Fraco", group: "50+ anos" },
+      { gender: "F", age: 55, distance: 1620, expected: "Médio", group: "50+ anos" },
+      { gender: "F", age: 55, distance: 1820, expected: "Bom", group: "50+ anos" },
+      { gender: "F", age: 55, distance: 2000, expected: "Muito Bom", group: "50+ anos" },
+      { gender: "F", age: 55, distance: 2200, expected: "Excelente", group: "50+ anos" },
+    ])(
+      "classifica corretamente $gender ($age anos, $distance m) como '$expected' ($group)",
+      ({ gender, age, distance, expected, group }) => {
+        const result = classifyCooperVo2Max(distance, age, gender);
+        expect(result.classification).toBe(expected);
+        expect(result.ageGroupLabel).toBe(group);
+        expect(result.genderLabel).toBe(gender === "F" ? "Feminino" : "Masculino");
+        expect(result.vo2MaxFormatted).toMatch(/ml\/kg\/min$/);
+        expect(result.description.length).toBeGreaterThan(10);
+      }
+    );
   });
 });

@@ -4,16 +4,18 @@ import userEvent from "@testing-library/user-event";
 import MeuTafPage from "@/app/meu-taf/page";
 import { tafService } from "@/lib/services/tafService";
 import { CROSS_PAGE_SHEETS_CACHE_KEYS } from "@/lib/sheetsSyncUi";
-import { setupMockTafApi } from "@/test/helpers/mockTafApi";
+import { createMockJsonResponse, setupMockTafApi } from "@/__tests__/helpers/mockTafApi";
 import { ACTIVITY_TYPES, ActivityParsePreview } from "@/types";
 
 describe("MeuTafPage - Fase C (Histórico de 12 Minutos e Interface do TAF)", () => {
+  let mockApi: ReturnType<typeof setupMockTafApi>;
+
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
-    setupMockTafApi();
+    mockApi = setupMockTafApi();
   });
 
   it("renderiza o cabeçalho, status offline/banco e KPIs iniciais vazios", async () => {
@@ -271,22 +273,13 @@ describe("MeuTafPage - Fase C (Histórico de 12 Minutos e Interface do TAF)", ()
 
     await screen.findByRole("heading", { name: "Meu TAF" });
 
-    // Força a API a retornar erro 500 no POST de tentativa
-    global.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
+    // Força a API a retornar erro 500 no POST de tentativa preservando as demais rotas do mock
+    mockApi.setRequestHandler(async (url, init, fallback) => {
       if (url.includes("/api/taf/attempts") && init?.method === "POST") {
-        return {
-          ok: false,
-          status: 500,
-          json: async () => ({ error: "Falha de conexão com o Supabase" }),
-        } as Response;
+        return createMockJsonResponse({ error: "Falha de conexão com o Supabase" }, 500);
       }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({}),
-      } as Response;
-    }) as unknown as typeof fetch;
+      return fallback();
+    });
 
     const shortcut2400 = screen.getByRole("button", { name: /2\.400 m/i });
     await user.click(shortcut2400);

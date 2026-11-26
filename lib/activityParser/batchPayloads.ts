@@ -4,7 +4,9 @@ import {
   BatchDuplicatePolicy,
   BatchImportSummary,
   BatchImportTarget,
+  LOCATION_TYPES,
   LocationType,
+  SheetsSyncDirection,
   TafAttempt,
   TafWindowSummary,
   TrainingSession,
@@ -43,13 +45,7 @@ export const TAF_TARGET_DURATION_SEC = 720;
 export const MIN_BODY_WEIGHT_KG = 30;
 export const MAX_BODY_WEIGHT_KG = 250;
 
-export const LOCATION_TYPES_ORDER: readonly LocationType[] = [
-  "pista_400m",
-  "rua_plana",
-  "parque_praca",
-  "esteira",
-  "outro",
-];
+export const LOCATION_TYPES_ORDER: readonly LocationType[] = LOCATION_TYPES;
 
 export type BatchSaveOptions = { skipSheetsSync?: boolean };
 
@@ -174,7 +170,7 @@ export interface PersistBatchDependencies {
   ) => Promise<TafAttempt>;
   getSheetsSyncStatus?: () => Promise<SheetsSyncStatus>;
   syncGoogleSheets?: (options?: {
-    direction?: "bidirectional" | "push" | "pull";
+    direction?: SheetsSyncDirection;
     forceFullResync?: boolean;
   }) => Promise<SheetsSyncReport>;
 }

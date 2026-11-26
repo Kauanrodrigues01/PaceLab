@@ -2,13 +2,14 @@
 
 import React, { useMemo, useState } from "react";
 import { TrainingSession, SOURCE_LABELS } from "@/types";
-import { ACTIVITY_CONFIG } from "@/lib/activity";
+import { ACTIVITY_CONFIG } from "@/components/shared/activityVisuals";
+import { formatDateTimeFortaleza } from "@/lib/formatting/date";
 import { formatTime } from "@/lib/formatting/time";
 import { analyzeSplits } from "@/lib/math/splitsAnalysis";
-import { SplitsInsights } from "../treinos/SplitsInsights";
-import { SplitsPaceChart } from "../treinos/SplitsPaceChart";
-import { SplitsTable } from "../treinos/SplitsTable";
-import { SheetsSyncBadge } from "./SheetsSyncBadge";
+import { SplitsInsights } from "./SplitsInsights";
+import { SplitsPaceChart } from "./SplitsPaceChart";
+import { SplitsTable } from "./SplitsTable";
+import { SheetsSyncBadge } from "@/components/shared/SheetsSyncBadge";
 import {
   BarChart3,
   Clock,
@@ -26,8 +27,6 @@ import {
   Footprints,
   Upload,
 } from "lucide-react";
-
-export { ACTIVITY_CONFIG };
 
 interface TrainingCardProps {
   training: TrainingSession;
@@ -87,16 +86,10 @@ export function TrainingCard({
       ? Math.round(training.elapsedSeconds - training.durationSeconds)
       : 0;
 
-  const parsedSessionDate = new Date(training.sessionDate);
-  const formattedDate = Number.isNaN(parsedSessionDate.getTime())
-    ? training.sessionDate || "Data não informada"
-    : parsedSessionDate.toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+  const formattedDate = formatDateTimeFortaleza(
+    training.sessionDate,
+    training.sessionDate || "Data não informada"
+  );
 
   return (
     <div
@@ -287,15 +280,19 @@ export function TrainingCard({
             </button>
           )}
           <button
+            type="button"
             onClick={() => onEdit(training)}
             title="Editar este treino"
+            aria-label="Editar este treino"
             className="p-1.5 text-[#8E9BB0] hover:text-[#B7F34A] hover:bg-[#1E2942] rounded-lg transition-colors"
           >
             <Edit2 className="w-4 h-4" />
           </button>
           <button
+            type="button"
             onClick={() => setShowDeleteConfirm(true)}
             title="Excluir treino"
+            aria-label="Excluir treino"
             className="p-1.5 text-[#8E9BB0] hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors"
           >
             <Trash2 className="w-4 h-4" />
@@ -315,7 +312,9 @@ export function TrainingCard({
       {training.splits && training.splits.length > 0 && (
         <div className="mt-3 pt-2 border-t border-[#1E2942]">
           <button
+            type="button"
             onClick={() => setShowSplits(!showSplits)}
+            aria-expanded={showSplits}
             className="flex items-center justify-between w-full text-xs font-semibold text-[#8E9BB0] hover:text-[#B7F34A] transition-colors"
           >
             <span>Ver parciais de km ({training.splits.length} km)</span>
@@ -360,12 +359,14 @@ export function TrainingCard({
           </p>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => setShowDeleteConfirm(false)}
               className="px-3 py-1.5 text-xs font-semibold text-[#8E9BB0] bg-[#131A2E] border border-[#1E2942] rounded-lg hover:bg-[#1E2942] hover:text-white transition-colors"
             >
               Cancelar
             </button>
             <button
+              type="button"
               onClick={() => {
                 onDelete(training.id);
                 setShowDeleteConfirm(false);

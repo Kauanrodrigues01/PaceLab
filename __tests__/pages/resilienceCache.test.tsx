@@ -6,7 +6,7 @@ import IntervaladoPage from "@/app/intervalado/page";
 import CalculadoraPage from "@/app/calculadora/page";
 import { tafService } from "@/lib/services/tafService";
 import { TafAttempt, TrainingSession } from "@/types";
-import { setupMockTafApi } from "@/test/helpers/mockTafApi";
+import { setupMockTafApi } from "@/__tests__/helpers/mockTafApi";
 
 describe("Resiliência de Navegação e Cache Otimista (Fase 3)", () => {
   beforeEach(() => {

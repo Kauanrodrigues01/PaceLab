@@ -46,7 +46,7 @@ export function PaceSpeedTable({
   return (
     <div
       data-testid="pace-speed-table-container"
-      className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-7 shadow-xs space-y-4"
+      className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-5 sm:p-7 shadow-sm space-y-4"
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1E2942] pb-4">
         <div>

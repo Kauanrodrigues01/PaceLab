@@ -1,3 +1,14 @@
+export * from "./constants";
+import type {
+  ActivityType,
+  ActivitySource,
+  AthleteGender,
+  LocationType,
+  WeightSource,
+  PullupType,
+  WeeklyPlanStatus,
+} from "./constants";
+
 // ─── Tipos primitivos com semântica explícita ────────────────────────────────
 export type Seconds = number;
 export type Kilometers = number;
@@ -162,52 +173,6 @@ export interface LapDetail {
   distanceMeters: number;
   paceFormatted?: string;
 }
-
-export const ACTIVITY_TYPES = [
-  "rodagem_leve",
-  "corrida_continua",
-  "tempo_run",
-  "corrida_intervalada",
-  "longao",
-  "caminhada",
-] as const;
-
-export type ActivityType = (typeof ACTIVITY_TYPES)[number];
-
-export const ACTIVITY_SOURCES = ["manual", "gpx_upload", "fit_upload", "sheets"] as const;
-
-export type ActivitySource = (typeof ACTIVITY_SOURCES)[number];
-
-export type LocationType =
-  | "pista_400m"
-  | "rua_plana"
-  | "parque_praca"
-  | "esteira"
-  | "outro";
-
-export const ACTIVITY_LABELS: Record<ActivityType, string> = {
-  rodagem_leve: "Rodagem Leve",
-  corrida_continua: "Corrida Contínua",
-  tempo_run: "Tempo Run / Ritmo",
-  corrida_intervalada: "Intervalado / Tiros",
-  longao: "Longão",
-  caminhada: "Caminhada",
-};
-
-export const SOURCE_LABELS: Record<ActivitySource, string> = {
-  manual: "Manual",
-  gpx_upload: "Strava GPX",
-  fit_upload: "Strava FIT",
-  sheets: "Google Sheets",
-};
-
-export const LOCATION_LABELS: Record<LocationType, string> = {
-  pista_400m: "Pista de Atletismo (400m)",
-  rua_plana: "Rua Plana",
-  parque_praca: "Parque / Praça",
-  esteira: "Esteira",
-  outro: "Outro Percurso",
-};
 
 export interface TafAttempt {
   id: string;
@@ -378,7 +343,10 @@ export interface UserProfile {
   heightCm?: number | null;
   currentWeightKg?: number | null;
   birthDate?: string | null;
-  gender?: string | null;
+  gender?: AthleteGender | string | null;
+  _count?: {
+    weightRecords: number;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -389,7 +357,7 @@ export interface WeightRecord {
   weightKg: number;
   recordedAt: string;
   notes?: string | null;
-  source?: "weekly_prompt" | "manual" | "training_sync" | string;
+  source?: WeightSource | string;
   createdAt: string;
 }
 
@@ -403,7 +371,7 @@ export interface TafGoalConfig {
   targetExamDate?: string | null; // ISO 8601 YYYY-MM-DD
 
   // Barra Fixa
-  pullupType?: "dinamica" | "isometria" | null;
+  pullupType?: PullupType | null;
   pullupMinReps?: number | null;
   pullupTargetReps?: number | null;
   pullupMinSeconds?: number | null;
@@ -503,7 +471,6 @@ export interface BatchImportSummary {
 }
 
 // ─── Plano Semanal & Aderência ──────────────────────────────────────────────
-export type WeeklyPlanStatus = "Planejado" | "Concluído" | "Parcial" | "Perdido";
 
 export interface WeeklyPlanItemDto {
   id: string;

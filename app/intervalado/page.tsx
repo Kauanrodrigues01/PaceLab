@@ -23,6 +23,7 @@ import {
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { getTodayFortalezaDateKey } from "@/lib/formatting/date";
 import { ResultBlock } from "@/components/ui/ResultBlock";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { Badge } from "@/components/ui/Badge";
@@ -387,7 +388,7 @@ export default function IntervaladoPage() {
 
     historyStorage.save({
       id: "intervalado-" + Date.now(),
-      date: new Date().toISOString().split("T")[0],
+      date: getTodayFortalezaDateKey(),
       distanceKm: sessionResult.totalDistanceKm,
       timeSeconds: sessionResult.totalTimeSeconds,
       paceSeconds: sessionResult.averagePaceSeconds,

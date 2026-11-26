@@ -55,7 +55,7 @@ Implementado em [`app/treinos/page.tsx`](../../app/treinos/page.tsx), apresenta 
 
 ### Sincronização Google Sheets (`Sincronizar Planilha`)
 
-O botão **`Sincronizar Planilha`** (`handleSyncSheets`) chama `tafService.syncGoogleSheets({ direction: "bidirectional", forceFullResync: false })`, limpa os caches de sessão cross-page (`clearCrossPageSheetsCaches`), recarrega os treinos e exibe toast com o relatório resumido. Cada card na lista exibe o [`SheetsSyncBadge.tsx`](../../components/meu-taf/SheetsSyncBadge.tsx) (`Sheets ✓` em verde com tooltip de data/hora vs. `Pendente Sheets`).
+O botão **`Sincronizar Planilha`** (`handleSyncSheets`) chama `tafService.syncGoogleSheets({ direction: "bidirectional", forceFullResync: false })`, limpa os caches de sessão cross-page (`clearCrossPageSheetsCaches`), recarrega os treinos e exibe toast com o relatório resumido. Cada card na lista exibe o [`SheetsSyncBadge.tsx`](../../components/shared/SheetsSyncBadge.tsx) (`Sheets ✓` em verde com tooltip de data/hora vs. `Pendente Sheets`).
 
 ---
 
@@ -63,7 +63,7 @@ O botão **`Sincronizar Planilha`** (`handleSyncSheets`) chama `tafService.syncG
 
 ### Cadastro Manual (`TrainingForm`)
 
-Definido em [`TrainingForm.tsx`](../../components/meu-taf/TrainingForm.tsx), permite:
+Definido em [`TrainingForm.tsx`](../../components/treinos/TrainingForm.tsx), permite:
 - Seleção de data/hora, modalidade (`ACTIVITY_FORM_OPTIONS`), distância com atalhos (`2.3`, `3.0`, `5.0`, `8.0`, `10.0`, `15.0`, `21.1 km`), tempo (`h/min/s`), escala visual **RPE 1 a 10** (`Muito Leve` até `Máximo Absoluto`), peso corporal opcional, notas, parciais manuais e bloco recolhido de telemetria avançada (`shoeName`, FC média/máxima, ganho de elevação, cadência, tempo decorrido).
 - **Pré-visualização científica em tempo real:** exibe `Pace Médio`, `Velocidade` e o card `Gasto Calórico Estimado` calculado pelo Compêndio 2024 (`estimateTrainingCalories` + `buildCaloriePayload`).
 
@@ -73,7 +73,7 @@ Acionada pelo botão **`Importar .FIT / .GPX`**, carrega [`GpxImportPanel.tsx`](
 
 ### Filtros e Ordenação da Lista (`TrainingList`)
 
-Definido em [`TrainingList.tsx`](../../components/meu-taf/TrainingList.tsx), filtra por modalidade, origem (`Qualquer origem`, `Manual`, `Strava FIT`, `Strava GPX`, `Google Sheets`), faixa de RPE (`leve`, `moderado`, `intenso`, `maximo`), período (`preset`, últimas `2`/`4`/`6` sessões ou intervalo personalizado) e busca textual em notas, tênis, modalidade ou `"rpe N"`, expondo ordenação na UI por `Recentes`, `Maior km` e `Mais rápidos` (além de opções internas em `SortOption` para data crescente e RPE).
+Definido em [`TrainingList.tsx`](../../components/treinos/TrainingList.tsx), filtra por modalidade, origem (`Qualquer origem`, `Manual`, `Strava FIT`, `Strava GPX`, `Google Sheets`), faixa de RPE (`leve`, `moderado`, `intenso`, `maximo`), período (`preset`, últimas `2`/`4`/`6` sessões ou intervalo personalizado) e busca textual em notas, tênis, modalidade ou `"rpe N"`, expondo ordenação na UI por `Recentes`, `Maior km` e `Mais rápidos` (além de opções internas em `SortOption` para data crescente e RPE).
 
 ---
 

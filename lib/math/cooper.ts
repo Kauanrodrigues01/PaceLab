@@ -4,19 +4,21 @@
  * e classificação da capacidade cardiorrespiratória segundo diretrizes do Cooper Institute e ACSM.
  */
 
+import { DateInputValue, getAgeFromBirthDateFortaleza } from "@/lib/formatting/date";
+
+export type CooperClassificationLevel =
+  | "Muito Fraco"
+  | "Fraco"
+  | "Médio"
+  | "Bom"
+  | "Muito Bom"
+  | "Excelente";
+
 export interface CooperClassificationResult {
   distanceMeters: number;
   vo2Max: number;
   vo2MaxFormatted: string;
-  classification:
-    | "Muito Fraco"
-    | "Fraco"
-    | "Médio"
-    | "Bom"
-    | "Muito Bom"
-    | "Excelente";
-  colorClass: string;
-  badgeBgClass: string;
+  classification: CooperClassificationLevel;
   description: string;
   ageGroupLabel: string;
   genderLabel: string;
@@ -38,24 +40,11 @@ export function calculateCooperVo2Max(distanceMeters: number): number {
 }
 
 /**
- * Calcula a idade em anos completos a partir de uma string ISO (YYYY-MM-DD).
- * @param birthDate Data de nascimento no formato ISO
- * @returns Idade em anos completos, ou null se inválida
+ * Calcula a idade em anos completos a partir de string ISO/YYYY-MM-DD ou Date,
+ * utilizando o fuso oficial `America/Fortaleza` para evitar deslocamento D-1.
  */
-export function calculateAge(birthDate?: string | null): number | null {
-  if (!birthDate) return null;
-  const birth = new Date(birthDate);
-  if (isNaN(birth.getTime())) return null;
-
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age--;
-  }
-
-  return age >= 0 && age <= 120 ? age : null;
+export function calculateAge(birthDate?: DateInputValue): number | null {
+  return getAgeFromBirthDateFortaleza(birthDate);
 }
 
 /**
@@ -149,40 +138,26 @@ export function classifyCooperVo2Max(
     }
   }
 
-  // Estilização e descrição contextual
-  let colorClass = "text-blue-600 dark:text-blue-400";
-  let badgeBgClass = "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300";
+  // Descrição contextual (classes visuais desacopladas em components/shared/biometricVisuals.ts)
   let description = "Condicionamento físico satisfatório na média da população.";
 
   switch (classification) {
     case "Muito Fraco":
-      colorClass = "text-rose-600 dark:text-rose-400";
-      badgeBgClass = "bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300";
       description = "Capacidade aeróbica baixa. Foco em treinos intervalados e volume semanal.";
       break;
     case "Fraco":
-      colorClass = "text-orange-600 dark:text-orange-400";
-      badgeBgClass = "bg-orange-100 text-orange-800 dark:bg-orange-900/60 dark:text-orange-300";
       description = "Capacidade aeróbica abaixo do ideal para o TAF. Necessário consistência.";
       break;
     case "Médio":
-      colorClass = "text-amber-600 dark:text-amber-400";
-      badgeBgClass = "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300";
       description = "Nível regular. Próximo do ponto de corte exigido pela maioria das bancas.";
       break;
     case "Bom":
-      colorClass = "text-emerald-600 dark:text-emerald-400";
-      badgeBgClass = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300";
       description = "Bom condicionamento físico. Aptidão compatível com aprovação no TAF.";
       break;
     case "Muito Bom":
-      colorClass = "text-teal-600 dark:text-teal-400";
-      badgeBgClass = "bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300";
       description = "Excelente índice de consumo máximo de oxigênio. Zona de segurança garantida.";
       break;
     case "Excelente":
-      colorClass = "text-indigo-600 dark:text-indigo-400";
-      badgeBgClass = "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300";
       description = "Desempenho de atleta! Capacidade cardiorrespiratória acima do padrão dos editais.";
       break;
   }
@@ -192,8 +167,6 @@ export function classifyCooperVo2Max(
     vo2Max: vo2,
     vo2MaxFormatted: `${vo2.toFixed(1)} ml/kg/min`,
     classification,
-    colorClass,
-    badgeBgClass,
     description,
     ageGroupLabel,
     genderLabel: normalizedGender === "F" ? "Feminino" : "Masculino",

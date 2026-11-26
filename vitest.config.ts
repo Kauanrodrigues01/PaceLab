@@ -12,12 +12,12 @@ export default defineConfig({
       GOOGLE_CREDENTIALS_BASE64: '',
     },
     setupFiles: ['./vitest.setup.ts'],
-    include: ['**/__tests__/**/*.{ts,tsx}', '**/*.{test,spec}.{ts,tsx}'],
+    include: ['**/__tests__/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
       include: ['lib/**/*.ts'],
-      exclude: ['lib/storage/**', 'lib/prisma.ts', 'lib/supabase/**'],
+      exclude: ['lib/storage/**', 'lib/prisma.ts'],
       thresholds: {
         lines: 90,
         functions: 90,

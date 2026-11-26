@@ -6,12 +6,20 @@ import {
   LapDetail,
   LocationType,
   LOCATION_LABELS,
+  LOCATION_TYPES,
   TrainingSession,
 } from "@/types";
 import { tafService } from "@/lib/services/tafService";
-import { buildMirroredTrainingFromAttempt } from "@/lib/sheetsSyncUi";
+import {
+  buildMirroredTrainingFromAttempt,
+  generateClientRecordId,
+} from "@/lib/sheetsSyncUi";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import { formatPace, formatTime } from "@/lib/formatting/time";
+import {
+  formatFortalezaDateTimeInput,
+  fromFortalezaDateTimeInput,
+} from "@/lib/formatting/date";
 import {
   Trophy,
   AlertCircle,
@@ -37,13 +45,11 @@ const DISTANCE_SHORTCUTS = [
   2000, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000,
 ];
 
-const LOCATION_OPTIONS: { value: LocationType; label: string }[] = [
-  { value: "pista_400m", label: LOCATION_LABELS.pista_400m },
-  { value: "rua_plana", label: LOCATION_LABELS.rua_plana },
-  { value: "parque_praca", label: LOCATION_LABELS.parque_praca },
-  { value: "esteira", label: LOCATION_LABELS.esteira },
-  { value: "outro", label: LOCATION_LABELS.outro },
-];
+const LOCATION_OPTIONS: { value: LocationType; label: string }[] =
+  LOCATION_TYPES.map((value) => ({
+    value,
+    label: LOCATION_LABELS[value],
+  }));
 
 export function TafAttemptForm({
   targetDistanceMeters = 2300,
@@ -58,11 +64,7 @@ export function TafAttemptForm({
   onCancelEdit,
 }: TafAttemptFormProps) {
   // Form State
-  const [testDate, setTestDate] = useState(() => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - offset).toISOString().slice(0, 16);
-  });
+  const [testDate, setTestDate] = useState(() => formatFortalezaDateTimeInput());
   const [minutesInput, setMinutesInput] = useState<string>(String(targetDurationMinutes));
   const [secondsInput, setSecondsInput] = useState<string>("0");
   const [distanceMetersInput, setDistanceMetersInput] = useState<string>(String(targetDistanceMeters));
@@ -80,13 +82,7 @@ export function TafAttemptForm({
   // Preenche formulário caso entre em modo de edição
   useEffect(() => {
     if (editingAttempt) {
-      const parsedDate = new Date(editingAttempt.testDate);
-      if (!Number.isNaN(parsedDate.getTime())) {
-        const offset = parsedDate.getTimezoneOffset() * 60000;
-        setTestDate(
-          new Date(parsedDate.getTime() - offset).toISOString().slice(0, 16)
-        );
-      }
+      setTestDate(formatFortalezaDateTimeInput(editingAttempt.testDate));
 
       const totalSec = editingAttempt.actualDurationSeconds;
       setMinutesInput(String(Math.floor(totalSec / 60)));
@@ -103,16 +99,16 @@ export function TafAttemptForm({
         setLaps([]);
       }
     } else {
-      // Reset para padrão
-      setMinutesInput("12");
+      // Reset para padrão vindo das props/edital
+      setMinutesInput(String(targetDurationMinutes));
       setSecondsInput("0");
-      setDistanceMetersInput("2300");
+      setDistanceMetersInput(String(targetDistanceMeters));
       setLocationType("pista_400m");
       setNotes("");
       setEnableLaps(false);
       setLaps([]);
     }
-  }, [editingAttempt]);
+  }, [editingAttempt, targetDurationMinutes, targetDistanceMeters]);
 
   // Conversão segura de inputs para cálculo em tempo real
   const parsedMinutes = (() => {
@@ -237,13 +233,12 @@ export function TafAttemptForm({
     setIsSubmitting(true);
 
     try {
-      const parsedTestDate = new Date(testDate);
-      const safeTestDateIso = Number.isNaN(parsedTestDate.getTime())
-        ? editingAttempt?.testDate || new Date().toISOString()
-        : parsedTestDate.toISOString();
+      const safeTestDateIso = testDate.trim()
+        ? fromFortalezaDateTimeInput(testDate)
+        : editingAttempt?.testDate || new Date().toISOString();
 
       const attemptToSave: TafAttempt = {
-        id: editingAttempt ? editingAttempt.id : `taf_${Date.now()}`,
+        id: editingAttempt ? editingAttempt.id : generateClientRecordId("taf"),
         source: editingAttempt ? editingAttempt.source ?? "manual" : "manual",
         externalId: editingAttempt ? editingAttempt.externalId ?? null : null,
         testDate: safeTestDateIso,
@@ -350,9 +345,9 @@ export function TafAttemptForm({
       {errorMessage && (
         <div
           data-testid="form-error-message"
-          className="mb-4 p-3 bg-rose-950/40 border border-rose-900/60 rounded-xl text-xs font-medium text-rose-200 flex items-center gap-2"
+          className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs font-medium text-rose-400 flex items-center gap-2"
         >
-          <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+          <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
           <span>{errorMessage}</span>
         </div>
       )}
@@ -369,7 +364,7 @@ export function TafAttemptForm({
             value={testDate}
             onChange={(e) => setTestDate(e.target.value)}
             required
-            className="w-full h-11 px-3 text-sm rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A]"
+            className="w-full h-11 px-3 text-sm rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A] [color-scheme:dark]"
           />
         </div>
 
@@ -578,7 +573,7 @@ export function TafAttemptForm({
                   autoGenerateLaps();
                 }
               }}
-              className="w-4 h-4 text-[#B7F34A] rounded focus:ring-[#B7F34A] bg-[#0B1020] border-[#1E2942]"
+              className="w-4 h-4 accent-[#B7F34A] text-[#B7F34A] rounded focus:ring-[#B7F34A] bg-[#0B1020] border-[#1E2942]"
             />
             <span className="text-xs font-bold text-white">
               Registrar parciais de voltas (pista de 400m)
@@ -667,7 +662,7 @@ export function TafAttemptForm({
             data-testid="also-save-diary-checkbox"
             checked={alsoSaveToDiary}
             onChange={(e) => setAlsoSaveToDiary(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-[#1E2942] bg-[#131A2E] text-[#B7F34A] focus:ring-[#B7F34A]"
+            className="mt-0.5 h-4 w-4 rounded border-[#1E2942] bg-[#131A2E] accent-[#B7F34A] text-[#B7F34A] focus:ring-[#B7F34A]"
           />
           <span className="text-xs text-[#E2E8F0] leading-relaxed">
             <span className="font-bold text-white block">
@@ -685,7 +680,7 @@ export function TafAttemptForm({
         type="submit"
         disabled={isSubmitting}
         data-testid="submit-attempt-btn"
-        className="w-full h-12 bg-[#B7F34A] hover:bg-[#a3e232] text-[#0B1020] font-black text-sm rounded-xl shadow-md shadow-[#B7F34A]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+        className="w-full h-12 bg-[#B7F34A] hover:bg-[#A3E332] text-[#0B1020] font-black text-sm rounded-xl shadow-md shadow-[#B7F34A]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
       >
         <Plus className="w-4 h-4" />
         {isSubmitting

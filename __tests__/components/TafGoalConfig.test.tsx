@@ -219,4 +219,46 @@ describe("TafGoalConfigCard Component", () => {
     expect(screen.getByDisplayValue(/Polícia Federal \(PF\)/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue("2350")).toBeInTheDocument();
   });
+
+  it("exibe recomendação não bloqueante quando meta < mínimo e bloqueia distâncias inválidas <= 0", async () => {
+    vi.spyOn(tafService, "getGoal").mockResolvedValueOnce({
+      ...DEFAULT_GOAL,
+      minDistanceMeters: 2400,
+      targetDistanceMeters: 2200,
+    });
+    const saveGoalMock = vi.spyOn(tafService, "saveGoal").mockResolvedValueOnce({
+      ...DEFAULT_GOAL,
+      minDistanceMeters: 2400,
+      targetDistanceMeters: 2200,
+    });
+
+    const { container } = render(<TafGoalConfigCard />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Metas do TAF & Edital/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Salvar Metas do Edital/i })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/A sua meta de segurança é menor que o mínimo do edital/i)
+      ).toBeInTheDocument();
+      expect(saveGoalMock).toHaveBeenCalledTimes(1);
+    });
+
+    // Agora testa bloqueio real no handler quando distância <= 0 (ignorando HTML5 min via submit direto)
+    const targetInput = screen.getByDisplayValue("2200");
+    fireEvent.change(targetInput, { target: { value: "0" } });
+    fireEvent.submit(container.querySelector("form")!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Informe valores válidos maiores que zero/i)
+      ).toBeInTheDocument();
+    });
+    expect(saveGoalMock).toHaveBeenCalledTimes(1);
+  });
 });

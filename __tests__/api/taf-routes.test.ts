@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Prisma } from "@prisma/client";
 import { GET as getGoal, POST as postGoal } from "@/app/api/taf/goals/route";
 import { GET as getAttempts, POST as postAttempt } from "@/app/api/taf/attempts/route";
-import { PUT as putAttempt, DELETE as deleteAttempt } from "@/app/api/taf/attempts/[id]/route";
+import {
+  GET as getAttemptById,
+  PUT as putAttempt,
+  DELETE as deleteAttempt,
+} from "@/app/api/taf/attempts/[id]/route";
 import { GET as getTrainings, POST as postTraining } from "@/app/api/taf/trainings/route";
 import { PUT as putTraining, DELETE as deleteTraining } from "@/app/api/taf/trainings/[id]/route";
 import { GET as getHealth } from "@/app/api/taf/health/route";
@@ -89,7 +93,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
       }
     });
 
-    it("retorna 503 se DATABASE_URL não estiver configurada", async () => {
+    it("retorna 503 com code DATABASE_UNAVAILABLE se DATABASE_URL não estiver configurada", async () => {
       const originalUrl = process.env.DATABASE_URL;
       process.env.DATABASE_URL = "";
       try {
@@ -98,7 +102,28 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
 
         expect(res.status).toBe(503);
         expect(data.success).toBe(false);
+        expect(data.code).toBe("DATABASE_UNAVAILABLE");
         expect(data.error).toBe("DATABASE_URL não configurada");
+        expect(data.details?.status).toBe("disconnected");
+      } finally {
+        process.env.DATABASE_URL = originalUrl;
+      }
+    });
+
+    it("retorna 503 com code DATABASE_UNAVAILABLE quando a query SELECT 1 falha", async () => {
+      const originalUrl = process.env.DATABASE_URL;
+      process.env.DATABASE_URL = "postgresql://mock:mock@localhost:5432/mock";
+      vi.mocked(prisma.$queryRaw).mockRejectedValueOnce(
+        new Error("Connection refused")
+      );
+      try {
+        const res = await getHealth();
+        const data = await res.json();
+
+        expect(res.status).toBe(503);
+        expect(data.success).toBe(false);
+        expect(data.code).toBe("DATABASE_UNAVAILABLE");
+        expect(data.error).toContain("Connection refused");
         expect(data.details?.status).toBe("disconnected");
       } finally {
         process.env.DATABASE_URL = originalUrl;
@@ -693,6 +718,69 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
       expect(data.success).toBe(false);
       expect(data.error).toBe("Registro não encontrado no banco de dados");
     });
+
+    it("GET /api/taf/attempts/[id] retorna simulado existente com status 200", async () => {
+      vi.mocked(prisma.tafAttempt.findUnique).mockResolvedValueOnce({
+        id: "att-get-1",
+        userId: null,
+        source: "manual",
+        externalId: null,
+        syncedToSheetsAt: null,
+        testDate: new Date("2026-10-12T10:00:00.000Z"),
+        targetDurationSeconds: 720,
+        actualDurationSeconds: 720,
+        distanceMeters: 2520,
+        speedKmh: 12.6,
+        paceSeconds: 286,
+        paceFormatted: "4:46",
+        locationType: "pista_400m",
+        shoeName: "Pegasus",
+        avgHeartRate: 170,
+        maxHeartRate: 185,
+        notes: null,
+        laps: [],
+        createdAt: new Date("2026-10-12T10:00:00.000Z"),
+        updatedAt: new Date("2026-10-12T10:00:00.000Z"),
+      } as never);
+
+      const res = await getAttemptById(
+        new Request("http://localhost/api/taf/attempts/att-get-1"),
+        { params: { id: "att-get-1" } }
+      );
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.id).toBe("att-get-1");
+      expect(data.data.distanceMeters).toBe(2520);
+    });
+
+    it("GET /api/taf/attempts/[id] retorna 404 quando simulado não existe", async () => {
+      vi.mocked(prisma.tafAttempt.findUnique).mockResolvedValueOnce(null);
+
+      const res = await getAttemptById(
+        new Request("http://localhost/api/taf/attempts/att-inexistente"),
+        { params: { id: "att-inexistente" } }
+      );
+      const data = await res.json();
+
+      expect(res.status).toBe(404);
+      expect(data.success).toBe(false);
+      expect(data.code).toBe("NOT_FOUND");
+    });
+
+    it("GET /api/taf/attempts/[id] retorna 400 INVALID_PATH_ID quando ID é em branco", async () => {
+      const res = await getAttemptById(
+        new Request("http://localhost/api/taf/attempts/%20"),
+        { params: { id: "   " } }
+      );
+      const data = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.code).toBe("INVALID_PATH_ID");
+      expect(prisma.tafAttempt.findUnique).not.toHaveBeenCalled();
+    });
   });
 
   // ─── Trainings Route ─────────────────────────────────────────────────────
@@ -926,6 +1014,7 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
       expect(delRes.status).toBe(200);
       expect(delData.success).toBe(true);
       expect(delData.data.deletedId).toBe("tr-1");
+      expect(delData.data.deleted).toBe(true);
     });
 
     it("PUT retorna 404 quando ID não é encontrado no banco (P2025)", async () => {
@@ -946,6 +1035,50 @@ describe("API Routes do TAF com Prisma ORM (Eixo B)", () => {
       expect(putRes.status).toBe(404);
       expect(putData.success).toBe(false);
       expect(putData.error).toBe("Registro não encontrado no banco de dados");
+    });
+
+    it("rejeita ID em branco (INVALID_PATH_ID) em PUT/DELETE de attempts e trainings", async () => {
+      const attPut = await putAttempt(
+        new Request("http://localhost/api/taf/attempts/%20", {
+          method: "PUT",
+          body: JSON.stringify({ notes: "x" }),
+        }),
+        { params: { id: "   " } }
+      );
+      expect(attPut.status).toBe(400);
+      expect((await attPut.json()).code).toBe("INVALID_PATH_ID");
+
+      const attDel = await deleteAttempt(
+        new Request("http://localhost/api/taf/attempts/%20", { method: "DELETE" }),
+        { params: { id: "" } }
+      );
+      expect(attDel.status).toBe(400);
+      expect((await attDel.json()).code).toBe("INVALID_PATH_ID");
+
+      const trPut = await putTraining(
+        new Request("http://localhost/api/taf/trainings/%20", {
+          method: "PUT",
+          body: JSON.stringify({ notes: "x" }),
+        }),
+        { params: { id: "   " } }
+      );
+      expect(trPut.status).toBe(400);
+      expect((await trPut.json()).code).toBe("INVALID_PATH_ID");
+
+      const trDel = await deleteTraining(
+        new Request("http://localhost/api/taf/trainings/%20", { method: "DELETE" }),
+        { params: { id: "" } }
+      );
+      expect(trDel.status).toBe(400);
+      expect((await trDel.json()).code).toBe("INVALID_PATH_ID");
+
+      const tooLongId = "a".repeat(129);
+      const attTooLong = await getAttemptById(
+        new Request(`http://localhost/api/taf/attempts/${tooLongId}`),
+        { params: { id: tooLongId } }
+      );
+      expect(attTooLong.status).toBe(400);
+      expect((await attTooLong.json()).code).toBe("INVALID_PATH_ID");
     });
   });
 });

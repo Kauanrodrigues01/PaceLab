@@ -233,8 +233,12 @@ describe("API Routes — Telemetria GPX, Origem e Anti-Duplicação (Fase 3)", (
 
       expect(res.status).toBe(409);
       expect(json.success).toBe(false);
+      expect(json.code).toBe("DUPLICATE_EXTERNAL_ID");
       expect(json.error).toBe("Este arquivo .GPX já foi importado");
-      expect(json.details).toEqual({ existingId: "trn-existing-gpx" });
+      expect(json.details).toEqual({
+        existingId: "trn-existing-gpx",
+        code: "DUPLICATE_EXTERNAL_ID",
+      });
       expect(prisma.trainingSession.create).not.toHaveBeenCalled();
       expect(prisma.trainingSession.update).not.toHaveBeenCalled();
     });
@@ -263,8 +267,12 @@ describe("API Routes — Telemetria GPX, Origem e Anti-Duplicação (Fase 3)", (
 
       expect(res.status).toBe(409);
       expect(json.success).toBe(false);
+      expect(json.code).toBe("DUPLICATE_EXTERNAL_ID");
       expect(json.error).toBe("Este arquivo .FIT já foi importado");
-      expect(json.details).toEqual({ existingId: "trn-existing-fit" });
+      expect(json.details).toEqual({
+        existingId: "trn-existing-fit",
+        code: "DUPLICATE_EXTERNAL_ID",
+      });
     });
 
     it("POST GPX duplicado com onDuplicate='update' atualiza registro existente preservando campos subjetivos omitidos", async () => {
@@ -476,13 +484,21 @@ describe("API Routes — Telemetria GPX, Origem e Anti-Duplicação (Fase 3)", (
       const conflictJson = await conflictRes.json();
 
       expect(conflictRes.status).toBe(409);
+      expect(conflictJson.code).toBe("DUPLICATE_EXTERNAL_ID");
       expect(conflictJson.error).toBe("Este arquivo .GPX já foi importado");
-      expect(conflictJson.details).toEqual({ existingId: "att-gpx-1" });
+      expect(conflictJson.details).toEqual({
+        existingId: "att-gpx-1",
+        code: "DUPLICATE_EXTERNAL_ID",
+      });
 
       // Agora com onDuplicate='update'
-      vi.mocked(prisma.tafAttempt.findUnique).mockResolvedValueOnce(existingGpxAttempt as never);
+      vi.mocked(prisma.tafAttempt.findUnique).mockResolvedValueOnce({
+        ...existingGpxAttempt,
+        targetDurationSeconds: 900,
+      } as never);
       vi.mocked(prisma.tafAttempt.update).mockResolvedValueOnce({
         ...existingGpxAttempt,
+        targetDurationSeconds: 900,
         distanceMeters: 2690,
       } as never);
 
@@ -503,6 +519,9 @@ describe("API Routes — Telemetria GPX, Origem e Anti-Duplicação (Fase 3)", (
         where: { id: "att-gpx-1" },
         data: expect.objectContaining({
           distanceMeters: 2690,
+          targetDurationSeconds: 900,
+          avgHeartRate: 178,
+          maxHeartRate: 192,
           locationType: "pista_400m",
           shoeName: "Nike Streakfly",
           notes: "Simulado forte a partir do GPX",

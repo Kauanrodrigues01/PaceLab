@@ -23,7 +23,7 @@ Antes de abrir PR, publicar em `main` ou considerar uma entrega pronta, execute 
 ### Regras de Cobertura e Isolamento Offline (`vitest.config.ts`)
 
 Conforme configurado em [`vitest.config.ts`](../../vitest.config.ts) e [`vitest.setup.ts`](../../vitest.setup.ts):
-- **Escopo medido pela cobertura:** arquivos em `lib/**/*.ts`, com exclusão explícita de `lib/storage/**`, `lib/prisma.ts` e `lib/supabase/**`.
+- **Escopo medido pela cobertura:** arquivos em `lib/**/*.ts`, com exclusão explícita de `lib/storage/**` e `lib/prisma.ts`.
 - **Metas obrigatórias:** `lines: 90` e `functions: 90` (relatórios `text` e `lcov`).
 - **Isolamento de rede nos testes:** tanto o `vitest.config.ts` quanto o `vitest.setup.ts` definem `GOOGLE_SHEETS_SPREADSHEET_ID=""` e `GOOGLE_CREDENTIALS_BASE64=""` como strings vazias, evitando que testes automatizados acionem planilhas reais declaradas em `.env`.
 
@@ -37,7 +37,7 @@ Conforme configurado em [`vitest.config.ts`](../../vitest.config.ts) e [`vitest.
 npm run db:check
 ```
 
-O comando `npm run db:check` executa [`scripts/check-db.mjs`](../../scripts/check-db.mjs) com `--env-file=.env`, mascara a senha das URLs, testa `SELECT 1 as connected, NOW() as current_time` e consulta `tafGoal`, `tafAttempt` e `trainingSession` (o log imprime o rótulo legado `taf_trainings` para `training_sessions`; o aviso de `prisma db push` exibido pelo script quando tabelas não existem aplica-se apenas à inicialização manual de um banco novo/vazio não-produtivo). Em caso de ambiente novo ou falha de autenticação, valide:
+O comando `npm run db:check` executa [`scripts/check-db.mjs`](../../scripts/check-db.mjs) com `--env-file=.env`, mascara a senha das URLs, testa `SELECT 1 as connected, NOW() as current_time` e exibe a contagem de `taf_goals`, `taf_attempts` e `training_sessions` (o aviso de `prisma db push` exibido pelo script quando tabelas não existem aplica-se apenas à inicialização manual de um banco novo/vazio não-produtivo). Em caso de ambiente novo ou falha de autenticação, valide:
 1. Se caracteres especiais na senha (como `@`) estão escapados em URL (`%40`);
 2. Se o projeto Supabase não está pausado;
 3. Se `DATABASE_URL` (Transaction Pooler, porta `6543`, ou banco local `5432`) e `DIRECT_URL` (conexão direta na porta `5432`) apontam para o mesmo projeto.

@@ -95,3 +95,41 @@ export function calcDistanceFromTimeAndSpeed(
   }
   return speedKmh * (timeSeconds / 3600);
 }
+
+/**
+ * Resolve speedKmh, paceSeconds e paceFormatted a partir de campos opcionais já informados
+ * ou calcula o fallback determinístico por distância (km) e duração (s).
+ */
+export function resolvePaceMetricsFallback(
+  raw: {
+    speedKmh?: unknown;
+    paceSeconds?: unknown;
+    paceFormatted?: unknown;
+  },
+  distanceKm: number,
+  durationSeconds: number
+): PaceResult {
+  const safeDistanceKm =
+    typeof distanceKm === "number" && Number.isFinite(distanceKm) && distanceKm > 0
+      ? distanceKm
+      : 0.05;
+  const safeDurationSec =
+    typeof durationSeconds === "number" && Number.isFinite(durationSeconds) && durationSeconds > 0
+      ? Math.round(durationSeconds)
+      : 30;
+
+  const speedKmh =
+    typeof raw.speedKmh === "number" && Number.isFinite(raw.speedKmh) && raw.speedKmh > 0
+      ? raw.speedKmh
+      : Number((safeDistanceKm / (safeDurationSec / 3600)).toFixed(2));
+  const paceSeconds =
+    typeof raw.paceSeconds === "number" && Number.isFinite(raw.paceSeconds) && raw.paceSeconds > 0
+      ? Math.max(1, Math.round(raw.paceSeconds))
+      : Math.max(1, Math.round(safeDurationSec / safeDistanceKm));
+  const paceFormatted =
+    typeof raw.paceFormatted === "string" && raw.paceFormatted.trim().length > 0
+      ? raw.paceFormatted
+      : formatPace(paceSeconds);
+
+  return { speedKmh, paceSeconds, paceFormatted };
+}

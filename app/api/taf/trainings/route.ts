@@ -1,101 +1,65 @@
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess, apiConflict } from "@/lib/api/response";
+import { apiSuccess, withApiHandler } from "@/lib/api/response";
 import {
-  safeReconcileWeeklyPlans,
+  mergeDefinedFields,
+  parseJsonBody,
+  parseQueryParams,
+} from "@/lib/api/request";
+import {
+  buildCursorPaginatedResponse,
+  getCursorPaginationPrismaArgs,
+} from "@/lib/api/pagination";
+import {
+  buildDuplicateExternalIdResponse,
+  isPrismaUniqueConstraintError,
+} from "@/lib/api/externalIdConflict";
+import {
   shouldSkipSheetsSync,
-  syncRecordWithSheets,
+  syncTrainingRecordWithPlanAndSheets,
 } from "@/lib/api/sheetsSync";
 import {
   pushWeeklyPlanStatusToSheets,
-  safeAutoSync,
   syncTrainingSessionToSheet,
 } from "@/lib/googleSheets";
+import { resolvePaceMetricsFallback } from "@/lib/math/pace";
 import {
   CreateTrainingSessionSchema,
   PaginationQuerySchema,
 } from "@/lib/validations/taf";
-
-async function syncTrainingWithWeeklyPlan<
-  T extends Parameters<typeof syncTrainingSessionToSheet>[0] & {
-    id: string;
-    syncedToSheetsAt?: Date | null;
-  }
->(
-  record: T,
-  options: { skipSheetsSync: boolean; isUpdate: boolean }
-) {
-  await safeReconcileWeeklyPlans(
-    options.isUpdate ? { editedSessionId: record.id } : undefined
-  );
-
-  const syncedRecord = await syncRecordWithSheets(
-    record,
-    () => syncTrainingSessionToSheet(record),
-    { skip: options.skipSheetsSync }
-  );
-
-  if (!options.skipSheetsSync) {
-    await safeAutoSync(() => pushWeeklyPlanStatusToSheets());
-  }
-
-  return syncedRecord;
-}
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   return withApiHandler(async () => {
-    const { searchParams } = new URL(request.url);
-    const queryParams: Record<string, string> = {};
-    const limitParam = searchParams.get("limit")?.trim();
-    const cursorParam = searchParams.get("cursor")?.trim();
-    const activityParam = searchParams.get("activityType")?.trim();
-    if (limitParam) queryParams.limit = limitParam;
-    if (cursorParam) queryParams.cursor = cursorParam;
-    if (activityParam) queryParams.activityType = activityParam;
-
-    const { limit, cursor, activityType } = PaginationQuerySchema.parse(queryParams);
+    const { limit, cursor, activityType } = parseQueryParams(
+      request,
+      PaginationQuerySchema
+    );
 
     const items = await prisma.trainingSession.findMany({
-      take: limit + 1,
-      skip: cursor ? 1 : 0,
-      cursor: cursor ? { id: cursor } : undefined,
+      ...getCursorPaginationPrismaArgs(limit, cursor),
       where: activityType ? { activityType } : undefined,
       orderBy: { sessionDate: "desc" },
     });
 
-    const hasMore = items.length > limit;
-    const paginatedItems = hasMore ? items.slice(0, limit) : items;
-    const nextCursor =
-      hasMore && paginatedItems.length > 0
-        ? paginatedItems[paginatedItems.length - 1].id
-        : null;
-
-    return apiSuccess(paginatedItems, 200, {
-      limit,
-      nextCursor,
-      hasMore,
-    });
+    return buildCursorPaginatedResponse(items, limit);
   });
 }
 
 export async function POST(request: Request) {
   return withApiHandler(async () => {
     const skipSheetsSync = shouldSkipSheetsSync(request);
-    const body = await request.json();
-    const validated = CreateTrainingSessionSchema.parse(body);
+    const { body, data: validated } = await parseJsonBody(
+      request,
+      CreateTrainingSessionSchema
+    );
 
-    const speedKmh =
-      validated.speedKmh ??
-      Number((validated.distanceKm / (validated.durationSeconds / 3600)).toFixed(2));
-    const paceSeconds =
-      validated.paceSeconds ??
-      Math.round(validated.durationSeconds / validated.distanceKm);
-    const paceFormatted =
-      validated.paceFormatted ??
-      `${Math.floor(paceSeconds / 60)}:${String(paceSeconds % 60).padStart(2, "0")}`;
+    const { speedKmh, paceSeconds, paceFormatted } = resolvePaceMetricsFallback(
+      validated,
+      validated.distanceKm,
+      validated.durationSeconds
+    );
 
     const trainingData = {
       userId: validated.userId || null,
@@ -132,18 +96,11 @@ export async function POST(request: Request) {
         validated.activeCalories !== undefined ? validated.activeCalories : null,
       totalCalories:
         validated.totalCalories !== undefined ? validated.totalCalories : null,
-      metValue:
-        validated.metValue !== undefined ? validated.metValue : null,
+      metValue: validated.metValue !== undefined ? validated.metValue : null,
       calorieMethod: validated.calorieMethod || null,
       calorieSource: validated.calorieSource || null,
       calorieMetadata: validated.calorieMetadata || null,
     };
-
-    const conflictLabel =
-      trainingData.source === "fit_upload" ||
-      validated.externalId?.startsWith("fit_")
-        ? ".FIT"
-        : ".GPX";
 
     if (validated.externalId) {
       const existing = await prisma.trainingSession.findUnique({
@@ -152,67 +109,53 @@ export async function POST(request: Request) {
 
       if (existing) {
         if (validated.onDuplicate !== "update") {
-          return apiConflict(`Este arquivo ${conflictLabel} já foi importado`, {
-            existingId: existing.id,
-          });
+          return buildDuplicateExternalIdResponse(
+            trainingData.source,
+            validated.externalId,
+            existing.id
+          );
         }
 
-        const hasRawField = (key: string) =>
-          Boolean(
-            body &&
-              typeof body === "object" &&
-              Object.prototype.hasOwnProperty.call(body, key) &&
-              (body as Record<string, unknown>)[key] !== undefined
-          );
+        const updatePayload = mergeDefinedFields(
+          body,
+          trainingData,
+          existing as Record<string, unknown>,
+          [
+            "userId",
+            "syncedToSheetsAt",
+            "sessionDate",
+            "activityType",
+            "elapsedSeconds",
+            "avgHeartRate",
+            "maxHeartRate",
+            "elevationGainM",
+            "avgCadence",
+            "perceivedEffort",
+            "bodyWeightKg",
+            "notes",
+            "shoeName",
+            "splits",
+            "activeCalories",
+            "totalCalories",
+            "metValue",
+            "calorieMethod",
+            "calorieSource",
+            "calorieMetadata",
+          ],
+          { splits: [] }
+        );
 
         const updated = await prisma.trainingSession.update({
           where: { id: existing.id },
-          data: {
-            ...trainingData,
-            sessionDate: hasRawField("sessionDate")
-              ? trainingData.sessionDate
-              : existing.sessionDate,
-            activityType: hasRawField("activityType")
-              ? validated.activityType
-              : existing.activityType,
-            perceivedEffort: hasRawField("perceivedEffort")
-              ? trainingData.perceivedEffort
-              : existing.perceivedEffort,
-            bodyWeightKg: hasRawField("bodyWeightKg")
-              ? trainingData.bodyWeightKg
-              : existing.bodyWeightKg,
-            notes: hasRawField("notes") ? trainingData.notes : existing.notes,
-            shoeName: hasRawField("shoeName")
-              ? trainingData.shoeName
-              : existing.shoeName,
-            splits: hasRawField("splits")
-              ? trainingData.splits
-              : (existing.splits ?? []),
-            activeCalories: hasRawField("activeCalories")
-              ? trainingData.activeCalories
-              : existing.activeCalories,
-            totalCalories: hasRawField("totalCalories")
-              ? trainingData.totalCalories
-              : existing.totalCalories,
-            metValue: hasRawField("metValue")
-              ? trainingData.metValue
-              : existing.metValue,
-            calorieMethod: hasRawField("calorieMethod")
-              ? trainingData.calorieMethod
-              : existing.calorieMethod,
-            calorieSource: hasRawField("calorieSource")
-              ? trainingData.calorieSource
-              : existing.calorieSource,
-            calorieMetadata: hasRawField("calorieMetadata")
-              ? trainingData.calorieMetadata
-              : existing.calorieMetadata,
-          },
+          data: updatePayload as typeof trainingData,
         });
 
-        const syncedUpdated = await syncTrainingWithWeeklyPlan(updated, {
-          skipSheetsSync,
-          isUpdate: true,
-        });
+        const syncedUpdated = await syncTrainingRecordWithPlanAndSheets(
+          updated,
+          () => syncTrainingSessionToSheet(updated),
+          () => pushWeeklyPlanStatusToSheets(),
+          { skipSheetsSync, editedSessionId: updated.id }
+        );
 
         return apiSuccess(syncedUpdated, 200);
       }
@@ -233,26 +176,28 @@ export async function POST(request: Request) {
             data: trainingData,
           });
     } catch (err) {
-      if (
-        validated.externalId &&
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-      ) {
+      if (validated.externalId && isPrismaUniqueConstraintError(err)) {
         const raceExisting = await prisma.trainingSession
           .findUnique({ where: { externalId: validated.externalId } })
           .catch(() => null);
-        return apiConflict(`Este arquivo ${conflictLabel} já foi importado`, {
-          ...(raceExisting?.id ? { existingId: raceExisting.id } : {}),
-          code: "DUPLICATE_EXTERNAL_ID",
-        });
+        return buildDuplicateExternalIdResponse(
+          trainingData.source,
+          validated.externalId,
+          raceExisting?.id
+        );
       }
       throw err;
     }
 
-    const syncedCreated = await syncTrainingWithWeeklyPlan(created, {
-      skipSheetsSync,
-      isUpdate: Boolean(validated.id),
-    });
+    const syncedCreated = await syncTrainingRecordWithPlanAndSheets(
+      created,
+      () => syncTrainingSessionToSheet(created),
+      () => pushWeeklyPlanStatusToSheets(),
+      {
+        skipSheetsSync,
+        editedSessionId: validated.id ? created.id : undefined,
+      }
+    );
 
     return apiSuccess(syncedCreated, 201);
   });

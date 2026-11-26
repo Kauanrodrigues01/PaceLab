@@ -17,6 +17,7 @@ import {
   ActivitySource,
   ActivityType,
   LOCATION_LABELS,
+  LOCATION_TYPES,
   LocationType,
 } from "@/types";
 
@@ -222,9 +223,9 @@ const VALID_ACTIVITIES_SET = new Set<string>(ACTIVITY_TYPES);
 
 const LOCATION_ALIAS_MAP: Record<string, LocationType> = {
   ...Object.fromEntries(
-    Object.keys(LOCATION_LABELS).map((loc) => [
+    LOCATION_TYPES.map((loc) => [
       normalizeActivityLookupKey(loc),
-      loc as LocationType,
+      loc,
     ])
   ),
   ...Object.fromEntries(

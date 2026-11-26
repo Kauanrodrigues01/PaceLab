@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess, apiError } from "@/lib/api/response";
+import {
+  withApiHandler,
+  apiSuccess,
+  apiServiceUnavailable,
+} from "@/lib/api/response";
 import { isGoogleSheetsConfigured } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +14,16 @@ export async function GET() {
     const sheetsConfigured = isGoogleSheetsConfigured();
 
     if (!process.env.DATABASE_URL) {
-      return apiError("DATABASE_URL não configurada", 503, {
-        status: "disconnected",
-        orm: "Prisma",
-        sheetsConfigured,
-      });
+      return apiServiceUnavailable(
+        "DATABASE_URL não configurada",
+        {
+          status: "disconnected",
+          orm: "Prisma",
+          sheetsConfigured,
+          code: "DATABASE_UNAVAILABLE",
+        },
+        "DATABASE_UNAVAILABLE"
+      );
     }
 
     try {
@@ -34,11 +43,16 @@ export async function GET() {
         dbError instanceof Error
           ? dbError.message
           : "Erro desconhecido ao conectar com o banco";
-      return apiError(message, 503, {
-        status: "disconnected",
-        orm: "Prisma",
-        sheetsConfigured,
-      });
+      return apiServiceUnavailable(
+        message,
+        {
+          status: "disconnected",
+          orm: "Prisma",
+          sheetsConfigured,
+          code: "DATABASE_UNAVAILABLE",
+        },
+        "DATABASE_UNAVAILABLE"
+      );
     }
   });
 }

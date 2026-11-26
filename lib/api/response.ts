@@ -3,9 +3,37 @@ import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
 import { formatZodErrors, FormattedZodError } from "@/lib/validations/taf";
 
-// ─── Contrato de Dados da API PaceLab ──────────────────────────────────────────
+// ─── Contrato de Dados e Códigos de Erro da API PaceLab ──────────────────────
+
+export type ApiErrorCode =
+  | "BAD_REQUEST"
+  | "VALIDATION_ERROR"
+  | "INVALID_JSON"
+  | "INVALID_PATH_ID"
+  | "NOT_FOUND"
+  | "CONFLICT"
+  | "DUPLICATE_EXTERNAL_ID"
+  | "PAYLOAD_TOO_LARGE"
+  | "UNPROCESSABLE_ENTITY"
+  | "DATABASE_UNAVAILABLE"
+  | "SERVICE_UNAVAILABLE"
+  | "MISSING_FILE"
+  | "TOO_MANY_FILES"
+  | "INVALID_EXTENSION"
+  | "EMPTY_FILE"
+  | "FILE_TOO_LARGE"
+  | "PARSE_ERROR"
+  | "SHEETS_NOT_CONFIGURED"
+  | "SHEETS_QUOTA_EXCEEDED"
+  | "SHEETS_PERMISSION_DENIED"
+  | "SHEETS_NOT_FOUND"
+  | "SHEETS_UNAVAILABLE"
+  | "SHEETS_UPSTREAM_ERROR"
+  | "INTERNAL_ERROR"
+  | (string & {});
 
 export interface ApiMeta {
+  limit?: number;
   totalCount?: number;
   nextCursor?: string | null;
   hasMore?: boolean;
@@ -16,15 +44,21 @@ export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
+  code?: ApiErrorCode;
   details?: FormattedZodError[] | Record<string, unknown> | unknown;
   meta?: ApiMeta;
   timestamp: string;
 }
 
+export interface DeleteResultPayload {
+  deletedId: string;
+  deleted: true;
+}
+
 // ─── Helpers de Resposta HTTP ──────────────────────────────────────────────────
 
 /**
- * Cria uma resposta HTTP padronizada de sucesso (200, 201, etc.)
+ * Cria uma resposta HTTP padronizada de sucesso (200, 201, etc.).
  */
 export function apiSuccess<T>(
   data: T,
@@ -43,12 +77,37 @@ export function apiSuccess<T>(
 }
 
 /**
- * Cria uma resposta HTTP padronizada de erro (400, 404, 500, etc.)
+ * Cria uma resposta HTTP padronizada de exclusão de recurso por ID.
+ */
+export function apiDeleted(
+  deletedId: string,
+  status = 200
+): NextResponse<ApiResponse<DeleteResultPayload>> {
+  return apiSuccess({ deletedId, deleted: true }, status);
+}
+
+function extractCodeFromDetails(details: unknown): ApiErrorCode | undefined {
+  if (
+    details &&
+    !Array.isArray(details) &&
+    typeof details === "object" &&
+    "code" in details &&
+    typeof (details as { code?: unknown }).code === "string"
+  ) {
+    return (details as { code: ApiErrorCode }).code;
+  }
+  return undefined;
+}
+
+/**
+ * Cria uma resposta HTTP padronizada de erro (400, 404, 500, etc.).
+ * Propaga `code` explícito (ou extraído de `details.code`) para o nível raiz mantendo retrocompatibilidade.
  */
 export function apiError(
   message: string,
   status = 400,
-  details?: FormattedZodError[] | Record<string, unknown> | unknown
+  details?: FormattedZodError[] | Record<string, unknown> | unknown,
+  code?: ApiErrorCode
 ): NextResponse<ApiResponse<null>> {
   let hasDetails = false;
   if (Array.isArray(details)) {
@@ -57,10 +116,13 @@ export function apiError(
     hasDetails = Object.keys(details).length > 0;
   }
 
+  const resolvedCode = code ?? extractCodeFromDetails(details);
+
   return NextResponse.json(
     {
       success: false,
       error: message,
+      ...(resolvedCode ? { code: resolvedCode } : {}),
       details: hasDetails ? (details as ApiResponse["details"]) : undefined,
       timestamp: new Date().toISOString(),
     },
@@ -69,49 +131,113 @@ export function apiError(
 }
 
 /**
- * Cria uma resposta HTTP 409 Conflict padronizada (ex: duplicidade de GPX / externalId)
+ * Cria uma resposta HTTP 400 Bad Request padronizada.
  */
-export function apiConflict(
-  message = "Este arquivo .GPX já foi importado",
-  details?: FormattedZodError[] | Record<string, unknown> | unknown
+export function apiBadRequest(
+  message = "Requisição inválida",
+  details?: FormattedZodError[] | Record<string, unknown> | unknown,
+  code?: ApiErrorCode
 ): NextResponse<ApiResponse<null>> {
-  return apiError(message, 409, details);
+  return apiError(
+    message,
+    400,
+    details,
+    code ?? extractCodeFromDetails(details) ?? "BAD_REQUEST"
+  );
 }
 
 /**
- * Cria uma resposta HTTP 413 Payload Too Large padronizada (ex: arquivo GPX > 4 MB)
+ * Cria uma resposta HTTP 404 Not Found padronizada.
+ */
+export function apiNotFound(
+  message = "Registro não encontrado no banco de dados",
+  details?: FormattedZodError[] | Record<string, unknown> | unknown,
+  code?: ApiErrorCode
+): NextResponse<ApiResponse<null>> {
+  return apiError(
+    message,
+    404,
+    details,
+    code ?? extractCodeFromDetails(details) ?? "NOT_FOUND"
+  );
+}
+
+/**
+ * Cria uma resposta HTTP 409 Conflict padronizada (ex: duplicidade de arquivo/externalId).
+ */
+export function apiConflict(
+  message = "Já existe um registro importado com este identificador externo",
+  details?: FormattedZodError[] | Record<string, unknown> | unknown,
+  code?: ApiErrorCode
+): NextResponse<ApiResponse<null>> {
+  return apiError(message, 409, details, code ?? extractCodeFromDetails(details) ?? "CONFLICT");
+}
+
+/**
+ * Cria uma resposta HTTP 413 Payload Too Large padronizada (ex: arquivo > 4 MB).
  */
 export function apiPayloadTooLarge(
   message = "Arquivo excede o limite máximo permitido (4 MB)",
-  details?: FormattedZodError[] | Record<string, unknown> | unknown
+  details?: FormattedZodError[] | Record<string, unknown> | unknown,
+  code?: ApiErrorCode
 ): NextResponse<ApiResponse<null>> {
-  return apiError(message, 413, details);
+  return apiError(
+    message,
+    413,
+    details,
+    code ?? extractCodeFromDetails(details) ?? "PAYLOAD_TOO_LARGE"
+  );
 }
 
 /**
- * Cria uma resposta HTTP 422 Unprocessable Entity padronizada (ex: erro semântico no GPX)
+ * Cria uma resposta HTTP 422 Unprocessable Entity padronizada (ex: erro semântico no .FIT/.GPX).
  */
 export function apiUnprocessable(
   message: string,
-  details?: FormattedZodError[] | Record<string, unknown> | unknown
+  details?: FormattedZodError[] | Record<string, unknown> | unknown,
+  code?: ApiErrorCode
 ): NextResponse<ApiResponse<null>> {
-  return apiError(message, 422, details);
+  return apiError(
+    message,
+    422,
+    details,
+    code ?? extractCodeFromDetails(details) ?? "UNPROCESSABLE_ENTITY"
+  );
+}
+
+/**
+ * Cria uma resposta HTTP 503 Service Unavailable padronizada.
+ */
+export function apiServiceUnavailable(
+  message = "Serviço temporariamente indisponível",
+  details?: FormattedZodError[] | Record<string, unknown> | unknown,
+  code?: ApiErrorCode
+): NextResponse<ApiResponse<null>> {
+  return apiError(
+    message,
+    503,
+    details,
+    code ?? extractCodeFromDetails(details) ?? "SERVICE_UNAVAILABLE"
+  );
 }
 
 // ─── Classe de Erro Customizado ────────────────────────────────────────────────
 
 export class AppError extends Error {
   statusCode: number;
+  code?: ApiErrorCode;
   details?: FormattedZodError[] | Record<string, unknown> | unknown;
 
   constructor(
     message: string,
     statusCode = 400,
-    details?: FormattedZodError[] | Record<string, unknown> | unknown
+    details?: FormattedZodError[] | Record<string, unknown> | unknown,
+    code?: ApiErrorCode
   ) {
     super(message);
     this.name = "AppError";
     this.statusCode = statusCode;
+    this.code = code ?? extractCodeFromDetails(details);
     this.details = details;
   }
 }
@@ -132,13 +258,13 @@ export async function withApiHandler<T>(
     if (error instanceof ZodError) {
       const details = formatZodErrors(error);
       const firstMessage = details[0]?.message || "Dados enviados inválidos";
-      return apiError(firstMessage, 400, details);
+      return apiBadRequest(firstMessage, details, "VALIDATION_ERROR");
     }
 
     // 2. Erros Conhecidos do Prisma ORM
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {
-        return apiError("Registro não encontrado no banco de dados", 404);
+        return apiNotFound("Registro não encontrado no banco de dados");
       }
       if (error.code === "P2002") {
         const rawTarget = error.meta?.target;
@@ -153,33 +279,52 @@ export async function withApiHandler<T>(
           error.message.includes("external_id") ||
           error.message.includes("externalId")
         ) {
-          return apiConflict("Este arquivo .GPX já foi importado", {
-            code: "DUPLICATE_EXTERNAL_ID",
-          });
+          return apiConflict(
+            "Já existe um registro importado com este identificador externo",
+            { code: "DUPLICATE_EXTERNAL_ID" },
+            "DUPLICATE_EXTERNAL_ID"
+          );
         }
-        return apiError("Conflito: já existe um registro com estes dados únicos", 409);
+        return apiConflict(
+          "Conflito: já existe um registro com estes dados únicos",
+          undefined,
+          "CONFLICT"
+        );
       }
-      return apiError("Falha na operação com o banco de dados", 500);
+      return apiError(
+        "Falha na operação com o banco de dados",
+        500,
+        undefined,
+        "INTERNAL_ERROR"
+      );
     }
 
     // 3. Erro customizado da aplicação (AppError)
     if (error instanceof AppError) {
-      return apiError(error.message, error.statusCode, error.details);
+      return apiError(error.message, error.statusCode, error.details, error.code);
     }
 
     // 4. JSON Malformado no Body da Requisição
     if (error instanceof SyntaxError) {
-      return apiError("Corpo da requisição com formato JSON inválido", 400);
+      return apiBadRequest(
+        "Corpo da requisição com formato JSON inválido",
+        undefined,
+        "INVALID_JSON"
+      );
     }
 
     // 5. Falha de Conexão com o Banco de Dados
     if (error instanceof Prisma.PrismaClientInitializationError) {
-      return apiError("Não foi possível conectar ao banco de dados Supabase", 503);
+      return apiServiceUnavailable(
+        "Não foi possível conectar ao banco de dados Supabase",
+        undefined,
+        "DATABASE_UNAVAILABLE"
+      );
     }
 
     // 6. Erro genérico inesperado
     console.error("[PaceLab API Error]:", error);
     const message = error instanceof Error ? error.message : "Erro interno do servidor";
-    return apiError(message, 500);
+    return apiError(message, 500, undefined, "INTERNAL_ERROR");
   }
 }

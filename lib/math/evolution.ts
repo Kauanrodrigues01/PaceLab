@@ -7,10 +7,14 @@ import {
   MonthlyVolume,
 } from "@/types";
 import { formatPace } from "@/lib/formatting/time";
+import {
+  getFortalezaMonthKey,
+  getFortalezaWeekInfo,
+} from "@/lib/formatting/date";
 
 /**
  * Converte data de forma segura e imune a distorções de fuso horário (ex: UTC-3 de Fortaleza).
- * Strings como "YYYY-MM-DD" são interpretadas com segurança no dia correto.
+ * Strings como "YYYY-MM-DD" são interpretadas ao meio-dia de Fortaleza (15:00Z).
  */
 export function parseSafeDate(dateInput: string | Date): Date | null {
   if (dateInput instanceof Date) {
@@ -21,7 +25,15 @@ export function parseSafeDate(dateInput: string | Date): Date | null {
   const trimmed = dateInput.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
     const [year, month, day] = trimmed.split("-").map(Number);
-    return new Date(year, month - 1, day, 12, 0, 0);
+    const utcCheck = new Date(Date.UTC(year, month - 1, day, 15, 0, 0));
+    if (
+      utcCheck.getUTCFullYear() !== year ||
+      utcCheck.getUTCMonth() !== month - 1 ||
+      utcCheck.getUTCDate() !== day
+    ) {
+      return null;
+    }
+    return utcCheck;
   }
 
   const d = new Date(trimmed);
@@ -164,80 +176,46 @@ export function getWeeklyVolume(
   type WeekAccumulator = {
     weekStart: Date;
     weekEnd: Date;
+    weekRangeLabel: string;
     distanceKm: number;
     sessionsCount: number;
   };
 
   const weekMap = new Map<string, WeekAccumulator>();
 
-  function getMonday(date: Date): Date {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    d.setDate(diff);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
+  const accumulateWeek = (dateInput: string, distanceKm: number) => {
+    const weekInfo = getFortalezaWeekInfo(dateInput);
+    if (!weekInfo) return;
+
+    const current = weekMap.get(weekInfo.weekKey) || {
+      weekStart: new Date(weekInfo.weekStartIso),
+      weekEnd: new Date(weekInfo.weekEndIso),
+      distanceKm: 0,
+      sessionsCount: 0,
+      weekRangeLabel: weekInfo.weekRangeLabel,
+    };
+
+    current.distanceKm += distanceKm;
+    current.sessionsCount += 1;
+    weekMap.set(weekInfo.weekKey, current);
+  };
 
   // 1. Processa sessões de treino
   for (const t of trainings) {
-    const d = parseSafeDate(t.sessionDate);
-    if (!d) continue;
-
-    const monday = getMonday(d);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-
-    const key = monday.toISOString().slice(0, 10);
-    const current = weekMap.get(key) || {
-      weekStart: monday,
-      weekEnd: sunday,
-      distanceKm: 0,
-      sessionsCount: 0,
-    };
-
-    current.distanceKm += t.distanceKm || 0;
-    current.sessionsCount += 1;
-    weekMap.set(key, current);
+    accumulateWeek(t.sessionDate, t.distanceKm || 0);
   }
 
   // 2. Processa testes de TAF (converte metros em km)
   for (const a of attempts) {
-    const d = parseSafeDate(a.testDate);
-    if (!d) continue;
-
-    const monday = getMonday(d);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-
-    const key = monday.toISOString().slice(0, 10);
-    const current = weekMap.get(key) || {
-      weekStart: monday,
-      weekEnd: sunday,
-      distanceKm: 0,
-      sessionsCount: 0,
-    };
-
-    current.distanceKm += (a.distanceMeters || 0) / 1000;
-    current.sessionsCount += 1;
-    weekMap.set(key, current);
+    accumulateWeek(a.testDate, (a.distanceMeters || 0) / 1000);
   }
 
   const sortedKeys = Array.from(weekMap.keys()).sort();
 
   return sortedKeys.map((key) => {
     const item = weekMap.get(key)!;
-    const startStr = `${String(item.weekStart.getDate()).padStart(2, "0")}/${String(
-      item.weekStart.getMonth() + 1
-    ).padStart(2, "0")}`;
-    const endStr = `${String(item.weekEnd.getDate()).padStart(2, "0")}/${String(
-      item.weekEnd.getMonth() + 1
-    ).padStart(2, "0")}`;
-
     return {
-      weekLabel: `${startStr} a ${endStr}`,
+      weekLabel: item.weekRangeLabel,
       weekStart: item.weekStart.toISOString(),
       weekEnd: item.weekEnd.toISOString(),
       distanceKm: Number(item.distanceKm.toFixed(2)),
@@ -274,9 +252,8 @@ export function getMonthlyVolume(
   ];
 
   for (const t of trainings) {
-    const d = parseSafeDate(t.sessionDate);
-    if (!d) continue;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const key = getFortalezaMonthKey(t.sessionDate);
+    if (!key) continue;
     const curr = monthMap.get(key) || { distanceKm: 0, sessionsCount: 0 };
     curr.distanceKm += t.distanceKm || 0;
     curr.sessionsCount += 1;
@@ -284,9 +261,8 @@ export function getMonthlyVolume(
   }
 
   for (const a of attempts) {
-    const d = parseSafeDate(a.testDate);
-    if (!d) continue;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const key = getFortalezaMonthKey(a.testDate);
+    if (!key) continue;
     const curr = monthMap.get(key) || { distanceKm: 0, sessionsCount: 0 };
     curr.distanceKm += (a.distanceMeters || 0) / 1000;
     curr.sessionsCount += 1;
@@ -361,20 +337,17 @@ export function calculatePeriodMetrics({
   attempts: TafAttempt[];
   targetDurationSeconds?: number;
 }): PeriodMetrics {
-  const startObj = parseSafeDate(startDate);
-  const endObj = parseSafeDate(endDate);
+  const start = startDate.includes("T")
+    ? (parseSafeDate(startDate)?.getTime() ?? 0)
+    : /^\d{4}-\d{2}-\d{2}$/.test(startDate.trim())
+      ? new Date(`${startDate.trim()}T00:00:00.000-03:00`).getTime()
+      : (parseSafeDate(startDate)?.getTime() ?? 0);
 
-  const start = startObj
-    ? startDate.includes("T")
-      ? startObj.getTime()
-      : new Date(startObj.getFullYear(), startObj.getMonth(), startObj.getDate(), 0, 0, 0, 0).getTime()
-    : 0;
-
-  const end = endObj
-    ? endDate.includes("T")
-      ? endObj.getTime()
-      : new Date(endObj.getFullYear(), endObj.getMonth(), endObj.getDate(), 23, 59, 59, 999).getTime()
-    : 0;
+  const end = endDate.includes("T")
+    ? (parseSafeDate(endDate)?.getTime() ?? 0)
+    : /^\d{4}-\d{2}-\d{2}$/.test(endDate.trim())
+      ? new Date(`${endDate.trim()}T23:59:59.999-03:00`).getTime()
+      : (parseSafeDate(endDate)?.getTime() ?? 0);
 
   // Filtra treinos
   const periodTrainings = trainings.filter((t) => {

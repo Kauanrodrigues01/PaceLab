@@ -1,12 +1,21 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { UserProfile, WeightRecord } from "@/types";
+import { AthleteGender, UserProfile, WeightRecord } from "@/types";
+import {
+  formatCalendarDateFortaleza,
+  formatShortDateFortaleza,
+  getAgeFromBirthDateFortaleza,
+  getTodayFortalezaDateKey,
+  toFortalezaCalendarDateKey,
+  toFortalezaNoonIso,
+} from "@/lib/formatting/date";
 import {
   profileService,
   calcBmi,
   BmiResult,
 } from "@/lib/services/profileService";
+import { getBmiColorClass } from "@/components/shared/biometricVisuals";
 import {
   Scale,
   User,
@@ -55,11 +64,13 @@ export default function PerfilPage() {
   // Estado para Nova Pesagem Avulsa
   const [isAddingWeight, setIsAddingWeight] = useState(false);
   const [newWeightInput, setNewWeightInput] = useState("");
-  const [newWeightDate, setNewWeightDate] = useState(
-    new Date().toISOString().split("T")[0]
+  const [newWeightDate, setNewWeightDate] = useState(() =>
+    getTodayFortalezaDateKey()
   );
   const [newWeightNotes, setNewWeightNotes] = useState("");
   const [isSavingWeight, setIsSavingWeight] = useState(false);
+  const [confirmDeleteWeightId, setConfirmDeleteWeightId] = useState<string | null>(null);
+  const [deletingWeightId, setDeletingWeightId] = useState<string | null>(null);
 
   // Carregar Perfil e Histórico
   const loadData = useCallback(async () => {
@@ -80,10 +91,9 @@ export default function PerfilPage() {
       setEditWeight(
         userProfile.currentWeightKg ? String(userProfile.currentWeightKg) : ""
       );
-      setEditBirthDate(
-        userProfile.birthDate ? userProfile.birthDate.split("T")[0] : ""
-      );
+      setEditBirthDate(toFortalezaCalendarDateKey(userProfile.birthDate) || "");
       setEditGender(userProfile.gender || "");
+      setConfirmDeleteWeightId(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro ao carregar dados do perfil";
       setErrorMessage(msg);
@@ -102,22 +112,11 @@ export default function PerfilPage() {
     return calcBmi(profile.currentWeightKg, profile.heightCm);
   }, [profile]);
 
-  // Idade calculada
-  const athleteAge = useMemo(() => {
-    if (!profile?.birthDate) return null;
-    try {
-      const birth = new Date(profile.birthDate);
-      const now = new Date();
-      let age = now.getFullYear() - birth.getFullYear();
-      const m = now.getMonth() - birth.getMonth();
-      if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) {
-        age--;
-      }
-      return age >= 0 ? age : null;
-    } catch {
-      return null;
-    }
-  }, [profile?.birthDate]);
+  // Idade calculada no calendário oficial America/Fortaleza
+  const athleteAge = useMemo(
+    () => getAgeFromBirthDateFortaleza(profile?.birthDate),
+    [profile?.birthDate]
+  );
 
   // Dados para o Gráfico de Peso
   const chartData = useMemo(() => {
@@ -128,17 +127,12 @@ export default function PerfilPage() {
         (a, b) =>
           new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime()
       )
-      .map((w) => {
-        const d = new Date(w.recordedAt);
-        const day = String(d.getDate()).padStart(2, "0");
-        const month = String(d.getMonth() + 1).padStart(2, "0");
-        return {
-          dateFormatted: `${day}/${month}`,
-          weightKg: w.weightKg,
-          source: w.source,
-          notes: w.notes,
-        };
-      });
+      .map((w) => ({
+        dateFormatted: formatShortDateFortaleza(w.recordedAt, "--/--"),
+        weightKg: w.weightKg,
+        source: w.source,
+        notes: w.notes,
+      }));
   }, [weights]);
 
   // Estatística de flutuação de peso
@@ -172,8 +166,8 @@ export default function PerfilPage() {
         currentWeightKg: editWeight
           ? parseFloat(editWeight.replace(",", "."))
           : null,
-        birthDate: editBirthDate ? new Date(editBirthDate).toISOString() : null,
-        gender: (editGender as "masculino" | "feminino" | "outro") || null,
+        birthDate: editBirthDate ? toFortalezaNoonIso(editBirthDate) : null,
+        gender: (editGender as AthleteGender) || null,
       });
 
       setProfile(updated);
@@ -208,13 +202,15 @@ export default function PerfilPage() {
     try {
       await profileService.addWeightRecord({
         weightKg: Number(parsed.toFixed(1)),
-        recordedAt: new Date(newWeightDate).toISOString(),
+        recordedAt: toFortalezaNoonIso(newWeightDate),
         notes: newWeightNotes.trim() || null,
         source: "manual",
       });
 
       setNewWeightInput("");
       setNewWeightNotes("");
+      setNewWeightDate(getTodayFortalezaDateKey());
+      setConfirmDeleteWeightId(null);
       setIsAddingWeight(false);
       setSuccessMessage("Pesagem registrada com sucesso!");
       setTimeout(() => setSuccessMessage(null), 3500);
@@ -229,19 +225,30 @@ export default function PerfilPage() {
     }
   };
 
-  // Excluir Pesagem
+  // Excluir Pesagem (com trava contra duplo clique e limpeza garantida do estado inline)
   const handleDeleteWeight = async (id: string) => {
-    if (!confirm("Deseja realmente excluir este registro de pesagem?")) return;
+    if (deletingWeightId) return;
+    setDeletingWeightId(id);
+    setErrorMessage(null);
 
     try {
       await profileService.deleteWeightRecord(id);
       setWeights((prev) => prev.filter((w) => w.id !== id));
-      // Atualiza peso atual no perfil
-      const updatedProfile = await profileService.getProfile();
-      setProfile(updatedProfile);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro ao excluir pesagem";
       setErrorMessage(msg);
+      return;
+    } finally {
+      setDeletingWeightId(null);
+      setConfirmDeleteWeightId(null);
+    }
+
+    try {
+      // Atualiza peso atual no perfil sem comprometer o feedback caso apenas o refresh falhe
+      const updatedProfile = await profileService.getProfile();
+      setProfile(updatedProfile);
+    } catch {
+      setErrorMessage("Pesagem excluída, mas não foi possível atualizar os indicadores do perfil.");
     }
   };
 
@@ -291,7 +298,7 @@ export default function PerfilPage() {
 
       {/* ─── Mensagens de Feedback ─────────────────────────────────────────── */}
       {errorMessage && (
-        <div className="flex items-center gap-2.5 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm font-medium animate-in fade-in duration-200">
+        <div className="flex items-center gap-2.5 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm font-medium animate-fade-in">
           <AlertCircle className="w-5 h-5 shrink-0" />
           <span>{errorMessage}</span>
           <button
@@ -304,7 +311,7 @@ export default function PerfilPage() {
       )}
 
       {successMessage && (
-        <div className="flex items-center gap-2.5 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-medium animate-in fade-in duration-200">
+        <div className="flex items-center gap-2.5 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-medium animate-fade-in">
           <CheckCircle2 className="w-5 h-5 shrink-0" />
           <span>{successMessage}</span>
           <button
@@ -420,7 +427,7 @@ export default function PerfilPage() {
               <Button
                 type="submit"
                 disabled={isSavingProfile}
-                className="rounded-xl text-xs py-2 bg-[#B7F34A] hover:bg-[#a6e03f] text-[#0B1020] font-black"
+                className="rounded-xl text-xs py-2 bg-[#B7F34A] hover:bg-[#A3E332] text-[#0B1020] font-black"
               >
                 {isSavingProfile ? "Salvando..." : "Salvar Alterações"}
               </Button>
@@ -438,7 +445,9 @@ export default function PerfilPage() {
               Registrar Nova Pesagem Corporal
             </h2>
             <button
+              type="button"
               onClick={() => setIsAddingWeight(false)}
+              aria-label="Fechar formulário de nova pesagem"
               className="text-[#8E9BB0] hover:text-white"
             >
               <X className="w-5 h-5" />
@@ -503,7 +512,7 @@ export default function PerfilPage() {
               <Button
                 type="submit"
                 disabled={isSavingWeight || !newWeightInput}
-                className="rounded-xl text-xs py-2 bg-[#B7F34A] hover:bg-[#a6e03f] text-[#0B1020] font-black"
+                className="rounded-xl text-xs py-2 bg-[#B7F34A] hover:bg-[#A3E332] text-[#0B1020] font-black"
               >
                 {isSavingWeight ? "Registrando..." : "Registrar Pesagem"}
               </Button>
@@ -537,7 +546,7 @@ export default function PerfilPage() {
             <span>Última pesagem:</span>
             <span className="font-semibold text-white">
               {weights.length > 0
-                ? new Date(weights[0].recordedAt).toLocaleDateString("pt-BR")
+                ? formatCalendarDateFortaleza(weights[0].recordedAt)
                 : "Nenhum registro"}
             </span>
           </div>
@@ -588,7 +597,7 @@ export default function PerfilPage() {
               </span>
               {bmiData && (
                 <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded-full border ${bmiData.colorClass}`}
+                  className={`text-xs font-bold px-2 py-0.5 rounded-full border ${getBmiColorClass(bmiData.category)}`}
                 >
                   {bmiData.categoryLabel}
                 </span>
@@ -767,7 +776,7 @@ export default function PerfilPage() {
                       className="hover:bg-[#0B1020]/50 transition-colors"
                     >
                       <td className="py-3 px-3 text-white whitespace-nowrap">
-                        {new Date(w.recordedAt).toLocaleDateString("pt-BR")}
+                        {formatCalendarDateFortaleza(w.recordedAt)}
                       </td>
                       <td className="py-3 px-3 font-bold text-white">
                         {w.weightKg} kg
@@ -783,14 +792,42 @@ export default function PerfilPage() {
                         {w.notes || "—"}
                       </td>
                       <td className="py-3 px-3 text-right">
-                        <button
-                          onClick={() => handleDeleteWeight(w.id)}
-                          className="p-1.5 text-[#8E9BB0] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                          title="Excluir pesagem"
-                          aria-label="Excluir pesagem"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {confirmDeleteWeightId === w.id ? (
+                          <div
+                            role="group"
+                            aria-label={`Confirmação de exclusão da pesagem de ${w.weightKg} kg`}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-2 py-1"
+                          >
+                            <button
+                              type="button"
+                              disabled={deletingWeightId === w.id}
+                              onClick={() => handleDeleteWeight(w.id)}
+                              aria-label="Confirmar exclusão da pesagem"
+                              className="px-2 py-0.5 text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-lg transition-colors"
+                            >
+                              {deletingWeightId === w.id ? "Excluindo..." : "Confirmar"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={deletingWeightId === w.id}
+                              onClick={() => setConfirmDeleteWeightId(null)}
+                              aria-label="Cancelar exclusão da pesagem"
+                              className="px-2 py-0.5 text-[11px] font-semibold text-[#8E9BB0] hover:text-white disabled:opacity-50 rounded-lg transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteWeightId(w.id)}
+                            className="p-1.5 text-[#8E9BB0] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                            title="Excluir pesagem"
+                            aria-label={`Excluir pesagem de ${w.weightKg} kg em ${formatCalendarDateFortaleza(w.recordedAt)}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

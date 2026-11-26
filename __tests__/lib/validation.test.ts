@@ -5,7 +5,7 @@ import {
   validateSpeed,
   validateTime,
   validateTimeString,
-} from "@/lib/validation/inputs";
+} from "@/lib/validations/calculatorInputs";
 
 describe("validateDistance", () => {
   it("aceita distâncias positivas normais", () => {
@@ -105,5 +105,9 @@ describe("validateTimeString", () => {
 
   it("rejeita caracteres inválidos", () => {
     expect(validateTimeString("abc").valid).toBe(false);
+    expect(validateTimeString("12:60").valid).toBe(false);
+    expect(validateTime(NaN).valid).toBe(false);
+    expect(validateTime(700000).valid).toBe(false);
+    expect(validateSpeed(NaN).valid).toBe(false);
   });
 });

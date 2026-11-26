@@ -1,6 +1,29 @@
 import { z } from "zod";
+import {
+  ACTIVITY_SOURCES,
+  ACTIVITY_TYPES,
+  ATHLETE_GENDERS,
+  DUPLICATE_POLICIES,
+  LOCATION_TYPES,
+  PULLUP_TYPES,
+  SHEETS_SYNC_DIRECTIONS,
+  WEIGHT_SOURCES,
+} from "@/types/constants";
 
-// ─── Enums & Sub-schemas ───────────────────────────────────────────────────────
+// ─── Helpers & Sub-schemas Compartilhados ───────────────────────────────────────
+
+export const PathIdSchema = z
+  .string()
+  .trim()
+  .min(1, "Identificador inválido")
+  .max(128, "Identificador inválido");
+
+const OptionalTrimmedIdSchema = z
+  .string()
+  .trim()
+  .max(128, "Identificador inválido")
+  .optional()
+  .transform((val) => (val && val.length > 0 ? val : undefined));
 
 function isValidCalendarDateString(value: string): boolean {
   const trimmed = value.trim();
@@ -64,39 +87,41 @@ function createDefaultIsoDateSchema(errorMessage: string) {
     });
 }
 
-export const ActivityTypeEnum = z.enum(
-  [
-    "rodagem_leve",
-    "corrida_continua",
-    "tempo_run",
-    "corrida_intervalada",
-    "longao",
-    "caminhada",
-  ] as const,
-  {
-    message:
-      "Modalidade de treino inválida. Escolha entre Rodagem Leve, Corrida Contínua, Tempo Run, Intervalado, Longão ou Caminhada.",
-  }
-);
+function createStrictIsoDateSchema(errorMessage: string) {
+  return z
+    .union([z.string(), z.date()])
+    .optional()
+    .refine(
+      (val) => {
+        if (val === undefined) return true;
+        if (typeof val === "string" && val.trim() === "") return false;
+        return isValidDateInput(val);
+      },
+      { message: errorMessage }
+    )
+    .transform((val) => {
+      if (val === undefined) return undefined;
+      return (val instanceof Date ? val : new Date(val.trim())).toISOString();
+    });
+}
 
-export const ActivitySourceEnum = z.enum(
-  ["manual", "gpx_upload", "fit_upload", "sheets"] as const,
-  {
-    message:
-      "Origem de registro inválida. Escolha entre manual, gpx_upload, fit_upload ou sheets.",
-  }
-);
+export const ActivityTypeEnum = z.enum(ACTIVITY_TYPES, {
+  message:
+    "Modalidade de treino inválida. Escolha entre Rodagem Leve, Corrida Contínua, Tempo Run, Intervalado, Longão ou Caminhada.",
+});
 
-export const DuplicatePolicyEnum = z.enum(["error", "update"] as const, {
+export const ActivitySourceEnum = z.enum(ACTIVITY_SOURCES, {
+  message:
+    "Origem de registro inválida. Escolha entre manual, gpx_upload, fit_upload ou sheets.",
+});
+
+export const DuplicatePolicyEnum = z.enum(DUPLICATE_POLICIES, {
   message: "Política de duplicidade inválida. Use error ou update.",
 });
 
-export const LocationTypeEnum = z.enum(
-  ["pista_400m", "rua_plana", "parque_praca", "esteira", "outro"] as const,
-  {
-    message: "Local do teste inválido.",
-  }
-);
+export const LocationTypeEnum = z.enum(LOCATION_TYPES, {
+  message: "Local do teste inválido.",
+});
 
 export const LapDetailSchema = z.object({
   lapNumber: z.coerce
@@ -150,62 +175,60 @@ export const SplitDetailSchema = z.object({
 
 // ─── Metas do TAF (TafGoal) ────────────────────────────────────────────────────
 
-export const PullupTypeEnum = z.enum(["dinamica", "isometria"] as const, {
+export const PullupTypeEnum = z.enum(PULLUP_TYPES, {
   message: "Tipo de barra fixa inválido (escolha entre dinâmica ou isometria).",
 });
 
-export const TafGoalInputSchema = z.object({
+const TafGoalFieldsBase = {
   institutionName: z
     .string()
     .trim()
     .max(100, "O nome do concurso não pode ultrapassar 100 caracteres")
     .nullable()
-    .optional()
-    .default("Edital Padrão"),
+    .optional(),
   minDistanceMeters: z.coerce
     .number()
     .int("A distância mínima deve ser um valor inteiro em metros")
     .min(500, "A distância mínima da prova deve ser de no mínimo 500 metros")
     .max(10000, "A distância mínima da prova não pode ultrapassar 10.000 metros")
-    .optional()
-    .default(2400),
+    .optional(),
   targetDistanceMeters: z.coerce
     .number()
     .int("A distância alvo deve ser um valor inteiro em metros")
     .min(500, "A distância alvo da prova deve ser de no mínimo 500 metros")
-    .max(10000, "A distância alvo da prova não pode ultrapassar 10.000 metros")
-    .default(2300),
+    .max(10000, "A distância alvo da prova não pode ultrapassar 10.000 metros"),
   targetDurationMinutes: z.coerce
     .number()
     .int("A duração da prova deve ser em minutos inteiros")
     .min(1, "A duração da prova deve ser de pelo menos 1 minuto")
-    .max(60, "A duração da prova não pode ultrapassar 60 minutos")
-    .default(12),
+    .max(60, "A duração da prova não pode ultrapassar 60 minutos"),
   targetExamDate: z
     .string()
     .trim()
     .nullable()
     .optional()
+    .refine(
+      (val) => val === undefined || val === null || val === "" || isValidDateInput(val),
+      { message: "Data do edital/prova inválida" }
+    )
     .transform((val) => (val && val.length > 0 ? val : null)),
 
   // Barra Fixa
-  pullupType: PullupTypeEnum.nullable().optional().default("dinamica"),
+  pullupType: PullupTypeEnum.nullable().optional(),
   pullupMinReps: z.coerce
     .number()
     .int("O mínimo de repetições na barra deve ser inteiro")
     .min(0, "O mínimo de repetições na barra não pode ser negativo")
     .max(100, "O valor máximo na barra é 100 repetições")
     .nullable()
-    .optional()
-    .default(3),
+    .optional(),
   pullupTargetReps: z.coerce
     .number()
     .int("A meta de repetições na barra deve ser inteiro")
     .min(0, "A meta de repetições na barra não pode ser negativa")
     .max(100, "O valor máximo na barra é 100 repetições")
     .nullable()
-    .optional()
-    .default(5),
+    .optional(),
   pullupMinSeconds: z.coerce
     .number()
     .int("Os segundos mínimos na barra devem ser inteiros")
@@ -235,16 +258,14 @@ export const TafGoalInputSchema = z.object({
     .min(0, "O mínimo de flexões não pode ser negativo")
     .max(200, "O valor máximo de flexões é 200")
     .nullable()
-    .optional()
-    .default(20),
+    .optional(),
   pushupTargetReps: z.coerce
     .number()
     .int("A meta de flexões deve ser inteira")
     .min(0, "A meta de flexões não pode ser negativa")
     .max(200, "O valor máximo de flexões é 200")
     .nullable()
-    .optional()
-    .default(30),
+    .optional(),
   pushupDurationSeconds: z.coerce
     .number()
     .int("O tempo limite de flexões deve ser em segundos")
@@ -260,16 +281,14 @@ export const TafGoalInputSchema = z.object({
     .min(0, "O mínimo de abdominais não pode ser negativo")
     .max(200, "O valor máximo de abdominais é 200")
     .nullable()
-    .optional()
-    .default(30),
+    .optional(),
   absTargetReps: z.coerce
     .number()
     .int("A meta de abdominais deve ser inteira")
     .min(0, "A meta de abdominais não pode ser negativa")
     .max(200, "O valor máximo de abdominais é 200")
     .nullable()
-    .optional()
-    .default(40),
+    .optional(),
   absDurationSeconds: z.coerce
     .number()
     .int("O tempo limite de abdominais deve ser em segundos")
@@ -277,14 +296,28 @@ export const TafGoalInputSchema = z.object({
     .max(600, "O tempo limite máximo é de 600 segundos")
     .nullable()
     .optional(),
+};
+
+export const TafGoalInputSchema = z.object({
+  ...TafGoalFieldsBase,
+  institutionName: TafGoalFieldsBase.institutionName.default("Edital Padrão"),
+  minDistanceMeters: TafGoalFieldsBase.minDistanceMeters.default(2400),
+  targetDistanceMeters: TafGoalFieldsBase.targetDistanceMeters.default(2300),
+  targetDurationMinutes: TafGoalFieldsBase.targetDurationMinutes.default(12),
+  pullupType: TafGoalFieldsBase.pullupType.default("dinamica"),
+  pullupMinReps: TafGoalFieldsBase.pullupMinReps.default(3),
+  pullupTargetReps: TafGoalFieldsBase.pullupTargetReps.default(5),
+  pushupMinReps: TafGoalFieldsBase.pushupMinReps.default(20),
+  pushupTargetReps: TafGoalFieldsBase.pushupTargetReps.default(30),
+  absMinReps: TafGoalFieldsBase.absMinReps.default(30),
+  absTargetReps: TafGoalFieldsBase.absTargetReps.default(40),
 });
 
-export const TafGoalUpdateSchema = TafGoalInputSchema.partial();
+export const TafGoalUpdateSchema = z.object(TafGoalFieldsBase).partial();
 
-// ─── Simulados do TAF (TafAttempt) ─────────────────────────────────────────────
+// ─── Campos Compartilhados (TafAttempt & TrainingSession) ─────────────────────
 
-const CreateTafAttemptBaseSchema = z.object({
-  id: z.string().optional(),
+const ExternalTrackingFields = {
   userId: z.string().nullable().optional(),
   source: ActivitySourceEnum.optional().default("manual"),
   externalId: z
@@ -296,33 +329,23 @@ const CreateTafAttemptBaseSchema = z.object({
     .optional(),
   syncedToSheetsAt: SyncedToSheetsAtSchema,
   onDuplicate: DuplicatePolicyEnum.optional(),
-  testDate: createDefaultIsoDateSchema("Data do simulado inválida"),
-  targetDurationSeconds: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(720),
-  actualDurationSeconds: z.coerce
-    .number()
-    .int("A duração do teste deve ser um número inteiro de segundos")
-    .min(30, "A duração do simulado deve ser de pelo menos 30 segundos")
-    .max(7200, "A duração do simulado não pode exceder 2 horas (7.200s)"),
-  distanceMeters: z.coerce
-    .number()
-    .int("A distância percorrida deve ser um número inteiro de metros")
-    .min(100, "A distância percorrida deve ser de pelo menos 100 metros")
-    .max(10000, "A distância percorrida não pode ultrapassar 10.000 metros"),
+};
+
+const ComputedPaceFields = {
   speedKmh: z.coerce.number().positive().optional(),
   paceSeconds: z.coerce.number().int().positive().optional(),
   paceFormatted: z.string().optional(),
-  locationType: LocationTypeEnum.nullable().optional(),
-  shoeName: z
-    .string()
-    .trim()
-    .max(100, "O nome do tênis não pode ter mais de 100 caracteres")
-    .nullable()
-    .optional()
-    .transform((val) => (val === "" ? null : val)),
+};
+
+const ShoeNameField = z
+  .string()
+  .trim()
+  .max(100, "O nome do tênis não pode ter mais de 100 caracteres")
+  .nullable()
+  .optional()
+  .transform((val) => (val === "" ? null : val));
+
+const HeartRateFields = {
   avgHeartRate: z.coerce
     .number()
     .int("A frequência cardíaca média deve ser um número inteiro")
@@ -337,6 +360,34 @@ const CreateTafAttemptBaseSchema = z.object({
     .max(250, "A frequência cardíaca máxima máxima é 250 bpm")
     .nullable()
     .optional(),
+};
+
+// ─── Simulados do TAF (TafAttempt) ─────────────────────────────────────────────
+
+const TafAttemptTargetDurationSchema = z.coerce
+  .number()
+  .int()
+  .positive();
+
+const CreateTafAttemptBaseSchema = z.object({
+  id: OptionalTrimmedIdSchema,
+  ...ExternalTrackingFields,
+  testDate: createDefaultIsoDateSchema("Data do simulado inválida"),
+  targetDurationSeconds: TafAttemptTargetDurationSchema.default(720),
+  actualDurationSeconds: z.coerce
+    .number()
+    .int("A duração do teste deve ser um número inteiro de segundos")
+    .min(30, "A duração do simulado deve ser de pelo menos 30 segundos")
+    .max(7200, "A duração do simulado não pode exceder 2 horas (7.200s)"),
+  distanceMeters: z.coerce
+    .number()
+    .int("A distância percorrida deve ser um número inteiro de metros")
+    .min(100, "A distância percorrida deve ser de pelo menos 100 metros")
+    .max(10000, "A distância percorrida não pode ultrapassar 10.000 metros"),
+  ...ComputedPaceFields,
+  locationType: LocationTypeEnum.nullable().optional(),
+  shoeName: ShoeNameField,
+  ...HeartRateFields,
   notes: z
     .string()
     .trim()
@@ -372,28 +423,19 @@ export const UpdateTafAttemptSchema = CreateTafAttemptBaseSchema.omit({
   externalId: true,
   onDuplicate: true,
 })
+  .extend({
+    testDate: createStrictIsoDateSchema("Data do simulado inválida"),
+    targetDurationSeconds: TafAttemptTargetDurationSchema.optional(),
+    laps: z.array(LapDetailSchema).optional(),
+  })
   .partial()
   .superRefine(validateHeartRateRefinement);
 
 // ─── Diário de Treinos (TrainingSession) ────────────────────────────────────────
 
 const CreateTrainingSessionBaseSchema = z.object({
-  id: z
-    .string()
-    .trim()
-    .optional()
-    .transform((val) => (val && val.length > 0 ? val : undefined)),
-  userId: z.string().nullable().optional(),
-  source: ActivitySourceEnum.optional().default("manual"),
-  externalId: z
-    .string()
-    .trim()
-    .min(1, "O identificador externo não pode ser vazio")
-    .max(100, "O identificador externo não pode exceder 100 caracteres")
-    .nullable()
-    .optional(),
-  syncedToSheetsAt: SyncedToSheetsAtSchema,
-  onDuplicate: DuplicatePolicyEnum.optional(),
+  id: OptionalTrimmedIdSchema,
+  ...ExternalTrackingFields,
   sessionDate: createDefaultIsoDateSchema("Data da sessão inválida"),
   activityType: ActivityTypeEnum.default("corrida_continua"),
   distanceKm: z.coerce
@@ -412,23 +454,8 @@ const CreateTrainingSessionBaseSchema = z.object({
     .max(86400, "O tempo decorrido máximo de um treino é de 24 horas")
     .nullable()
     .optional(),
-  speedKmh: z.coerce.number().positive().optional(),
-  paceSeconds: z.coerce.number().int().positive().optional(),
-  paceFormatted: z.string().optional(),
-  avgHeartRate: z.coerce
-    .number()
-    .int("A frequência cardíaca média deve ser um número inteiro")
-    .min(30, "A frequência cardíaca média mínima é 30 bpm")
-    .max(250, "A frequência cardíaca média máxima é 250 bpm")
-    .nullable()
-    .optional(),
-  maxHeartRate: z.coerce
-    .number()
-    .int("A frequência cardíaca máxima deve ser um número inteiro")
-    .min(30, "A frequência cardíaca máxima mínima é 30 bpm")
-    .max(250, "A frequência cardíaca máxima máxima é 250 bpm")
-    .nullable()
-    .optional(),
+  ...ComputedPaceFields,
+  ...HeartRateFields,
   elevationGainM: z.coerce
     .number()
     .min(0, "O ganho de elevação não pode ser negativo")
@@ -442,13 +469,7 @@ const CreateTrainingSessionBaseSchema = z.object({
     .max(300, "A cadência média máxima é 300 spm")
     .nullable()
     .optional(),
-  shoeName: z
-    .string()
-    .trim()
-    .max(100, "O nome do tênis não pode ter mais de 100 caracteres")
-    .nullable()
-    .optional()
-    .transform((val) => (val === "" ? null : val)),
+  shoeName: ShoeNameField,
   perceivedEffort: z.coerce
     .number()
     .int("O esforço percebido (RPE) deve ser um número inteiro")
@@ -509,13 +530,18 @@ export const UpdateTrainingSessionSchema = CreateTrainingSessionBaseSchema.omit(
   externalId: true,
   onDuplicate: true,
 })
+  .extend({
+    sessionDate: createStrictIsoDateSchema("Data da sessão inválida"),
+    activityType: ActivityTypeEnum.optional(),
+    splits: z.array(SplitDetailSchema).optional(),
+  })
   .partial()
   .superRefine(validateTrainingSessionRefinements);
 
 // ─── Perfil do Atleta (UserProfile) ──────────────────────────────────────────
 
 export const UserProfileInputSchema = z.object({
-  id: z.string().optional(),
+  id: OptionalTrimmedIdSchema,
   userId: z.string().nullable().optional(),
   name: z
     .string()
@@ -551,7 +577,7 @@ export const UserProfileInputSchema = z.object({
       if (val === null || val === "") return null;
       return (val instanceof Date ? val : new Date(val)).toISOString();
     }),
-  gender: z.enum(["masculino", "feminino", "outro"]).nullable().optional(),
+  gender: z.enum(ATHLETE_GENDERS).nullable().optional(),
 });
 
 export const UpdateUserProfileSchema = UserProfileInputSchema.partial();
@@ -559,7 +585,7 @@ export const UpdateUserProfileSchema = UserProfileInputSchema.partial();
 // ─── Histórico de Pesagens (WeightRecord) ────────────────────────────────────
 
 export const CreateWeightRecordSchema = z.object({
-  id: z.string().optional(),
+  id: OptionalTrimmedIdSchema,
   profileId: z.string().optional(),
   weightKg: z.coerce
     .number()
@@ -572,7 +598,16 @@ export const CreateWeightRecordSchema = z.object({
     .max(500, "As anotações não podem ter mais de 500 caracteres")
     .nullable()
     .optional(),
-  source: z.string().optional().default("manual"),
+  source: z.enum(WEIGHT_SOURCES).optional().default("manual"),
+});
+
+export const WeightListQuerySchema = z.object({
+  limit: z.coerce
+    .number()
+    .int("O limite deve ser um número inteiro")
+    .min(1, "O limite mínimo de registros é 1")
+    .max(365, "O limite máximo de registros é 365")
+    .default(52),
 });
 
 // ─── Paginação e Filtros de Consulta ───────────────────────────────────────────
@@ -602,13 +637,10 @@ export const WeeklyPlanQuerySchema = z.object({
 
 // ─── Sincronização Google Sheets ───────────────────────────────────────────────
 
-export const SheetsSyncDirectionEnum = z.enum(
-  ["bidirectional", "push", "pull"] as const,
-  {
-    message:
-      "Direção de sincronização inválida. Escolha entre bidirectional, push ou pull.",
-  }
-);
+export const SheetsSyncDirectionEnum = z.enum(SHEETS_SYNC_DIRECTIONS, {
+  message:
+    "Direção de sincronização inválida. Escolha entre bidirectional, push ou pull.",
+});
 
 export const SheetsSyncRequestSchema = z
   .object({
@@ -637,16 +669,18 @@ export function formatZodErrors(error: z.ZodError): FormattedZodError[] {
   });
 }
 
-// ─── Tipos Inferidos ──────────────────────────────────────────────────────────
+// ─── Tipos Inferidos (Entrada & Saída Parseada) ───────────────────────────────
 
-export type TafGoalInput = z.infer<typeof TafGoalInputSchema>;
-export type CreateTafAttemptInput = z.infer<typeof CreateTafAttemptSchema>;
-export type UpdateTafAttemptInput = z.infer<typeof UpdateTafAttemptSchema>;
-export type CreateTrainingSessionInput = z.infer<typeof CreateTrainingSessionSchema>;
-export type UpdateTrainingSessionInput = z.infer<typeof UpdateTrainingSessionSchema>;
-export type UserProfileInput = z.infer<typeof UserProfileInputSchema>;
-export type UpdateUserProfileInput = z.infer<typeof UpdateUserProfileSchema>;
-export type CreateWeightRecordInput = z.infer<typeof CreateWeightRecordSchema>;
+export type TafGoalInput = z.input<typeof TafGoalInputSchema>;
+export type TafGoalUpdateInput = z.input<typeof TafGoalUpdateSchema>;
+export type CreateTafAttemptInput = z.input<typeof CreateTafAttemptSchema>;
+export type UpdateTafAttemptInput = z.input<typeof UpdateTafAttemptSchema>;
+export type CreateTrainingSessionInput = z.input<typeof CreateTrainingSessionSchema>;
+export type UpdateTrainingSessionInput = z.input<typeof UpdateTrainingSessionSchema>;
+export type UserProfileInput = z.input<typeof UserProfileInputSchema>;
+export type UpdateUserProfileInput = z.input<typeof UpdateUserProfileSchema>;
+export type CreateWeightRecordInput = z.input<typeof CreateWeightRecordSchema>;
+export type WeightListQueryInput = z.infer<typeof WeightListQuerySchema>;
 export type PaginationQueryInput = z.infer<typeof PaginationQuerySchema>;
 export type SheetsSyncRequestInput = z.infer<typeof SheetsSyncRequestSchema>;
 export type WeeklyPlanQueryInput = z.infer<typeof WeeklyPlanQuerySchema>;

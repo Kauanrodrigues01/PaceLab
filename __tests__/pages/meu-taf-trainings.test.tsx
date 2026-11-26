@@ -3,15 +3,17 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import TreinosPage from "@/app/treinos/page";
 import { tafService } from "@/lib/services/tafService";
-import { setupMockTafApi } from "@/test/helpers/mockTafApi";
+import { createMockJsonResponse, setupMockTafApi } from "@/__tests__/helpers/mockTafApi";
 
 describe("Diário de Treinos - CRUD Completo (RPE, Peso, Splits e Filtros)", () => {
+  let mockApi: ReturnType<typeof setupMockTafApi>;
+
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
-    setupMockTafApi();
+    mockApi = setupMockTafApi();
   });
 
   it("exibe formulário e estado vazio inicial na tela de treinos", async () => {
@@ -286,22 +288,13 @@ describe("Diário de Treinos - CRUD Completo (RPE, Peso, Splits e Filtros)", () 
     const openBtn = screen.getByRole("button", { name: /Registrar Treino/i });
     await user.click(openBtn);
 
-    // Força a API a retornar erro 500 no POST de treino
-    global.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
+    // Força a API a retornar erro 500 no POST de treino preservando as demais rotas do mock
+    mockApi.setRequestHandler(async (url, init, fallback) => {
       if (url.includes("/api/taf/trainings") && init?.method === "POST") {
-        return {
-          ok: false,
-          status: 500,
-          json: async () => ({ error: "Erro de gravação no Supabase" }),
-        } as Response;
+        return createMockJsonResponse({ error: "Erro de gravação no Supabase" }, 500);
       }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({}),
-      } as Response;
-    }) as unknown as typeof fetch;
+      return fallback();
+    });
 
     const shortcut5km = screen.getByRole("button", { name: "5 km" });
     await user.click(shortcut5km);

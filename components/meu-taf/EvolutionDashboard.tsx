@@ -2,7 +2,15 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { TafAttempt, TrainingSession, TafGoalConfig } from "@/types";
-import { ACTIVITY_COLORS, ACTIVITY_LABELS, ACTIVITY_FORM_OPTIONS } from "@/lib/activity";
+import {
+  ACTIVITY_COLORS,
+  ACTIVITY_LABELS,
+  ACTIVITY_FORM_OPTIONS,
+} from "@/components/shared/activityVisuals";
+import {
+  formatDateFortaleza,
+  formatShortDateFortaleza,
+} from "@/lib/formatting/date";
 import {
   getPersonalRecord,
   processTafAttempts,
@@ -99,17 +107,13 @@ export function EvolutionDashboard({
 
     return tests12m.map((att, idx) => {
       const d = parseSafeDate(att.testDate);
-      const label = d
-        ? `${String(d.getDate()).padStart(2, "0")}/${String(
-            d.getMonth() + 1
-          ).padStart(2, "0")}`
-        : `T${idx + 1}`;
+      const label = d ? formatShortDateFortaleza(d, `T${idx + 1}`) : `T${idx + 1}`;
 
       return {
         id: att.id,
         index: idx + 1,
         dateLabel: label,
-        fullDate: d ? d.toLocaleDateString("pt-BR") : "",
+        fullDate: d ? formatDateFortaleza(d, "") : "",
         distanceMeters: att.distanceMeters,
         paceFormatted: att.paceFormatted,
         speedKmh: att.speedKmh,
@@ -128,11 +132,7 @@ export function EvolutionDashboard({
 
     return sorted.map((t, idx) => {
       const d = parseSafeDate(t.sessionDate);
-      const label = d
-        ? `${String(d.getDate()).padStart(2, "0")}/${String(
-            d.getMonth() + 1
-          ).padStart(2, "0")}`
-        : `#${idx + 1}`;
+      const label = d ? formatShortDateFortaleza(d, `#${idx + 1}`) : `#${idx + 1}`;
 
       return {
         id: t.id,
@@ -185,11 +185,8 @@ export function EvolutionDashboard({
 
     let maxSoFar = 0;
     return tests12m.map((att, idx) => {
-      const d = parseSafeDate(att.testDate);
-      const label = d
-        ? `${String(d.getDate()).padStart(2, "0")}/${String(
-            d.getMonth() + 1
-          ).padStart(2, "0")}`
+      const label = att.testDate
+        ? formatShortDateFortaleza(att.testDate, `T${idx + 1}`)
         : `T${idx + 1}`;
 
       if (att.distanceMeters > maxSoFar) {

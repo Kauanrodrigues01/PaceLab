@@ -9,9 +9,9 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GpxImportPanel } from "@/components/treinos/GpxImportPanel";
-import { TrainingCard } from "@/components/meu-taf/TrainingCard";
-import { TrainingList } from "@/components/meu-taf/TrainingList";
-import { TrainingForm } from "@/components/meu-taf/TrainingForm";
+import { TrainingCard } from "@/components/treinos/TrainingCard";
+import { TrainingList } from "@/components/treinos/TrainingList";
+import { TrainingForm } from "@/components/treinos/TrainingForm";
 import TreinosPage from "@/app/treinos/page";
 import { tafService } from "@/lib/services/tafService";
 import { profileService } from "@/lib/services/profileService";

@@ -502,4 +502,78 @@ describe("lib/activityParser/parseAndMergeActivity — Regra de Prioridade e Mes
       merged.warnings.some((w) => w.code === "ACTIVITY_TYPE_MISMATCH")
     ).toBe(true);
   });
+
+  it("Quando .GPX complementar falha com erro não-fatal (ex.: ZERO_DISTANCE), extrai cabeçalho via parseGpxXml e complementa título", () => {
+    const startIso = "2026-11-12T08:00:00.000Z";
+    const fitBuf = buildFitBuffer({
+      session: {
+        startTime: new Date(startIso),
+        totalTimerTime: 1500,
+        totalElapsedTime: 1500,
+        totalDistance: 5000,
+        sport: "generic", // unknown no .FIT -> deve ser complementado pelo <type>running</type> do GPX
+      },
+    });
+
+    const headerOnlyGpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1">
+  <trk>
+    <name>Rodagem Leve Matinal</name>
+    <type>running</type>
+    <trkseg>
+      <trkpt lat="-23.58741" lon="-46.65763"><time>2026-11-12T08:00:00Z</time></trkpt>
+      <trkpt lat="-23.58741" lon="-46.65763"><time>2026-11-12T08:01:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>`;
+
+    const merged = parseAndMergeActivity({
+      fitBuffer: fitBuf,
+      gpxXml: headerOnlyGpx,
+    });
+
+    expect(merged.source).toBe("fit_upload");
+    expect(merged.name).toBe("Rodagem Leve Matinal");
+    expect(merged.sourceActivityKind).toBe("run");
+    expect(merged.warnings.some((w) => w.code === "NAME_MERGED_FROM_GPX")).toBe(true);
+    expect(merged.warnings.some((w) => w.code === "UNKNOWN_ACTIVITY_TYPE")).toBe(false);
+  });
+
+  it("Propaga erro fatal do .GPX complementar (INVALID_XML ou UNSUPPORTED_ACTIVITY)", () => {
+    const fitBuf = buildFitBuffer({
+      session: {
+        startTime: new Date("2026-11-12T08:00:00Z"),
+        totalTimerTime: 1500,
+        totalElapsedTime: 1500,
+        totalDistance: 5000,
+        sport: "running",
+      },
+    });
+
+    expect(() =>
+      parseAndMergeActivity({
+        fitBuffer: fitBuf,
+        gpxXml: "isto-nao-e-xml-valido",
+      })
+    ).toThrow();
+
+    const cyclingGpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1">
+  <trk>
+    <name>Pedal</name>
+    <type>cycling</type>
+    <trkseg>
+      <trkpt lat="-23.58741" lon="-46.65763"><time>2026-11-12T08:00:00Z</time></trkpt>
+      <trkpt lat="-23.58841" lon="-46.65763"><time>2026-11-12T08:01:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>`;
+
+    expect(() =>
+      parseAndMergeActivity({
+        fitBuffer: fitBuf,
+        gpxXml: cyclingGpx,
+      })
+    ).toThrow();
+  });
 });

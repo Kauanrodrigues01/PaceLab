@@ -569,4 +569,49 @@ describe("Validações Zod do TAF (Fase 1 - Eixo B)", () => {
       }
     });
   });
+
+  describe("Contratos de Update Parcial, PathId e WeightListQuery (Fase 2)", () => {
+    it("UpdateTafAttemptSchema, UpdateTrainingSessionSchema e TafGoalUpdateSchema não injetam defaults em updates parciais", async () => {
+      const {
+        UpdateTafAttemptSchema,
+        UpdateTrainingSessionSchema,
+        TafGoalUpdateSchema,
+      } = await import("@/lib/validations/taf");
+
+      expect(UpdateTafAttemptSchema.parse({ notes: "Só notas" })).toEqual({
+        notes: "Só notas",
+      });
+      expect(UpdateTrainingSessionSchema.parse({ notes: "Só notas" })).toEqual({
+        notes: "Só notas",
+      });
+      expect(TafGoalUpdateSchema.parse({ institutionName: "PF" })).toEqual({
+        institutionName: "PF",
+      });
+
+      expect(UpdateTafAttemptSchema.safeParse({ testDate: "" }).success).toBe(false);
+      expect(UpdateTrainingSessionSchema.safeParse({ sessionDate: "   " }).success).toBe(
+        false
+      );
+    });
+
+    it("PathIdSchema e WeightListQuerySchema validam limites corretamente", async () => {
+      const {
+        PathIdSchema,
+        TafGoalInputSchema,
+        WeightListQuerySchema,
+      } = await import("@/lib/validations/taf");
+
+      expect(PathIdSchema.safeParse("   ").success).toBe(false);
+      expect(PathIdSchema.safeParse("a".repeat(129)).success).toBe(false);
+      expect(PathIdSchema.parse("  att-123  ")).toBe("att-123");
+
+      expect(WeightListQuerySchema.parse({}).limit).toBe(52);
+      expect(WeightListQuerySchema.safeParse({ limit: 0 }).success).toBe(false);
+      expect(WeightListQuerySchema.safeParse({ limit: 366 }).success).toBe(false);
+
+      expect(
+        TafGoalInputSchema.safeParse({ targetExamDate: "data-invalida" }).success
+      ).toBe(false);
+    });
+  });
 });

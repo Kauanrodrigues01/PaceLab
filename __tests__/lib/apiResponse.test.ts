@@ -3,10 +3,14 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import {
   apiSuccess,
+  apiDeleted,
   apiError,
+  apiBadRequest,
+  apiNotFound,
   apiConflict,
   apiPayloadTooLarge,
   apiUnprocessable,
+  apiServiceUnavailable,
   AppError,
   withApiHandler,
 } from "@/lib/api/response";
@@ -142,7 +146,7 @@ describe("Utilitários de Resposta da API (Fase 2 - Eixo B)", () => {
       expect(json.error).toContain("Conflito");
     });
 
-    it("captura P2002 em external_id e retorna 409 amigável de GPX duplicado", async () => {
+    it("captura P2002 em external_id e retorna 409 amigável de duplicidade", async () => {
       const prismaError = new Prisma.PrismaClientKnownRequestError(
         "Unique constraint failed on the fields: (`external_id`)",
         {
@@ -159,7 +163,10 @@ describe("Utilitários de Resposta da API (Fase 2 - Eixo B)", () => {
 
       const json = await res.json();
       expect(json.success).toBe(false);
-      expect(json.error).toBe("Este arquivo .GPX já foi importado");
+      expect(json.code).toBe("DUPLICATE_EXTERNAL_ID");
+      expect(json.error).toBe(
+        "Já existe um registro importado com este identificador externo"
+      );
       expect(json.details).toEqual({ code: "DUPLICATE_EXTERNAL_ID" });
     });
 
@@ -233,9 +240,72 @@ describe("Utilitários de Resposta da API (Fase 2 - Eixo B)", () => {
 
       const json = await res.json();
       expect(json.success).toBe(false);
+      expect(json.code).toBe("INTERNAL_ERROR");
       expect(json.error).toBe("Falha catastrófica de infraestrutura");
 
       consoleSpy.mockRestore();
+    });
+
+    it("captura P2003 (erro Prisma não mapeado como 404/409) e retorna 500 INTERNAL_ERROR", async () => {
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const p2003Error = new Prisma.PrismaClientKnownRequestError(
+        "Foreign key constraint failed",
+        { code: "P2003", clientVersion: "6.0.0" }
+      );
+
+      const res = await withApiHandler(async () => {
+        throw p2003Error;
+      });
+      const json = await res.json();
+
+      expect(res.status).toBe(500);
+      expect(json.code).toBe("INTERNAL_ERROR");
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe("Helpers padronizados de Fase 2 (apiDeleted, apiBadRequest, apiNotFound, apiServiceUnavailable)", () => {
+    it("apiDeleted retorna payload { deletedId, deleted: true }", async () => {
+      const res = apiDeleted("rec-42");
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.success).toBe(true);
+      expect(json.data).toEqual({ deletedId: "rec-42", deleted: true });
+    });
+
+    it("apiBadRequest, apiNotFound e apiServiceUnavailable extraem details.code quando code explícito é omitido", async () => {
+      const r400Default = await apiBadRequest("Parâmetro inválido").json();
+      expect(r400Default.code).toBe("BAD_REQUEST");
+
+      const r400Custom = await apiBadRequest("Sem arquivo", { code: "MISSING_FILE" }).json();
+      expect(r400Custom.code).toBe("MISSING_FILE");
+
+      const r404 = await apiNotFound("Simulado não encontrado").json();
+      expect(r404.code).toBe("NOT_FOUND");
+
+      const r503 = await apiServiceUnavailable("Sheets off", {
+        code: "SHEETS_NOT_CONFIGURED",
+      }).json();
+      expect(r503.code).toBe("SHEETS_NOT_CONFIGURED");
+    });
+
+    it("code explícito prevalece sobre details.code em apiError e AppError", async () => {
+      const res = apiError(
+        "Erro explícito",
+        400,
+        { code: "LEGACY_CODE", field: "x" },
+        "INVALID_PATH_ID"
+      );
+      const json = await res.json();
+      expect(json.code).toBe("INVALID_PATH_ID");
+
+      const handled = await withApiHandler(async () => {
+        throw new AppError("Não configurado", 503, { sheetsConfigured: false }, "SERVICE_UNAVAILABLE");
+      });
+      const handledJson = await handled.json();
+      expect(handled.status).toBe(503);
+      expect(handledJson.code).toBe("SERVICE_UNAVAILABLE");
     });
   });
 });

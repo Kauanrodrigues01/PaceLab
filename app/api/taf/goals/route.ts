@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { apiSuccess, withApiHandler } from "@/lib/api/response";
+import { parseJsonBody } from "@/lib/api/request";
 import { safeAutoSync, syncProfileAndGoalToSheet } from "@/lib/googleSheets";
 import { TafGoalInputSchema } from "@/lib/validations/taf";
 
@@ -47,8 +48,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   return withApiHandler(async () => {
-    const body = await request.json();
-    const validated = TafGoalInputSchema.parse(body);
+    const { data: validated } = await parseJsonBody(request, TafGoalInputSchema);
 
     const goalData = {
       institutionName: validated.institutionName,

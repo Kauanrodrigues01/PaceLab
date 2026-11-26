@@ -9,6 +9,7 @@ import {
   TrainingSession,
 } from "@/types";
 import type { SheetsSyncReport } from "@/lib/googleSheets/types";
+import { formatDateFortaleza } from "@/lib/formatting/date";
 import { tafService, DEFAULT_GOAL } from "@/lib/services/tafService";
 import {
   clearCrossPageSheetsCaches,
@@ -378,7 +379,7 @@ export default function MeuTafPage() {
       {notification && (
         <div
           data-testid="toast-notification"
-          className={`fixed top-20 right-4 sm:right-8 z-50 max-w-[calc(100vw-2rem)] px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs sm:text-sm font-semibold transition-all animate-in fade-in slide-in-from-top-4 ${
+          className={`fixed top-20 right-4 sm:right-8 z-50 max-w-[calc(100vw-2rem)] px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs sm:text-sm font-semibold transition-all animate-fade-in ${
             notification.type === "success"
               ? "bg-emerald-600 text-white"
               : "bg-red-600 text-white"
@@ -448,7 +449,7 @@ export default function MeuTafPage() {
       {/* Seletor Multimodal do TAF (Prontidão para Barra, Flexão, Abdominal) */}
       <div
         data-testid="taf-multimodal-selector"
-        className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-4 sm:p-5 shadow-xs"
+        className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-4 sm:p-5 shadow-sm"
       >
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
@@ -624,7 +625,7 @@ export default function MeuTafPage() {
           </div>
           <p className="text-[11px] text-[#8E9BB0] mt-1">
             {latest12mAttempt
-              ? new Date(latest12mAttempt.testDate).toLocaleDateString("pt-BR")
+              ? formatDateFortaleza(latest12mAttempt.testDate)
               : "Sem registros"}
           </p>
         </div>

@@ -4,7 +4,7 @@ import {
   ActivityParsePreview,
   ActivitySource,
   ActivityType,
-  LOCATION_LABELS,
+  LOCATION_TYPES,
   LocationType,
   TafAttempt,
   TrainingSession,
@@ -25,6 +25,13 @@ import type {
   SheetsSyncReport,
   SheetsSyncStatus,
 } from "@/lib/googleSheets/types";
+import { resolvePaceMetricsFallback } from "@/lib/math/pace";
+import {
+  ApiClientError,
+  extractErrorMessage,
+  throwIfHttpError,
+  unwrapApiResponse,
+} from "@/lib/services/apiClient";
 
 export interface SaveRecordOptions {
   skipSheetsSync?: boolean;
@@ -59,21 +66,15 @@ export interface TrainingPaginationOptions extends TafPaginationOptions {
   activityType?: string;
 }
 
-export class TafApiError extends Error {
-  readonly status: number;
-  readonly code?: string;
-
+export class TafApiError extends ApiClientError {
   constructor(message: string, status: number, code?: string) {
-    super(message);
-    this.name = "TafApiError";
-    this.status = status;
-    this.code = code;
+    super(message, status, code, "TafApiError");
   }
 }
 
 const VALID_SOURCES_SET = new Set<string>(ACTIVITY_SOURCES);
 const VALID_ACTIVITIES_SET = new Set<string>(ACTIVITY_TYPES);
-const VALID_LOCATIONS_SET = new Set<string>(Object.keys(LOCATION_LABELS));
+const VALID_LOCATIONS_SET = new Set<string>(LOCATION_TYPES);
 const CSV_FORMULA_PREFIX_REGEX = /^(?:\s*[=+\-@]|[\t\r])/;
 
 function isDuplicateConflictError(err: unknown): boolean {
@@ -157,36 +158,12 @@ function normalizeHeartRatePair(
   return { avgHeartRate, maxHeartRate };
 }
 
-function resolveFallbackPaceMetrics(
-  raw: Record<string, unknown>,
-  distanceKm: number,
-  durationSeconds: number
-): { speedKmh: number; paceSeconds: number; paceFormatted: string } {
-  const safeDistanceKm = distanceKm > 0 ? distanceKm : 0.05;
-  const safeDurationSec = durationSeconds > 0 ? Math.round(durationSeconds) : 30;
-
-  const speedKmh =
-    typeof raw.speedKmh === "number" && Number.isFinite(raw.speedKmh) && raw.speedKmh > 0
-      ? raw.speedKmh
-      : Number((safeDistanceKm / (safeDurationSec / 3600)).toFixed(2));
-  const paceSeconds =
-    typeof raw.paceSeconds === "number" && Number.isFinite(raw.paceSeconds) && raw.paceSeconds > 0
-      ? Math.max(1, Math.round(raw.paceSeconds))
-      : Math.max(1, Math.round(safeDurationSec / safeDistanceKm));
-  const paceFormatted =
-    typeof raw.paceFormatted === "string" && raw.paceFormatted.trim().length > 0
-      ? raw.paceFormatted
-      : `${Math.floor(paceSeconds / 60)}:${String(paceSeconds % 60).padStart(2, "0")}`;
-
-  return { speedKmh, paceSeconds, paceFormatted };
-}
-
 function normalizeAttemptFromBackup(
   raw: Record<string, unknown>
 ): TafAttempt {
   const distanceMeters = Math.round(Number(raw.distanceMeters));
   const actualDurationSeconds = Math.round(Number(raw.actualDurationSeconds));
-  const pace = resolveFallbackPaceMetrics(
+  const pace = resolvePaceMetricsFallback(
     raw,
     distanceMeters / 1000,
     actualDurationSeconds
@@ -227,7 +204,7 @@ function normalizeTrainingFromBackup(
 ): TrainingSession {
   const distanceKm = Number(raw.distanceKm);
   const durationSeconds = Math.round(Number(raw.durationSeconds));
-  const pace = resolveFallbackPaceMetrics(raw, distanceKm, durationSeconds);
+  const pace = resolvePaceMetricsFallback(raw, distanceKm, durationSeconds);
   const nowIso = new Date().toISOString();
   const hr = normalizeHeartRatePair(raw.avgHeartRate, raw.maxHeartRate);
   const activityType =
@@ -299,65 +276,12 @@ function formatCsvNumber(
   return typeof decimals === "number" ? value.toFixed(decimals) : String(value);
 }
 
-function unwrapApiResponse<T>(payload: unknown): T {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "data" in payload &&
-    (payload as { data: unknown }).data !== undefined
-  ) {
-    return (payload as { data: T }).data;
-  }
-  return payload as T;
-}
-
-interface ApiErrorPayload {
-  error?: string;
-  details?: Array<{ field?: string; message?: string }> | { code?: unknown };
-}
-
-async function extractApiErrorInfo(
-  res: Response,
-  fallbackMessage: string
-): Promise<{ message: string; code?: string }> {
-  try {
-    const errData = (await res.json().catch(() => ({}))) as ApiErrorPayload;
-    const code =
-      errData.details &&
-      !Array.isArray(errData.details) &&
-      typeof errData.details === "object" &&
-      typeof (errData.details as { code?: unknown }).code === "string"
-        ? (errData.details as { code: string }).code
-        : undefined;
-
-    if (Array.isArray(errData.details) && errData.details.length > 0) {
-      const messages = errData.details
-        .map((d) => d.message)
-        .filter((msg): msg is string => Boolean(msg));
-      if (messages.length > 0) {
-        return { message: messages.join("; "), code };
-      }
-    }
-
-    if (errData.error) {
-      return { message: errData.error, code };
-    }
-
-    return { message: fallbackMessage, code };
-  } catch {
-    // Falha silenciosa no parsing, mantém fallback
-  }
-
-  return { message: fallbackMessage };
-}
-
-async function extractErrorMessage(
-  res: Response,
-  fallbackMessage: string
-): Promise<string> {
-  const { message } = await extractApiErrorInfo(res, fallbackMessage);
-  return message;
-}
+const throwTafHttpError = (res: Response, fallbackMessage: string) =>
+  throwIfHttpError(
+    res,
+    fallbackMessage,
+    (message, status, code) => new TafApiError(message, status, code)
+  );
 
 // ─── Serviço de Persistência Direta no Supabase (PostgreSQL via Prisma API) ───
 export const tafService = {
@@ -382,13 +306,7 @@ export const tafService = {
       body: JSON.stringify(goal),
     });
 
-    if (!res.ok) {
-      const message = await extractErrorMessage(
-        res,
-        "Erro ao salvar meta no banco de dados"
-      );
-      throw new Error(message);
-    }
+    await throwTafHttpError(res, "Erro ao salvar meta no banco de dados");
 
     const json = await res.json();
     return unwrapApiResponse<TafGoalConfig>(json);
@@ -402,13 +320,10 @@ export const tafService = {
     const qs = params.toString() ? `?${params.toString()}` : "";
 
     const res = await fetch(`/api/taf/attempts${qs}`, { cache: "no-store" });
-    if (!res.ok) {
-      const message = await extractErrorMessage(
-        res,
-        "Erro ao carregar simulados do banco de dados"
-      );
-      throw new Error(message);
-    }
+    await throwTafHttpError(
+      res,
+      "Erro ao carregar simulados do banco de dados"
+    );
     const json = await res.json();
     return unwrapApiResponse<TafAttempt[]>(json);
   },
@@ -430,13 +345,7 @@ export const tafService = {
       body: JSON.stringify(attempt),
     });
 
-    if (!res.ok) {
-      const { message, code } = await extractApiErrorInfo(
-        res,
-        "Erro ao salvar simulado no banco de dados"
-      );
-      throw new TafApiError(message, res.status, code);
-    }
+    await throwTafHttpError(res, "Erro ao salvar simulado no banco de dados");
 
     const json = await res.json();
     return unwrapApiResponse<TafAttempt>(json);
@@ -447,13 +356,7 @@ export const tafService = {
       method: "DELETE",
     });
 
-    if (!res.ok) {
-      const message = await extractErrorMessage(
-        res,
-        "Erro ao excluir simulado no banco de dados"
-      );
-      throw new Error(message);
-    }
+    await throwTafHttpError(res, "Erro ao excluir simulado no banco de dados");
 
     return true;
   },
@@ -467,13 +370,10 @@ export const tafService = {
     const qs = params.toString() ? `?${params.toString()}` : "";
 
     const res = await fetch(`/api/taf/trainings${qs}`, { cache: "no-store" });
-    if (!res.ok) {
-      const message = await extractErrorMessage(
-        res,
-        "Erro ao carregar diário de treinos do banco de dados"
-      );
-      throw new Error(message);
-    }
+    await throwTafHttpError(
+      res,
+      "Erro ao carregar diário de treinos do banco de dados"
+    );
     const json = await res.json();
     return unwrapApiResponse<TrainingSession[]>(json);
   },
@@ -482,13 +382,7 @@ export const tafService = {
     const res = await fetch(`/api/taf/trainings/${encodeURIComponent(id)}`, {
       cache: "no-store",
     });
-    if (!res.ok) {
-      const { message, code } = await extractApiErrorInfo(
-        res,
-        "Erro ao carregar treino no banco de dados"
-      );
-      throw new TafApiError(message, res.status, code);
-    }
+    await throwTafHttpError(res, "Erro ao carregar treino no banco de dados");
     const json = await res.json();
     return unwrapApiResponse<TrainingSession>(json);
   },
@@ -510,13 +404,7 @@ export const tafService = {
       body: JSON.stringify(training),
     });
 
-    if (!res.ok) {
-      const { message, code } = await extractApiErrorInfo(
-        res,
-        "Erro ao salvar treino no banco de dados"
-      );
-      throw new TafApiError(message, res.status, code);
-    }
+    await throwTafHttpError(res, "Erro ao salvar treino no banco de dados");
 
     const json = await res.json();
     return unwrapApiResponse<TrainingSession>(json);
@@ -527,13 +415,7 @@ export const tafService = {
       method: "DELETE",
     });
 
-    if (!res.ok) {
-      const message = await extractErrorMessage(
-        res,
-        "Erro ao excluir treino no banco de dados"
-      );
-      throw new Error(message);
-    }
+    await throwTafHttpError(res, "Erro ao excluir treino no banco de dados");
 
     return true;
   },
@@ -556,13 +438,10 @@ export const tafService = {
       ...(options?.signal ? { signal: options.signal } : {}),
     });
 
-    if (!res.ok) {
-      const message = await extractErrorMessage(
-        res,
-        "Erro ao processar arquivo de atividade (.FIT / .GPX)"
-      );
-      throw new Error(message);
-    }
+    await throwTafHttpError(
+      res,
+      "Erro ao processar arquivo de atividade (.FIT / .GPX)"
+    );
 
     const json = await res.json();
     return unwrapApiResponse<ActivityParsePreview>(json);
@@ -586,9 +465,7 @@ export const tafService = {
     try {
       const res = await fetch("/api/taf/health", { cache: "no-store" });
       const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-      const data = (raw && typeof raw === "object" && "data" in raw && raw.data
-        ? raw.data
-        : raw) as Record<string, unknown>;
+      const data = unwrapApiResponse<Record<string, unknown>>(raw);
       return {
         connected: res.ok && data?.status === "connected",
         orm: "Prisma",
@@ -658,13 +535,10 @@ export const tafService = {
       }),
     });
 
-    if (!res.ok) {
-      const { message, code } = await extractApiErrorInfo(
-        res,
-        "Erro ao sincronizar dados com o Google Sheets"
-      );
-      throw new TafApiError(message, res.status, code);
-    }
+    await throwTafHttpError(
+      res,
+      "Erro ao sincronizar dados com o Google Sheets"
+    );
 
     const json = await res.json();
     return unwrapApiResponse<SheetsSyncReport>(json);
@@ -677,13 +551,10 @@ export const tafService = {
       : "";
     const res = await fetch(`/api/weekly-plan${qs}`, { cache: "no-store" });
 
-    if (!res.ok) {
-      const { message, code } = await extractApiErrorInfo(
-        res,
-        "Erro ao carregar plano semanal e aderência"
-      );
-      throw new TafApiError(message, res.status, code);
-    }
+    await throwTafHttpError(
+      res,
+      "Erro ao carregar plano semanal e aderência"
+    );
 
     const json = await res.json();
     return unwrapApiResponse<WeeklyPlanData>(json);

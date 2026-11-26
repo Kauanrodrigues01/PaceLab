@@ -1,8 +1,322 @@
+import {
+  ACTIVITY_SOURCES,
+  ACTIVITY_TYPES,
+  SHEETS_SYNC_DIRECTIONS,
+  WEEKLY_PLAN_STATUSES,
+  WEIGHT_SOURCES,
+} from "@/types";
+import {
+  CreateTafAttemptSchema,
+  CreateTrainingSessionSchema,
+  CreateWeightRecordSchema,
+  LapDetailSchema,
+  SheetsSyncRequestSchema,
+  SplitDetailSchema,
+  TafGoalInputSchema,
+  UpdateTafAttemptSchema,
+  UpdateTrainingSessionSchema,
+  UserProfileInputSchema,
+  WeeklyPlanQuerySchema,
+  WeightListQuerySchema,
+} from "@/lib/validations/taf";
+import {
+  createErrorResponses,
+  createJsonResponse,
+  createPaginatedListResponseSchema,
+  createPaginationParams,
+  createPathIdParam,
+  createSkipSheetsSyncParam,
+  createSuccessEnvelopeSchema,
+  OpenApiSchema,
+  zodToOpenApiSchema,
+} from "./builders";
+
+// ─── Schemas Derivados Diretamente do Zod (Single Source of Truth) ──────────
+
+const tafGoalInputSchema = zodToOpenApiSchema(TafGoalInputSchema, {
+  propertyOverrides: {
+    institutionName: { example: "Polícia Militar SP" },
+    minDistanceMeters: { example: 2400 },
+    targetDistanceMeters: { example: 2600 },
+    targetDurationMinutes: { example: 12 },
+    targetExamDate: { format: "date", example: "2026-12-15" },
+    pullupType: { example: "dinamica" },
+    pullupMinReps: { example: 3 },
+    pullupTargetReps: { example: 5 },
+    pushupMinReps: { example: 20 },
+    pushupTargetReps: { example: 30 },
+    absMinReps: { example: 30 },
+    absTargetReps: { example: 40 },
+  },
+});
+
+const tafGoalResponseBase = zodToOpenApiSchema(TafGoalInputSchema, {
+  stripDefaults: true,
+  propertyOverrides: {
+    institutionName: { example: "Polícia Militar SP" },
+    minDistanceMeters: { example: 2400 },
+    targetDistanceMeters: { example: 2600 },
+    targetDurationMinutes: { example: 12 },
+    targetExamDate: { format: "date-time", example: "2026-12-15T00:00:00.000Z" },
+  },
+});
+
+const lapDetailSchema = zodToOpenApiSchema(LapDetailSchema, {
+  propertyOverrides: {
+    lapNumber: { example: 1 },
+    distanceMeters: { example: 400 },
+    durationSeconds: { example: 112 },
+    paceFormatted: { example: "4:40" },
+  },
+});
+
+const splitDetailSchema = zodToOpenApiSchema(SplitDetailSchema, {
+  propertyOverrides: {
+    kilometer: { example: 1 },
+    distanceKm: { example: 1.0 },
+    durationSeconds: { example: 300 },
+    paceSeconds: { example: 300 },
+    paceFormatted: { example: "5:00" },
+    avgHeartRate: { example: 162 },
+    elevationDiffM: { example: 4.5 },
+  },
+});
+
+const createTafAttemptInputSchema = zodToOpenApiSchema(CreateTafAttemptSchema, {
+  propertyOverrides: {
+    source: { example: "manual" },
+    distanceMeters: { example: 2450 },
+    actualDurationSeconds: { example: 720 },
+    speedKmh: { example: 12.25 },
+    paceSeconds: { example: 294 },
+    paceFormatted: { example: "4:54" },
+    locationType: { example: "pista_400m" },
+    shoeName: { example: "Nike Vaporfly 3" },
+    avgHeartRate: { example: 172 },
+    maxHeartRate: { example: 188 },
+    laps: {
+      type: "array",
+      items: lapDetailSchema,
+    },
+  },
+});
+
+const tafAttemptResponseBase = zodToOpenApiSchema(CreateTafAttemptSchema, {
+  stripDefaults: true,
+  omitProperties: ["onDuplicate"],
+  propertyOverrides: {
+    id: { description: "Identificador único do simulado." },
+    source: { example: "manual" },
+    distanceMeters: { example: 2450 },
+    actualDurationSeconds: { example: 720 },
+    speedKmh: { example: 12.25 },
+    paceSeconds: { example: 294 },
+    paceFormatted: { example: "4:54" },
+    locationType: { example: "pista_400m" },
+    shoeName: { example: "Nike Vaporfly 3" },
+    avgHeartRate: { example: 172 },
+    maxHeartRate: { example: 188 },
+    laps: {
+      type: "array",
+      items: lapDetailSchema,
+    },
+  },
+});
+
+const updateTafAttemptInputSchema = zodToOpenApiSchema(UpdateTafAttemptSchema, {
+  stripDefaults: true,
+  omitProperties: ["id", "userId"],
+  propertyOverrides: {
+    distanceMeters: { example: 2500 },
+    actualDurationSeconds: { example: 720 },
+    locationType: { example: "pista_400m" },
+    shoeName: { example: "Nike Vaporfly 3" },
+    avgHeartRate: { example: 174 },
+    maxHeartRate: { example: 190 },
+    laps: {
+      type: "array",
+      items: lapDetailSchema,
+    },
+  },
+});
+
+const createTrainingInputSchema = zodToOpenApiSchema(
+  CreateTrainingSessionSchema,
+  {
+    propertyOverrides: {
+      id: { description: "Identificador opcional para upsert idempotente." },
+      source: { example: "manual" },
+      activityType: { example: "corrida_continua" },
+      distanceKm: { example: 5.0 },
+      durationSeconds: { example: 1500 },
+      elapsedSeconds: { example: 1560 },
+      speedKmh: { example: 12.0 },
+      paceSeconds: { example: 300 },
+      paceFormatted: { example: "5:00" },
+      avgHeartRate: { example: 160 },
+      maxHeartRate: { example: 178 },
+      elevationGainM: { example: 35.0 },
+      avgCadence: { example: 174 },
+      shoeName: { example: "Nike Pegasus 40" },
+      perceivedEffort: { example: 7 },
+      bodyWeightKg: { example: 75 },
+      activeCalories: { example: 312 },
+      totalCalories: { example: 345 },
+      metValue: { example: 11.5 },
+      calorieMethod: { example: "compendium_2024_met" },
+      calorieSource: { example: "calculated_met" },
+      splits: {
+        type: "array",
+        items: { $ref: "#/components/schemas/SplitDetailSchema" },
+      },
+    },
+  }
+);
+
+const trainingResponseBase = zodToOpenApiSchema(CreateTrainingSessionSchema, {
+  stripDefaults: true,
+  omitProperties: ["onDuplicate"],
+  propertyOverrides: {
+    id: { description: "Identificador único da sessão de treino." },
+    source: { example: "manual" },
+    activityType: { example: "corrida_continua" },
+    distanceKm: { example: 5.0 },
+    durationSeconds: { example: 1500 },
+    elapsedSeconds: { example: 1560 },
+    speedKmh: { example: 12.0 },
+    paceSeconds: { example: 300 },
+    paceFormatted: { example: "5:00" },
+    avgHeartRate: { example: 160 },
+    maxHeartRate: { example: 178 },
+    elevationGainM: { example: 35.0 },
+    avgCadence: { example: 174 },
+    shoeName: { example: "Nike Pegasus 40" },
+    perceivedEffort: { example: 7 },
+    bodyWeightKg: { example: 75 },
+    activeCalories: { example: 312 },
+    totalCalories: { example: 345 },
+    metValue: { example: 11.5 },
+    calorieMethod: { example: "compendium_2024_met" },
+    calorieSource: { example: "calculated_met" },
+    splits: {
+      type: "array",
+      items: { $ref: "#/components/schemas/SplitDetailSchema" },
+    },
+  },
+});
+
+const updateTrainingInputSchema = zodToOpenApiSchema(
+  UpdateTrainingSessionSchema,
+  {
+    stripDefaults: true,
+    omitProperties: ["id", "userId"],
+    propertyOverrides: {
+      splits: {
+        type: "array",
+        items: { $ref: "#/components/schemas/SplitDetailSchema" },
+      },
+    },
+  }
+);
+
+const profileInputSchema = zodToOpenApiSchema(UserProfileInputSchema, {
+  omitProperties: ["id", "userId"],
+  propertyOverrides: {
+    name: { example: "Atleta PaceLab" },
+    heightCm: { example: 178 },
+    currentWeightKg: { example: 75.5 },
+    birthDate: { format: "date", example: "1998-05-14" },
+    gender: { example: "masculino" },
+  },
+});
+
+const profileResponseBase = zodToOpenApiSchema(UserProfileInputSchema, {
+  stripDefaults: true,
+  propertyOverrides: {
+    name: { example: "Atleta PaceLab" },
+    heightCm: { example: 178 },
+    currentWeightKg: { example: 75.5 },
+    birthDate: { format: "date-time", example: "1998-05-14T00:00:00.000Z" },
+    gender: { example: "masculino" },
+  },
+});
+
+const weightInputSchema = zodToOpenApiSchema(CreateWeightRecordSchema, {
+  omitProperties: ["id", "profileId"],
+  propertyOverrides: {
+    weightKg: { example: 74.8 },
+    source: { example: "weekly_prompt" },
+  },
+});
+
+const weightResponseBase = zodToOpenApiSchema(CreateWeightRecordSchema, {
+  stripDefaults: true,
+  propertyOverrides: {
+    weightKg: { example: 74.8 },
+    source: { example: "weekly_prompt" },
+  },
+});
+
+const sheetsSyncRequestSchema = zodToOpenApiSchema(SheetsSyncRequestSchema);
+const weightListQuerySchema = zodToOpenApiSchema(WeightListQuerySchema);
+const weightListLimitParamSchema = (
+  (weightListQuerySchema.properties as Record<string, OpenApiSchema> | undefined)
+    ?.limit ?? { type: "integer", default: 52, minimum: 1, maximum: 365 }
+) as OpenApiSchema;
+const weeklyPlanQuerySchema = zodToOpenApiSchema(WeeklyPlanQuerySchema);
+const weeklyPlanWeekStartParamSchema = (
+  (weeklyPlanQuerySchema.properties as Record<string, OpenApiSchema> | undefined)
+    ?.weekStart ?? { type: "string", format: "date" }
+) as OpenApiSchema;
+
+const multipartActivityRequestBody = {
+  required: true,
+  content: {
+    "multipart/form-data": {
+      schema: {
+        type: "object",
+        properties: {
+          files: {
+            type: "array",
+            items: { type: "string", format: "binary" },
+            description: "1 ou 2 arquivos (.fit e/ou .gpx, máx. 4 MB cada).",
+          },
+          file: {
+            type: "string",
+            format: "binary",
+            description: "Campo alternativo aceito para envio de arquivo único.",
+          },
+          fitFile: {
+            type: "string",
+            format: "binary",
+            description: "Campo alternativo opcional para arquivo .FIT.",
+          },
+          gpxFile: {
+            type: "string",
+            format: "binary",
+            description: "Campo alternativo opcional para arquivo .GPX.",
+          },
+        },
+      },
+    },
+  },
+};
+
+const parseActivityResponses = {
+  "200": createJsonResponse(
+    "Atividade analisada com sucesso.",
+    "ActivityParsePreviewResponse"
+  ),
+  ...createErrorResponses([400, 413, 422, 500], {
+    413: "Arquivo excede o limite máximo de 4 MB.",
+    422: "Erro semântico no arquivo .FIT/.GPX ou esporte incompatível.",
+  }),
+};
+
 /**
  * Especificação OpenAPI 3.0 oficial do PaceLab
- * Documentação centralizada de todas as rotas da API REST
+ * Schemas de entrada e query derivados automaticamente de `lib/validations/taf.ts`.
  */
-
 export const swaggerSpec = {
   openapi: "3.0.3",
   info: {
@@ -28,23 +342,28 @@ export const swaggerSpec = {
   tags: [
     {
       name: "Metas TAF",
-      description: "Configuração e consulta de metas de corrida, barra, flexão e abdominal do edital.",
+      description:
+        "Configuração e consulta de metas de corrida, barra, flexão e abdominal do edital.",
     },
     {
       name: "Simulados TAF",
-      description: "Registro, consulta e gestão de tentativas do teste de corrida de 12 minutos.",
+      description:
+        "Registro, consulta e gestão de tentativas do teste de corrida de 12 minutos.",
     },
     {
       name: "Diário de Treinos",
-      description: "Registro e análise de sessões de treino com métricas de ritmo, esforço (RPE) e calorias.",
+      description:
+        "Registro e análise de sessões de treino com métricas de ritmo, esforço (RPE) e calorias.",
     },
     {
       name: "Perfil do Atleta",
-      description: "Dados biométricos do atleta (peso, altura, idade, sexo biológico e histórico de peso).",
+      description:
+        "Dados biométricos do atleta (peso, altura, idade, sexo biológico e histórico de peso).",
     },
     {
       name: "Health & Diagnóstico",
-      description: "Status de saúde do serviço e verificação de conexão com o banco de dados.",
+      description:
+        "Status de saúde do serviço e verificação de conexão com o banco de dados.",
     },
     {
       name: "Sincronização Google Sheets",
@@ -65,19 +384,11 @@ export const swaggerSpec = {
         description:
           "Retorna a meta configurada mais recente para o candidato ou os padrões oficiais caso nenhuma tenha sido definida.",
         responses: {
-          "200": {
-            description: "Meta TAF recuperada com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TafGoalResponse",
-                },
-              },
-            },
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Meta TAF recuperada com sucesso.",
+            "TafGoalResponse"
+          ),
+          ...createErrorResponses([500]),
         },
       },
       post: {
@@ -89,29 +400,16 @@ export const swaggerSpec = {
           required: true,
           content: {
             "application/json": {
-              schema: {
-                $ref: "#/components/schemas/TafGoalInput",
-              },
+              schema: { $ref: "#/components/schemas/TafGoalInput" },
             },
           },
         },
         responses: {
-          "200": {
-            description: "Meta salva com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TafGoalResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Meta salva com sucesso.",
+            "TafGoalResponse"
+          ),
+          ...createErrorResponses([400, 500]),
         },
       },
     },
@@ -121,82 +419,40 @@ export const swaggerSpec = {
         tags: ["Simulados TAF"],
         summary: "Listar tentativas de simulados TAF",
         description:
-          "Retorna a lista paginada de simulados realizados, incluindo dados de voltas (laps), recorde pessoal (PB) e déficit em relação à meta.",
-        parameters: [
-          {
-            name: "limit",
-            in: "query",
-            description: "Quantidade máxima de registros a retornar (1 a 100, padrão 50).",
-            schema: { type: "integer", default: 50, minimum: 1, maximum: 100 },
-          },
-          {
-            name: "cursor",
-            in: "query",
-            description: "ID do cursor para paginação baseada em cursor.",
-            schema: { type: "string" },
-          },
-        ],
+          "Retorna a lista paginada por cursor de simulados realizados (`meta.limit`, `meta.nextCursor`, `meta.hasMore`), incluindo dados de voltas (`laps`) e telemetria.",
+        parameters: createPaginationParams(false),
         responses: {
-          "200": {
-            description: "Lista de simulados recuperada com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TafAttemptsListResponse",
-                },
-              },
-            },
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Lista de simulados recuperada com sucesso.",
+            "TafAttemptsListResponse"
+          ),
+          ...createErrorResponses([400, 500]),
         },
       },
       post: {
         tags: ["Simulados TAF"],
         summary: "Registrar novo simulado TAF",
         description:
-          "Calcula pace, velocidade média, pontuação e registra a tentativa no histórico persistido.",
-        parameters: [
-          {
-            name: "skipSheetsSync",
-            in: "query",
-            required: false,
-            description:
-              "Quando true/1, evita chamada automática ao Google Sheets (útil em restauração em lote).",
-            schema: { type: "boolean", default: false },
-          },
-        ],
+          "Calcula pace, velocidade média, pontuação e registra a tentativa no histórico persistido (retorna 200 quando `onDuplicate='update'` atualiza registro existente).",
+        parameters: [createSkipSheetsSyncParam()],
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: {
-                $ref: "#/components/schemas/CreateTafAttemptInput",
-              },
+              schema: { $ref: "#/components/schemas/CreateTafAttemptInput" },
             },
           },
         },
         responses: {
-          "201": {
-            description: "Simulado registrado com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TafAttemptResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "409": {
-            $ref: "#/components/responses/ConflictError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Simulado existente atualizado via onDuplicate='update'.",
+            "TafAttemptResponse"
+          ),
+          "201": createJsonResponse(
+            "Simulado registrado com sucesso.",
+            "TafAttemptResponse"
+          ),
+          ...createErrorResponses([400, 409, 500]),
         },
       },
     },
@@ -205,113 +461,45 @@ export const swaggerSpec = {
       get: {
         tags: ["Simulados TAF"],
         summary: "Buscar simulado por ID",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            description: "Identificador UUID do simulado",
-            schema: { type: "string" },
-          },
-        ],
+        parameters: [createPathIdParam("Identificador único do simulado (1 a 128 caracteres)")],
         responses: {
-          "200": {
-            description: "Simulado encontrado.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TafAttemptResponse",
-                },
-              },
-            },
-          },
-          "404": {
-            $ref: "#/components/responses/NotFoundError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Simulado encontrado.",
+            "TafAttemptResponse"
+          ),
+          ...createErrorResponses([400, 404, 500]),
         },
       },
       put: {
         tags: ["Simulados TAF"],
         summary: "Atualizar simulado existente",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-          },
-          {
-            name: "skipSheetsSync",
-            in: "query",
-            required: false,
-            description:
-              "Quando true/1, evita chamada automática ao Google Sheets (útil em restauração em lote).",
-            schema: { type: "boolean", default: false },
-          },
-        ],
+        parameters: [createPathIdParam(), createSkipSheetsSyncParam()],
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: {
-                $ref: "#/components/schemas/UpdateTafAttemptInput",
-              },
+              schema: { $ref: "#/components/schemas/UpdateTafAttemptInput" },
             },
           },
         },
         responses: {
-          "200": {
-            description: "Simulado atualizado com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TafAttemptResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "404": {
-            $ref: "#/components/responses/NotFoundError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Simulado atualizado com sucesso.",
+            "TafAttemptResponse"
+          ),
+          ...createErrorResponses([400, 404, 500]),
         },
       },
       delete: {
         tags: ["Simulados TAF"],
         summary: "Excluir simulado",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-          },
-        ],
+        parameters: [createPathIdParam()],
         responses: {
-          "200": {
-            description: "Simulado excluído com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/DeleteSuccessResponse",
-                },
-              },
-            },
-          },
-          "404": {
-            $ref: "#/components/responses/NotFoundError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Simulado excluído com sucesso.",
+            "DeleteSuccessResponse"
+          ),
+          ...createErrorResponses([400, 404, 500]),
         },
       },
     },
@@ -321,97 +509,40 @@ export const swaggerSpec = {
         tags: ["Diário de Treinos"],
         summary: "Listar sessões de treino",
         description:
-          "Retorna o histórico de treinos do usuário com paginação por cursor e filtro opcional por modalidade.",
-        parameters: [
-          {
-            name: "limit",
-            in: "query",
-            schema: { type: "integer", default: 50, minimum: 1, maximum: 100 },
-          },
-          {
-            name: "cursor",
-            in: "query",
-            schema: { type: "string" },
-          },
-          {
-            name: "activityType",
-            in: "query",
-            description:
-              "Filtro opcional: rodagem_leve, corrida_continua, tempo_run, corrida_intervalada, longao, caminhada",
-            schema: {
-              type: "string",
-              enum: [
-                "rodagem_leve",
-                "corrida_continua",
-                "tempo_run",
-                "corrida_intervalada",
-                "longao",
-                "caminhada",
-              ],
-            },
-          },
-        ],
+          "Retorna treinos paginados por cursor (`meta.limit`, `meta.nextCursor`, `meta.hasMore`) ordenados cronologicamente com splits e gasto calórico.",
+        parameters: createPaginationParams(true),
         responses: {
-          "200": {
-            description: "Lista de treinos recuperada com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TrainingsListResponse",
-                },
-              },
-            },
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Lista de treinos recuperada com sucesso.",
+            "TrainingsListResponse"
+          ),
+          ...createErrorResponses([400, 500]),
         },
       },
       post: {
         tags: ["Diário de Treinos"],
         summary: "Registrar nova sessão de treino",
         description:
-          "Grava o treino (manual ou importado via .FIT/.GPX do Strava) calculando ritmo, gasto calórico ativo e total segundo o Compêndio de Atividades Físicas 2024, executa reconciliação local com `Plano_Semanal` e agenda espelhamento no Google Sheets (salvo `skipSheetsSync=true`).",
-        parameters: [
-          {
-            name: "skipSheetsSync",
-            in: "query",
-            required: false,
-            description:
-              "Quando true/1, evita chamada automática ao Google Sheets (útil em restauração em lote).",
-            schema: { type: "boolean", default: false },
-          },
-        ],
+          "Grava o treino (manual ou importado via .FIT/.GPX do Strava) calculando ritmo, gasto calórico ativo e total segundo o Compêndio de Atividades Físicas 2024, executa reconciliação local com `Plano_Semanal` e agenda espelhamento no Google Sheets (salvo `skipSheetsSync=true`). Retorna 200 quando `onDuplicate='update'` atualiza registro existente.",
+        parameters: [createSkipSheetsSyncParam()],
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: {
-                $ref: "#/components/schemas/CreateTrainingInput",
-              },
+              schema: { $ref: "#/components/schemas/CreateTrainingInput" },
             },
           },
         },
         responses: {
-          "201": {
-            description: "Sessão registrada com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TrainingSessionResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "409": {
-            $ref: "#/components/responses/ConflictError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Sessão existente atualizada via onDuplicate='update'.",
+            "TrainingSessionResponse"
+          ),
+          "201": createJsonResponse(
+            "Sessão registrada com sucesso.",
+            "TrainingSessionResponse"
+          ),
+          ...createErrorResponses([400, 409, 500]),
         },
       },
     },
@@ -420,31 +551,13 @@ export const swaggerSpec = {
       get: {
         tags: ["Diário de Treinos"],
         summary: "Buscar treino por ID",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-          },
-        ],
+        parameters: [createPathIdParam("Identificador único da sessão de treino (1 a 128 caracteres)")],
         responses: {
-          "200": {
-            description: "Treino encontrado.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TrainingSessionResponse",
-                },
-              },
-            },
-          },
-          "404": {
-            $ref: "#/components/responses/NotFoundError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Treino encontrado.",
+            "TrainingSessionResponse"
+          ),
+          ...createErrorResponses([400, 404, 500]),
         },
       },
       put: {
@@ -452,52 +565,21 @@ export const swaggerSpec = {
         summary: "Atualizar sessão de treino",
         description:
           "Atualiza os campos da sessão e executa reconciliação local com `Plano_Semanal` (revalidando vínculos existentes ou encontrando novas correspondências).",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-          },
-          {
-            name: "skipSheetsSync",
-            in: "query",
-            required: false,
-            description:
-              "Quando true/1, evita chamada automática ao Google Sheets (útil em restauração em lote).",
-            schema: { type: "boolean", default: false },
-          },
-        ],
+        parameters: [createPathIdParam(), createSkipSheetsSyncParam()],
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: {
-                $ref: "#/components/schemas/UpdateTrainingInput",
-              },
+              schema: { $ref: "#/components/schemas/UpdateTrainingInput" },
             },
           },
         },
         responses: {
-          "200": {
-            description: "Treino atualizado com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/TrainingSessionResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "404": {
-            $ref: "#/components/responses/NotFoundError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Treino atualizado com sucesso.",
+            "TrainingSessionResponse"
+          ),
+          ...createErrorResponses([400, 404, 500]),
         },
       },
       delete: {
@@ -506,37 +588,17 @@ export const swaggerSpec = {
         description:
           "Remove a sessão do banco, limpa vínculos órfãos no `Plano_Semanal` (revertendo itens afetados para `Planejado` ou `Perdido`) e atualiza o Google Sheets salvo `skipSheetsSync=true`.",
         parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-          },
-          {
-            name: "skipSheetsSync",
-            in: "query",
-            required: false,
-            description: "Quando true, ignora a remoção e atualização automática na planilha Google Sheets.",
-            schema: { type: "boolean", default: false },
-          },
+          createPathIdParam(),
+          createSkipSheetsSyncParam(
+            "Quando true, ignora a remoção e atualização automática na planilha Google Sheets."
+          ),
         ],
         responses: {
-          "200": {
-            description: "Treino excluído com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/DeleteSuccessResponse",
-                },
-              },
-            },
-          },
-          "404": {
-            $ref: "#/components/responses/NotFoundError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Treino excluído com sucesso.",
+            "DeleteSuccessResponse"
+          ),
+          ...createErrorResponses([400, 404, 500]),
         },
       },
     },
@@ -544,96 +606,25 @@ export const swaggerSpec = {
     "/api/training-sessions/parse-activity": {
       post: {
         tags: ["Diário de Treinos"],
-        summary: "Analisar e mesclar arquivos de treino (.FIT prioritário + .GPX complementar/fallback)",
+        summary:
+          "Analisar e mesclar arquivos de treino (.FIT prioritário + .GPX complementar/fallback)",
         description:
           "Recebe 1 ou 2 arquivos via `multipart/form-data` (`.fit` isolado, `.gpx` isolado ou `.fit` + `.gpx` do mesmo treino). Aplica prioridade absoluta do `.FIT` (`@garmin/fitsdk`) para telemetria, tempos, distância, splits e calorias, complementando com `<trk><name>` e `elevationGainM` do `.GPX` quando aplicável, e verifica duplicidade no banco (`alreadyExists`).",
-        requestBody: {
-          required: true,
-          content: {
-            "multipart/form-data": {
-              schema: {
-                type: "object",
-                properties: {
-                  files: {
-                    type: "array",
-                    items: { type: "string", format: "binary" },
-                    description: "1 ou 2 arquivos (.fit e/ou .gpx, máx. 4 MB cada).",
-                  },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          "200": {
-            description: "Atividade analisada com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/ActivityParsePreviewResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "413": {
-            description: "Arquivo excede o limite máximo de 4 MB.",
-          },
-          "422": {
-            description: "Erro semântico no arquivo .FIT/.GPX ou esporte incompatível.",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
-        },
+        requestBody: multipartActivityRequestBody,
+        responses: parseActivityResponses,
       },
     },
 
     "/api/taf/trainings/gpx-preview": {
       post: {
         tags: ["Diário de Treinos"],
-        summary: "Alias compatível para análise de arquivos .FIT / .GPX",
+        deprecated: true,
+        summary:
+          "[Obsoleto] Alias compatível para análise de arquivos .FIT / .GPX",
         description:
-          "Rota espelho de `POST /api/training-sessions/parse-activity` mantida no namespace `/api/taf/trainings/*`.",
-        requestBody: {
-          required: true,
-          content: {
-            "multipart/form-data": {
-              schema: {
-                type: "object",
-                properties: {
-                  files: {
-                    type: "array",
-                    items: { type: "string", format: "binary" },
-                  },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          "200": {
-            description: "Atividade analisada com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/ActivityParsePreviewResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "413": {
-            description: "Arquivo excede o limite máximo de 4 MB.",
-          },
-          "422": {
-            description: "Erro semântico no arquivo .FIT/.GPX ou esporte incompatível.",
-          },
-        },
+          "Rota espelho depreciada mantida apenas para retrocompatibilidade. Prefira `POST /api/training-sessions/parse-activity` em novas integrações.",
+        requestBody: multipartActivityRequestBody,
+        responses: parseActivityResponses,
       },
     },
 
@@ -641,54 +632,35 @@ export const swaggerSpec = {
       get: {
         tags: ["Perfil do Atleta"],
         summary: "Obter perfil biométrico",
-        description: "Retorna peso, altura, sexo biológico, data de nascimento e cálculo de IMC.",
+        description:
+          "Retorna os dados antropométricos atuais do atleta (`currentWeightKg`, `heightCm`, `birthDate`, `gender`).",
         responses: {
-          "200": {
-            description: "Perfil obtido com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/ProfileResponse",
-                },
-              },
-            },
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Perfil obtido com sucesso.",
+            "ProfileResponse"
+          ),
+          ...createErrorResponses([500]),
         },
       },
       put: {
         tags: ["Perfil do Atleta"],
         summary: "Criar ou atualizar perfil biométrico",
-        description: "Atualiza os dados antropométricos e registra nova pesagem caso o peso mude.",
+        description:
+          "Atualiza os dados antropométricos e registra nova pesagem caso `currentWeightKg` seja alterado.",
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: {
-                $ref: "#/components/schemas/ProfileInput",
-              },
+              schema: { $ref: "#/components/schemas/ProfileInput" },
             },
           },
         },
         responses: {
-          "200": {
-            description: "Perfil atualizado com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/ProfileResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Perfil atualizado com sucesso.",
+            "ProfileResponse"
+          ),
+          ...createErrorResponses([400, 500]),
         },
       },
     },
@@ -701,56 +673,38 @@ export const swaggerSpec = {
           {
             name: "limit",
             in: "query",
-            schema: { type: "integer", default: 52, minimum: 1, maximum: 365 },
+            required: false,
+            description: "Quantidade máxima de registros retornados (1 a 365, padrão 52).",
+            schema: weightListLimitParamSchema,
           },
         ],
         responses: {
-          "200": {
-            description: "Histórico de peso recuperado com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/WeightListResponse",
-                },
-              },
-            },
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Histórico de peso recuperado com sucesso.",
+            "WeightListResponse"
+          ),
+          ...createErrorResponses([400, 500]),
         },
       },
       post: {
         tags: ["Perfil do Atleta"],
         summary: "Registrar nova pesagem corporal",
-        description: "Adiciona uma entrada no histórico de peso e atualiza o peso atual do perfil.",
+        description:
+          "Adiciona uma entrada no histórico de peso e atualiza `currentWeightKg` no perfil do atleta.",
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: {
-                $ref: "#/components/schemas/WeightInput",
-              },
+              schema: { $ref: "#/components/schemas/WeightInput" },
             },
           },
         },
         responses: {
-          "201": {
-            description: "Pesagem registrada com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/WeightRecordResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "201": createJsonResponse(
+            "Pesagem registrada com sucesso.",
+            "WeightRecordResponse"
+          ),
+          ...createErrorResponses([400, 500]),
         },
       },
     },
@@ -759,31 +713,13 @@ export const swaggerSpec = {
       delete: {
         tags: ["Perfil do Atleta"],
         summary: "Excluir registro de pesagem",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-          },
-        ],
+        parameters: [createPathIdParam("Identificador único da pesagem (1 a 128 caracteres)")],
         responses: {
-          "200": {
-            description: "Registro de peso excluído com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/DeleteSuccessResponse",
-                },
-              },
-            },
-          },
-          "404": {
-            $ref: "#/components/responses/NotFoundError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Registro de peso excluído com sucesso.",
+            "DeleteSuccessResponse"
+          ),
+          ...createErrorResponses([400, 404, 500]),
         },
       },
     },
@@ -791,87 +727,41 @@ export const swaggerSpec = {
     "/api/sync/sheets": {
       get: {
         tags: ["Sincronização Google Sheets"],
-        summary: "Consultar status da integração e pendências Google Sheets",
+        summary:
+          "Consultar status da integração e pendências Google Sheets",
         description:
           "Retorna se as credenciais Base64 e `GOOGLE_SHEETS_SPREADSHEET_ID` estão configuradas e conta registros pendentes no PostgreSQL sem consumir quota da Google API.",
         responses: {
-          "200": {
-            description: "Status de sincronização obtido com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/SheetsSyncStatusResponse",
-                },
-              },
-            },
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Status de sincronização obtido com sucesso.",
+            "SheetsSyncStatusResponse"
+          ),
+          ...createErrorResponses([500]),
         },
       },
       post: {
         tags: ["Sincronização Google Sheets"],
-        summary: "Executar sincronização manual ou backfill com o Google Sheets",
+        summary: "Executar sincronização manual com Google Sheets",
         description:
-          "Dispara sincronização bidirecional (`bidirectional`), envio em lote (`push`, incremental ou `forceFullResync: true`) ou leitura reversa (`pull`) entre PostgreSQL e Google Sheets.",
+          "Executa reconciliação bidirecional (`bidirectional`), envio (`push`) ou importação (`pull`) com a planilha Google Sheets. Sincroniza `Log_Treinos`, `Simulados_TAF`, `Perfil_e_Metas` e importa/atualiza o plano prescrito em `Plano_Semanal`.",
         requestBody: {
           required: false,
           content: {
             "application/json": {
-              schema: {
-                $ref: "#/components/schemas/SheetsSyncRequest",
-              },
+              schema: { $ref: "#/components/schemas/SheetsSyncRequest" },
             },
           },
         },
         responses: {
-          "200": {
-            description: "Sincronização concluída com sucesso.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/SheetsSyncReportResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "429": {
-            description: "Limite de requisições (quota) da API Google Sheets excedido.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/ApiErrorResponse",
-                },
-              },
-            },
-          },
-          "502": {
-            description: "Erro de permissão (403/401) ou recurso não encontrado (404) na planilha.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/ApiErrorResponse",
-                },
-              },
-            },
-          },
-          "503": {
-            description: "Integração Google Sheets não configurada ou temporariamente indisponível.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/ApiErrorResponse",
-                },
-              },
-            },
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Sincronização concluída com sucesso.",
+            "SheetsSyncReportResponse"
+          ),
+          ...createErrorResponses([400, 429, 500, 502, 503], {
+            429: "Limite de requisições (quota) da API Google Sheets excedido.",
+            502: "Erro de permissão (403/401) ou recurso não encontrado (404) na planilha.",
+            503: "Integração Google Sheets não configurada ou temporariamente indisponível.",
+          }),
         },
       },
     },
@@ -889,26 +779,19 @@ export const swaggerSpec = {
             required: false,
             description:
               "Data de referência (YYYY-MM-DD, preferencialmente segunda-feira) para consultar a respectiva semana em America/Fortaleza.",
-            schema: { type: "string", format: "date", example: "2026-10-12" },
+            schema: {
+              ...weeklyPlanWeekStartParamSchema,
+              format: "date",
+              example: "2026-10-12",
+            },
           },
         ],
         responses: {
-          "200": {
-            description: "Snapshot semanal consolidado.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/WeeklyPlanResponse",
-                },
-              },
-            },
-          },
-          "400": {
-            $ref: "#/components/responses/ValidationError",
-          },
-          "500": {
-            $ref: "#/components/responses/InternalError",
-          },
+          "200": createJsonResponse(
+            "Snapshot semanal consolidado.",
+            "WeeklyPlanResponse"
+          ),
+          ...createErrorResponses([400, 500]),
         },
       },
     },
@@ -920,80 +803,51 @@ export const swaggerSpec = {
         description:
           "Executa query leve `SELECT 1` no banco PostgreSQL (Supabase) e valida tempo de resposta.",
         responses: {
-          "200": {
-            description: "Sistema saudável e banco operacional.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/HealthResponse",
-                },
-              },
-            },
-          },
-          "503": {
-            description: "Falha de conectividade com o banco de dados.",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/ApiErrorResponse",
-                },
-              },
-            },
-          },
+          "200": createJsonResponse(
+            "Sistema saudável e banco operacional.",
+            "HealthResponse"
+          ),
+          ...createErrorResponses([503], {
+            503: "Falha de conectividade com o banco de dados.",
+          }),
         },
       },
     },
   },
+
   components: {
     responses: {
-      ValidationError: {
-        description: "Erro de validação nos dados fornecidos.",
-        content: {
-          "application/json": {
-            schema: {
-              $ref: "#/components/schemas/ApiErrorResponse",
-            },
-          },
-        },
-      },
-      NotFoundError: {
-        description: "Recurso não encontrado.",
-        content: {
-          "application/json": {
-            schema: {
-              $ref: "#/components/schemas/ApiErrorResponse",
-            },
-          },
-        },
-      },
-      ConflictError: {
-        description:
-          "Conflito de duplicidade (ex.: arquivo .GPX já importado com o mesmo externalId).",
-        content: {
-          "application/json": {
-            schema: {
-              $ref: "#/components/schemas/ApiErrorResponse",
-            },
-          },
-        },
-      },
-      InternalError: {
-        description: "Erro interno do servidor.",
-        content: {
-          "application/json": {
-            schema: {
-              $ref: "#/components/schemas/ApiErrorResponse",
-            },
-          },
-        },
-      },
+      ValidationError: createJsonResponse(
+        "Erro de validação nos dados fornecidos.",
+        "ApiErrorResponse"
+      ),
+      NotFoundError: createJsonResponse(
+        "Recurso não encontrado.",
+        "ApiErrorResponse"
+      ),
+      ConflictError: createJsonResponse(
+        "Conflito de duplicidade (ex.: arquivo .FIT/.GPX já importado com o mesmo externalId).",
+        "ApiErrorResponse"
+      ),
+      InternalError: createJsonResponse(
+        "Erro interno do servidor.",
+        "ApiErrorResponse"
+      ),
     },
     schemas: {
       ApiErrorResponse: {
         type: "object",
         properties: {
           success: { type: "boolean", example: false },
-          error: { type: "string", example: "Dados de entrada inválidos" },
+          error: {
+            type: "string",
+            example: "Dados de entrada inválidos",
+          },
+          code: {
+            type: "string",
+            description: "Código máquina estável para tratamento no cliente.",
+            example: "VALIDATION_ERROR",
+          },
           details: {
             oneOf: [
               {
@@ -1001,15 +855,25 @@ export const swaggerSpec = {
                 items: {
                   type: "object",
                   properties: {
-                    field: { type: "string", example: "targetDistanceMeters" },
-                    message: { type: "string", example: "A distância alvo deve ser de no mínimo 500 metros" },
+                    field: {
+                      type: "string",
+                      example: "targetDistanceMeters",
+                    },
+                    message: {
+                      type: "string",
+                      example:
+                        "A distância alvo deve ser de no mínimo 500 metros",
+                    },
                   },
                 },
               },
               {
                 type: "object",
                 additionalProperties: true,
-                example: { code: "SHEETS_NOT_CONFIGURED", sheetsConfigured: false },
+                example: {
+                  code: "SHEETS_NOT_CONFIGURED",
+                  sheetsConfigured: false,
+                },
               },
             ],
           },
@@ -1017,748 +881,468 @@ export const swaggerSpec = {
         },
         required: ["success", "error", "timestamp"],
       },
-      DeleteSuccessResponse: {
+
+      DeleteSuccessResponse: createSuccessEnvelopeSchema({
         type: "object",
         properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              deleted: { type: "boolean", example: true },
-            },
-          },
-          timestamp: { type: "string", format: "date-time" },
+          deletedId: { type: "string" },
+          deleted: { type: "boolean", example: true },
         },
-        required: ["success", "data", "timestamp"],
-      },
-      HealthResponse: {
+        required: ["deletedId", "deleted"],
+      }),
+
+      HealthResponse: createSuccessEnvelopeSchema({
         type: "object",
         properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "object",
-            properties: {
-              status: { type: "string", enum: ["connected"], example: "connected" },
-              orm: { type: "string", example: "Prisma" },
-              database: { type: "string", example: "PostgreSQL" },
-              latencyMs: { type: "number", example: 42 },
-              sheetsConfigured: { type: "boolean", example: true },
-            },
-            required: ["status", "orm", "database", "latencyMs", "sheetsConfigured"],
-          },
-          timestamp: { type: "string", format: "date-time" },
+          status: { type: "string", enum: ["connected"], example: "connected" },
+          orm: { type: "string", example: "Prisma" },
+          database: { type: "string", example: "PostgreSQL" },
+          latencyMs: { type: "number", example: 42 },
+          sheetsConfigured: { type: "boolean", example: true },
         },
-        required: ["success", "data", "timestamp"],
-      },
-      SheetsSyncRequest: {
+        required: ["status", "orm", "database", "latencyMs", "sheetsConfigured"],
+      }),
+
+      SheetsSyncRequest: sheetsSyncRequestSchema,
+
+      SheetsSyncStatusResponse: createSuccessEnvelopeSchema({
         type: "object",
         properties: {
-          direction: {
-            type: "string",
-            enum: ["bidirectional", "push", "pull"],
-            default: "bidirectional",
-          },
-          forceFullResync: {
-            type: "boolean",
-            default: false,
-          },
+          configured: { type: "boolean", example: true },
+          error: { type: "string" },
+          pendingTrainingsCount: { type: "integer", example: 3 },
+          pendingAttemptsCount: { type: "integer", example: 1 },
+          totalPendingCount: { type: "integer", example: 4 },
         },
-      },
-      SheetsSyncStatusResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "object",
-            properties: {
-              configured: { type: "boolean", example: true },
-              error: { type: "string" },
-              pendingTrainingsCount: { type: "integer", example: 3 },
-              pendingAttemptsCount: { type: "integer", example: 1 },
-              totalPendingCount: { type: "integer", example: 4 },
-            },
-            required: [
-              "configured",
-              "pendingTrainingsCount",
-              "pendingAttemptsCount",
-              "totalPendingCount",
-            ],
-          },
-          timestamp: { type: "string", format: "date-time" },
-        },
-        required: ["success", "data", "timestamp"],
-      },
-      SheetsSyncReportResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "object",
-            properties: {
-              direction: { type: "string", enum: ["bidirectional", "push", "pull"] },
-              forceFullResync: { type: "boolean" },
-              pulledUpdated: { type: "integer" },
-              pulledCreated: { type: "integer" },
-              pulledLinked: { type: "integer" },
-              pushedAppended: { type: "integer" },
-              pushedUpdated: { type: "integer" },
-              tafPulledUpdated: { type: "integer" },
-              tafPulledCreated: { type: "integer" },
-              tafPulledLinked: { type: "integer" },
-              tafPushedAppended: { type: "integer" },
-              tafPushedUpdated: { type: "integer" },
-              profileSynced: { type: "boolean" },
-              weeklyPlan: {
-                type: "object",
-                properties: {
-                  imported: { type: "integer" },
-                  updated: { type: "integer" },
-                  removed: { type: "integer" },
-                  matched: { type: "integer" },
-                  missed: { type: "integer" },
-                  pushed: { type: "integer" },
-                  sheetMissingOrEmpty: { type: "boolean" },
-                },
-              },
-              skipped: { type: "integer" },
-              warnings: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    tab: {
-                      type: "string",
-                      enum: [
-                        "Log_Treinos",
-                        "Simulados_TAF",
-                        "Perfil_e_Metas",
-                        "Plano_Semanal",
-                      ],
-                    },
-                    rowNumber: { type: "integer" },
-                    message: { type: "string" },
-                  },
-                },
-              },
-              durationMs: { type: "integer" },
-              syncedAt: { type: "string", format: "date-time" },
-            },
-          },
-          timestamp: { type: "string", format: "date-time" },
-        },
-        required: ["success", "data", "timestamp"],
-      },
-      TafGoalInput: {
-        type: "object",
-        properties: {
-          institutionName: { type: "string", example: "Polícia Militar SP", maxLength: 100 },
-          minDistanceMeters: { type: "integer", example: 2400, minimum: 500, maximum: 10000 },
-          targetDistanceMeters: { type: "integer", example: 2600, minimum: 500, maximum: 10000 },
-          targetDurationMinutes: { type: "integer", example: 12, minimum: 1, maximum: 60 },
-          targetExamDate: { type: "string", format: "date", nullable: true, example: "2026-12-15" },
-          pullupType: { type: "string", enum: ["dinamica", "isometria"], nullable: true, example: "dinamica" },
-          pullupMinReps: { type: "integer", minimum: 0, maximum: 100, nullable: true, example: 3 },
-          pullupTargetReps: { type: "integer", minimum: 0, maximum: 100, nullable: true, example: 5 },
-          pullupMinSeconds: { type: "integer", minimum: 0, maximum: 600, nullable: true },
-          pullupTargetSeconds: { type: "integer", minimum: 0, maximum: 600, nullable: true },
-          pullupDurationSeconds: { type: "integer", minimum: 0, maximum: 600, nullable: true },
-          pushupMinReps: { type: "integer", minimum: 0, maximum: 200, nullable: true, example: 20 },
-          pushupTargetReps: { type: "integer", minimum: 0, maximum: 200, nullable: true, example: 30 },
-          pushupDurationSeconds: { type: "integer", minimum: 0, maximum: 600, nullable: true },
-          absMinReps: { type: "integer", minimum: 0, maximum: 200, nullable: true, example: 30 },
-          absTargetReps: { type: "integer", minimum: 0, maximum: 200, nullable: true, example: 40 },
-          absDurationSeconds: { type: "integer", minimum: 0, maximum: 600, nullable: true },
-        },
-      },
-      TafGoalResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              institutionName: { type: "string", example: "Polícia Militar SP" },
-              minDistanceMeters: { type: "integer", example: 2400 },
-              targetDistanceMeters: { type: "integer", example: 2600 },
-              targetDurationMinutes: { type: "integer", example: 12 },
-              targetExamDate: { type: "string", nullable: true },
-              pullupType: { type: "string", example: "dinamica" },
-              pullupMinReps: { type: "integer", example: 3 },
-              pullupTargetReps: { type: "integer", example: 5 },
-              pullupDurationSeconds: { type: "integer", nullable: true },
-              pushupMinReps: { type: "integer", example: 20 },
-              pushupTargetReps: { type: "integer", example: 30 },
-              pushupDurationSeconds: { type: "integer", nullable: true },
-              absMinReps: { type: "integer", example: 30 },
-              absTargetReps: { type: "integer", example: 40 },
-              absDurationSeconds: { type: "integer", nullable: true },
-              createdAt: { type: "string", format: "date-time" },
-              updatedAt: { type: "string", format: "date-time" },
-            },
-          },
-          timestamp: { type: "string", format: "date-time" },
-        },
-        required: ["success", "data", "timestamp"],
-      },
-      CreateTafAttemptInput: {
-        type: "object",
         required: [
-          "distanceMeters",
-          "actualDurationSeconds",
-          "speedKmh",
-          "paceSeconds",
-          "paceFormatted",
+          "configured",
+          "pendingTrainingsCount",
+          "pendingAttemptsCount",
+          "totalPendingCount",
         ],
+      }),
+
+      SheetsSyncReportResponse: createSuccessEnvelopeSchema({
+        type: "object",
         properties: {
-          source: {
-            type: "string",
-            enum: ["manual", "gpx_upload", "fit_upload", "sheets"],
-            default: "manual",
-            example: "manual",
+          direction: { type: "string", enum: [...SHEETS_SYNC_DIRECTIONS] },
+          forceFullResync: { type: "boolean" },
+          pulledUpdated: { type: "integer" },
+          pulledCreated: { type: "integer" },
+          pulledLinked: { type: "integer" },
+          pushedAppended: { type: "integer" },
+          pushedUpdated: { type: "integer" },
+          tafPulledUpdated: { type: "integer" },
+          tafPulledCreated: { type: "integer" },
+          tafPulledLinked: { type: "integer" },
+          tafPushedAppended: { type: "integer" },
+          tafPushedUpdated: { type: "integer" },
+          profileSynced: { type: "boolean" },
+          weeklyPlan: {
+            type: "object",
+            properties: {
+              imported: { type: "integer" },
+              updated: { type: "integer" },
+              removed: { type: "integer" },
+              matched: { type: "integer" },
+              missed: { type: "integer" },
+              pushed: { type: "integer" },
+              sheetMissingOrEmpty: { type: "boolean" },
+            },
           },
-          externalId: { type: "string", maxLength: 100, nullable: true },
-          syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
-          onDuplicate: { type: "string", enum: ["error", "update"] },
-          distanceMeters: { type: "integer", minimum: 100, maximum: 10000, example: 2450 },
-          actualDurationSeconds: { type: "integer", minimum: 30, maximum: 7200, example: 720 },
-          speedKmh: { type: "number", minimum: 1, maximum: 40, example: 12.25 },
-          paceSeconds: { type: "integer", minimum: 90, maximum: 1800, example: 294 },
-          paceFormatted: { type: "string", example: "4:54" },
-          locationType: {
-            type: "string",
-            enum: ["pista_400m", "rua_plana", "parque_praca", "esteira", "outro"],
-            example: "pista_400m",
-          },
-          shoeName: { type: "string", maxLength: 100, nullable: true, example: "Nike Vaporfly 3" },
-          avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true, example: 172 },
-          maxHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true, example: 188 },
-          notes: { type: "string", maxLength: 1000, nullable: true },
-          laps: {
+          skipped: { type: "integer" },
+          warnings: {
             type: "array",
             items: {
               type: "object",
               properties: {
-                lapNumber: { type: "integer", example: 1 },
-                distanceMeters: { type: "number", example: 400 },
-                durationSeconds: { type: "integer", example: 112 },
-                paceFormatted: { type: "string", example: "4:40" },
-              },
-            },
-          },
-          testDate: { type: "string", format: "date-time" },
-        },
-      },
-      UpdateTafAttemptInput: {
-        type: "object",
-        properties: {
-          syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
-          distanceMeters: { type: "integer", minimum: 100, maximum: 10000 },
-          notes: { type: "string", maxLength: 1000, nullable: true },
-          locationType: {
-            type: "string",
-            enum: ["pista_400m", "rua_plana", "parque_praca", "esteira", "outro"],
-          },
-          shoeName: { type: "string", maxLength: 100, nullable: true },
-          avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true },
-          maxHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true },
-        },
-      },
-      TafAttemptResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              source: { type: "string", enum: ["manual", "gpx_upload", "fit_upload", "sheets"], example: "manual" },
-              externalId: { type: "string", nullable: true },
-              syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
-              distanceMeters: { type: "integer", example: 2450 },
-              actualDurationSeconds: { type: "integer", example: 720 },
-              speedKmh: { type: "number", example: 12.25 },
-              paceSeconds: { type: "integer", example: 294 },
-              paceFormatted: { type: "string", example: "4:54" },
-              locationType: { type: "string", example: "pista_400m" },
-              shoeName: { type: "string", nullable: true, example: "Nike Vaporfly 3" },
-              avgHeartRate: { type: "integer", nullable: true, example: 172 },
-              maxHeartRate: { type: "integer", nullable: true, example: 188 },
-              notes: { type: "string", nullable: true },
-              laps: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    lapNumber: { type: "integer", example: 1 },
-                    distanceMeters: { type: "number", example: 400 },
-                    durationSeconds: { type: "integer", example: 112 },
-                    paceFormatted: { type: "string", example: "4:40" },
-                  },
+                tab: {
+                  type: "string",
+                  enum: [
+                    "Log_Treinos",
+                    "Simulados_TAF",
+                    "Perfil_e_Metas",
+                    "Plano_Semanal",
+                  ],
                 },
+                rowNumber: { type: "integer" },
+                message: { type: "string" },
               },
-              testDate: { type: "string", format: "date-time" },
-              isPersonalRecord: { type: "boolean", example: true },
-              deficitTargetMeters: { type: "integer", example: 0 },
             },
           },
-          timestamp: { type: "string", format: "date-time" },
+          durationMs: { type: "integer" },
+          syncedAt: { type: "string", format: "date-time" },
         },
-        required: ["success", "data", "timestamp"],
-      },
-      TafAttemptsListResponse: {
+      }),
+
+      TafGoalInput: tafGoalInputSchema,
+
+      TafGoalResponse: createSuccessEnvelopeSchema({
         type: "object",
         properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "array",
-            items: { $ref: "#/components/schemas/TafAttemptResponse/properties/data" },
-          },
-          pagination: {
-            type: "object",
-            properties: {
-              nextCursor: { type: "string", nullable: true },
-              hasMore: { type: "boolean", example: false },
-            },
-          },
-          timestamp: { type: "string", format: "date-time" },
-        },
-        required: ["success", "data", "timestamp"],
-      },
-      SplitDetailSchema: {
-        type: "object",
-        required: ["kilometer", "durationSeconds"],
-        properties: {
-          kilometer: { type: "integer", minimum: 1, example: 1 },
-          distanceKm: { type: "number", minimum: 0.01, maximum: 1.0, example: 1.0 },
-          durationSeconds: { type: "integer", minimum: 1, example: 300 },
-          paceSeconds: { type: "integer", minimum: 1, example: 300 },
-          paceFormatted: { type: "string", example: "5:00" },
-          avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true, example: 162 },
-          elevationDiffM: { type: "number", nullable: true, example: 4.5 },
-        },
-      },
-      CreateTrainingInput: {
-        type: "object",
-        required: [
-          "activityType",
-          "distanceKm",
-          "durationSeconds",
-        ],
-        properties: {
-          id: { type: "string", description: "UUID opcional para upsert idempotente." },
+          id: { type: "string" },
           userId: { type: "string", nullable: true },
+          ...(tafGoalResponseBase.properties as Record<string, OpenApiSchema>),
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      }),
+
+      CreateTafAttemptInput: createTafAttemptInputSchema,
+      UpdateTafAttemptInput: updateTafAttemptInputSchema,
+
+      TafAttemptResponse: createSuccessEnvelopeSchema({
+        type: "object",
+        properties: {
+          ...(tafAttemptResponseBase.properties as Record<string, OpenApiSchema>),
           source: {
             type: "string",
-            enum: ["manual", "gpx_upload", "fit_upload", "sheets"],
-            default: "manual",
+            enum: [...ACTIVITY_SOURCES],
             example: "manual",
           },
-          externalId: { type: "string", maxLength: 100, nullable: true },
-          syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
-          onDuplicate: { type: "string", enum: ["error", "update"] },
-          activityType: {
+          targetDurationSeconds: { type: "integer", example: 720 },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      }),
+
+      TafAttemptsListResponse: createPaginatedListResponseSchema({
+        $ref: "#/components/schemas/TafAttemptResponse/properties/data",
+      }),
+
+      SplitDetailSchema: splitDetailSchema,
+      CreateTrainingInput: createTrainingInputSchema,
+      UpdateTrainingInput: updateTrainingInputSchema,
+
+      TrainingSessionResponse: createSuccessEnvelopeSchema({
+        type: "object",
+        properties: {
+          ...(trainingResponseBase.properties as Record<string, OpenApiSchema>),
+          source: {
             type: "string",
-            enum: [
-              "rodagem_leve",
-              "corrida_continua",
-              "tempo_run",
-              "corrida_intervalada",
-              "longao",
-              "caminhada",
-            ],
-            example: "corrida_continua",
+            enum: [...ACTIVITY_SOURCES],
+            example: "manual",
           },
-          distanceKm: { type: "number", minimum: 0.05, maximum: 100, example: 5.0 },
-          durationSeconds: { type: "integer", minimum: 30, maximum: 86400, example: 1500 },
-          elapsedSeconds: { type: "integer", minimum: 30, maximum: 86400, nullable: true, example: 1560 },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      }),
+
+      TrainingsListResponse: createPaginatedListResponseSchema({
+        $ref: "#/components/schemas/TrainingSessionResponse/properties/data",
+      }),
+
+      ProfileInput: profileInputSchema,
+
+      ProfileResponse: createSuccessEnvelopeSchema({
+        type: "object",
+        properties: {
+          ...(profileResponseBase.properties as Record<string, OpenApiSchema>),
+          id: { type: "string" },
+          _count: {
+            type: "object",
+            properties: {
+              weightRecords: { type: "integer", example: 5 },
+            },
+          },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+        required: ["id", "createdAt", "updatedAt"],
+      }),
+
+      WeightInput: weightInputSchema,
+
+      WeightRecordResponse: createSuccessEnvelopeSchema({
+        type: "object",
+        properties: {
+          ...(weightResponseBase.properties as Record<string, OpenApiSchema>),
+          id: { type: "string" },
+          profileId: { type: "string" },
+          recordedAt: { type: "string", format: "date-time" },
+          source: {
+            type: "string",
+            enum: [...WEIGHT_SOURCES],
+            example: "weekly_prompt",
+          },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      }),
+
+      WeightListResponse: createSuccessEnvelopeSchema({
+        type: "array",
+        items: {
+          $ref: "#/components/schemas/WeightRecordResponse/properties/data",
+        },
+      }),
+
+      ActivityParsePreviewResponse: createSuccessEnvelopeSchema({
+        type: "object",
+        properties: {
+          source: {
+            type: "string",
+            enum: ["fit_upload", "gpx_upload"],
+            example: "fit_upload",
+          },
+          filesUsed: {
+            type: "array",
+            items: { type: "string", enum: ["fit", "gpx"] },
+            example: ["fit", "gpx"],
+          },
+          name: {
+            type: "string",
+            nullable: true,
+            example: "Rodagem Matinal",
+          },
+          titleSource: {
+            type: "string",
+            enum: ["metadata", "filename"],
+            nullable: true,
+            example: "filename",
+          },
+          rawType: {
+            type: "string",
+            nullable: true,
+            example: "running",
+          },
+          sourceActivityKind: {
+            type: "string",
+            enum: ["run", "walk", "unknown"],
+          },
+          isIndoor: { type: "boolean", example: false },
+          startedAt: { type: "string", format: "date-time" },
+          distanceKm: { type: "number", example: 5.0 },
+          durationSeconds: { type: "integer", example: 1500 },
+          elapsedSeconds: { type: "integer", example: 1525 },
           speedKmh: { type: "number", example: 12.0 },
           paceSeconds: { type: "integer", example: 300 },
           paceFormatted: { type: "string", example: "5:00" },
-          avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true, example: 160 },
-          maxHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true, example: 178 },
-          elevationGainM: { type: "number", minimum: 0, maximum: 10000, nullable: true, example: 35.0 },
-          avgCadence: { type: "integer", minimum: 30, maximum: 300, nullable: true, example: 174 },
-          shoeName: { type: "string", maxLength: 100, nullable: true, example: "Nike Pegasus 40" },
-          perceivedEffort: { type: "integer", minimum: 1, maximum: 10, nullable: true, example: 7 },
-          bodyWeightKg: { type: "number", minimum: 30, maximum: 250, nullable: true, example: 75 },
-          notes: { type: "string", maxLength: 1000, nullable: true },
-          activeCalories: { type: "number", minimum: 0, maximum: 15000, nullable: true, example: 312 },
-          totalCalories: { type: "number", minimum: 0, maximum: 15000, nullable: true, example: 345 },
-          metValue: { type: "number", minimum: 0.5, maximum: 30, nullable: true, example: 11.5 },
-          calorieMethod: { type: "string", nullable: true, example: "compendium_2024_met" },
-          calorieSource: { type: "string", nullable: true, example: "calculated_met" },
-          calorieMetadata: { type: "object", nullable: true },
+          avgHeartRate: {
+            type: "integer",
+            nullable: true,
+            example: 162,
+          },
+          maxHeartRate: {
+            type: "integer",
+            nullable: true,
+            example: 179,
+          },
+          avgCadence: { type: "integer", nullable: true, example: 174 },
+          elevationGainM: {
+            type: "number",
+            nullable: true,
+            example: 32,
+          },
+          activeCalories: {
+            type: "integer",
+            nullable: true,
+            example: 365,
+          },
+          avgTemperatureC: {
+            type: "number",
+            nullable: true,
+            example: 24.5,
+          },
           splits: {
             type: "array",
             items: { $ref: "#/components/schemas/SplitDetailSchema" },
           },
-          sessionDate: { type: "string", format: "date-time" },
-        },
-      },
-      UpdateTrainingInput: {
-        type: "object",
-        properties: {
-          syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
-          sessionDate: { type: "string", format: "date-time" },
-          activityType: {
+          laps: {
+            type: "array",
+            items: lapDetailSchema,
+          },
+          externalId: { type: "string", example: "fit_a1b2c3d4..." },
+          pointCount: { type: "integer", example: 942 },
+          warnings: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                code: { type: "string", example: "HR_OUTLIER_CLAMPED" },
+                message: { type: "string" },
+                count: { type: "integer" },
+              },
+              required: ["code", "message"],
+            },
+          },
+          alreadyExists: { type: "boolean", example: false },
+          existingTrainingId: {
             type: "string",
-            enum: [
-              "rodagem_leve",
-              "corrida_continua",
-              "tempo_run",
-              "corrida_intervalada",
-              "longao",
-              "caminhada",
-            ],
+            nullable: true,
+            example: null,
           },
-          distanceKm: { type: "number", minimum: 0.05, maximum: 100 },
-          durationSeconds: { type: "integer", minimum: 30, maximum: 86400 },
-          elapsedSeconds: { type: "integer", minimum: 30, maximum: 86400, nullable: true },
-          speedKmh: { type: "number" },
-          paceSeconds: { type: "integer" },
-          paceFormatted: { type: "string" },
-          avgHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true },
-          maxHeartRate: { type: "integer", minimum: 30, maximum: 250, nullable: true },
-          elevationGainM: { type: "number", minimum: 0, maximum: 10000, nullable: true },
-          avgCadence: { type: "integer", minimum: 30, maximum: 300, nullable: true },
-          shoeName: { type: "string", maxLength: 100, nullable: true },
-          perceivedEffort: { type: "integer", minimum: 1, maximum: 10, nullable: true },
-          bodyWeightKg: { type: "number", minimum: 30, maximum: 250, nullable: true },
-          notes: { type: "string", maxLength: 1000, nullable: true },
-          activeCalories: { type: "number", minimum: 0, maximum: 15000, nullable: true },
-          totalCalories: { type: "number", minimum: 0, maximum: 15000, nullable: true },
-          metValue: { type: "number", minimum: 0.5, maximum: 30, nullable: true },
-          calorieMethod: { type: "string", nullable: true },
-          calorieSource: { type: "string", nullable: true },
-          calorieMetadata: { type: "object", nullable: true },
-          splits: {
-            type: "array",
-            items: { $ref: "#/components/schemas/SplitDetailSchema" },
-          },
-        },
-      },
-      TrainingSessionResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              userId: { type: "string", nullable: true },
-              source: { type: "string", enum: ["manual", "gpx_upload", "fit_upload", "sheets"], example: "manual" },
-              externalId: { type: "string", nullable: true },
-              syncedToSheetsAt: { type: "string", format: "date-time", nullable: true },
-              activityType: { type: "string", example: "corrida_continua" },
-              distanceKm: { type: "number", example: 5.0 },
-              durationSeconds: { type: "integer", example: 1500 },
-              elapsedSeconds: { type: "integer", nullable: true, example: 1560 },
-              paceFormatted: { type: "string", example: "5:00" },
-              speedKmh: { type: "number", example: 12.0 },
-              paceSeconds: { type: "integer", example: 300 },
-              avgHeartRate: { type: "integer", nullable: true, example: 160 },
-              maxHeartRate: { type: "integer", nullable: true, example: 178 },
-              elevationGainM: { type: "number", nullable: true, example: 35.0 },
-              avgCadence: { type: "integer", nullable: true, example: 174 },
-              shoeName: { type: "string", nullable: true, example: "Nike Pegasus 40" },
-              perceivedEffort: { type: "integer", nullable: true, example: 7 },
-              bodyWeightKg: { type: "number", nullable: true, example: 75 },
-              notes: { type: "string", nullable: true, example: "Rodagem leve no parque" },
-              activeCalories: { type: "number", nullable: true, example: 312 },
-              totalCalories: { type: "number", nullable: true, example: 345 },
-              metValue: { type: "number", nullable: true, example: 11.5 },
-              calorieMethod: { type: "string", nullable: true, example: "compendium_2024_met" },
-              calorieSource: { type: "string", nullable: true, example: "calculated_met" },
-              calorieMetadata: { type: "object", nullable: true },
-              splits: {
-                type: "array",
-                items: { $ref: "#/components/schemas/SplitDetailSchema" },
-              },
-              sessionDate: { type: "string", format: "date-time" },
-              createdAt: { type: "string", format: "date-time" },
-              updatedAt: { type: "string", format: "date-time" },
-            },
-          },
-          timestamp: { type: "string", format: "date-time" },
-        },
-        required: ["success", "data", "timestamp"],
-      },
-      TrainingsListResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "array",
-            items: { $ref: "#/components/schemas/TrainingSessionResponse/properties/data" },
-          },
-          pagination: {
-            type: "object",
-            properties: {
-              nextCursor: { type: "string", nullable: true },
-              hasMore: { type: "boolean", example: false },
-            },
-          },
-          timestamp: { type: "string", format: "date-time" },
-        },
-        required: ["success", "data", "timestamp"],
-      },
-      ProfileInput: {
-        type: "object",
-        required: ["weightKg", "heightCm", "birthDate", "biologicalSex"],
-        properties: {
-          weightKg: { type: "number", minimum: 30, maximum: 250, example: 75.5 },
-          heightCm: { type: "number", minimum: 100, maximum: 250, example: 178 },
-          birthDate: { type: "string", format: "date", example: "1998-05-14" },
-          biologicalSex: { type: "string", enum: ["M", "F"], example: "M" },
-          activityLevel: {
+          alreadyExistsAttempt: { type: "boolean", example: false },
+          existingAttemptId: {
             type: "string",
-            enum: ["sedentario", "leve", "moderado", "intenso", "muito_intenso"],
-            example: "moderado",
+            nullable: true,
+            example: null,
           },
-        },
-      },
-      ProfileResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
+          tafWindow: {
             type: "object",
+            nullable: true,
+            description:
+              "Melhor janela contínua de 12 minutos (720s) extraída automaticamente para importação como Simulado TAF",
             properties: {
-              id: { type: "string" },
-              weightKg: { type: "number", example: 75.5 },
-              heightCm: { type: "number", example: 178 },
-              biologicalSex: { type: "string", example: "M" },
-              birthDate: { type: "string", example: "1998-05-14" },
-              activityLevel: { type: "string", example: "moderado" },
-              calculatedBmi: { type: "number", example: 23.83 },
-            },
-          },
-          timestamp: { type: "string", format: "date-time" },
-        },
-        required: ["success", "data", "timestamp"],
-      },
-      WeightInput: {
-        type: "object",
-        required: ["weightKg"],
-        properties: {
-          weightKg: { type: "number", minimum: 30, maximum: 250, example: 74.8 },
-          recordedAt: { type: "string", format: "date-time" },
-          notes: { type: "string", maxLength: 200, nullable: true },
-          source: { type: "string", example: "weekly_prompt" },
-        },
-      },
-      WeightRecordResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              weightKg: { type: "number", example: 74.8 },
-              recordedAt: { type: "string", format: "date-time" },
-              source: { type: "string", example: "weekly_prompt" },
-            },
-          },
-          timestamp: { type: "string", format: "date-time" },
-        },
-        required: ["success", "data", "timestamp"],
-      },
-      WeightListResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "array",
-            items: { $ref: "#/components/schemas/WeightRecordResponse/properties/data" },
-          },
-          timestamp: { type: "string", format: "date-time" },
-        },
-        required: ["success", "data", "timestamp"],
-      },
-      ActivityParsePreviewResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
-            type: "object",
-            properties: {
-              source: { type: "string", enum: ["fit_upload", "gpx_upload"], example: "fit_upload" },
-              filesUsed: {
+              targetDurationSeconds: { type: "integer", example: 720 },
+              actualDurationSeconds: { type: "integer", example: 720 },
+              distanceMeters: { type: "integer", example: 2580 },
+              speedKmh: { type: "number", example: 12.9 },
+              paceSeconds: { type: "integer", example: 279 },
+              paceFormatted: { type: "string", example: "4:39" },
+              avgHeartRate: {
+                type: "integer",
+                nullable: true,
+                example: 174,
+              },
+              maxHeartRate: {
+                type: "integer",
+                nullable: true,
+                example: 189,
+              },
+              windowStartOffsetSeconds: { type: "number", example: 120 },
+              windowEndOffsetSeconds: { type: "number", example: 840 },
+              isShorterThanTarget: { type: "boolean", example: false },
+              laps: {
                 type: "array",
-                items: { type: "string", enum: ["fit", "gpx"] },
-                example: ["fit", "gpx"],
+                items: lapDetailSchema,
               },
-              name: { type: "string", nullable: true, example: "Rodagem Matinal" },
-              titleSource: {
-                type: "string",
-                enum: ["metadata", "filename"],
-                nullable: true,
-                example: "filename",
-              },
-              sourceActivityKind: { type: "string", enum: ["run", "walk", "unknown"] },
-              isIndoor: { type: "boolean", example: false },
-              startedAt: { type: "string", format: "date-time" },
-              distanceKm: { type: "number", example: 5.0 },
-              durationSeconds: { type: "integer", example: 1500 },
-              elapsedSeconds: { type: "integer", example: 1525 },
-              speedKmh: { type: "number", example: 12.0 },
-              paceSeconds: { type: "integer", example: 300 },
-              paceFormatted: { type: "string", example: "5:00" },
-              avgHeartRate: { type: "integer", nullable: true, example: 162 },
-              maxHeartRate: { type: "integer", nullable: true, example: 179 },
-              avgCadence: { type: "integer", nullable: true, example: 174 },
-              elevationGainM: { type: "number", nullable: true, example: 32 },
-              activeCalories: { type: "integer", nullable: true, example: 365 },
-              externalId: { type: "string", example: "fit_a1b2c3d4..." },
-              alreadyExists: { type: "boolean", example: false },
-              existingTrainingId: { type: "string", nullable: true, example: null },
-              alreadyExistsAttempt: { type: "boolean", example: false },
-              existingAttemptId: { type: "string", nullable: true, example: null },
-              tafWindow: {
-                type: "object",
-                nullable: true,
-                description:
-                  "Melhor janela contínua de 12 minutos (720s) extraída automaticamente para importação como Simulado TAF",
-                properties: {
-                  targetDurationSeconds: { type: "integer", example: 720 },
-                  actualDurationSeconds: { type: "integer", example: 720 },
-                  distanceMeters: { type: "integer", example: 2580 },
-                  speedKmh: { type: "number", example: 12.9 },
-                  paceSeconds: { type: "integer", example: 279 },
-                  paceFormatted: { type: "string", example: "4:39" },
-                  avgHeartRate: { type: "integer", nullable: true, example: 174 },
-                  maxHeartRate: { type: "integer", nullable: true, example: 189 },
-                  windowStartOffsetSeconds: { type: "number", example: 120 },
-                  windowEndOffsetSeconds: { type: "number", example: 840 },
-                  isShorterThanTarget: { type: "boolean", example: false },
-                  laps: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        lapNumber: { type: "integer", example: 1 },
-                        distanceMeters: { type: "number", example: 400 },
-                        durationSeconds: { type: "integer", example: 112 },
-                        paceFormatted: { type: "string", example: "4:40" },
-                      },
+            },
+          },
+          suggestedActivityType: {
+            type: "string",
+            enum: [...ACTIVITY_TYPES],
+            nullable: true,
+            example: "corrida_continua",
+          },
+          suggestedNotes: { type: "string", example: "Rodagem Matinal" },
+          allowedActivityTypes: {
+            type: "array",
+            items: { type: "string", enum: [...ACTIVITY_TYPES] },
+          },
+        },
+      }),
+
+      WeeklyPlanResponse: createSuccessEnvelopeSchema({
+        type: "object",
+        properties: {
+          weekStart: {
+            type: "string",
+            format: "date",
+            example: "2026-10-12",
+          },
+          weekEnd: {
+            type: "string",
+            format: "date",
+            example: "2026-10-18",
+          },
+          weekLabel: { type: "string", example: "12/10 – 18/10" },
+          isCurrentWeek: { type: "boolean", example: true },
+          hasNextPlannedWeek: { type: "boolean", example: false },
+          items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                planExternalId: {
+                  type: "string",
+                  example: "plan-20261012-rodagem_leve",
+                },
+                plannedDate: {
+                  type: "string",
+                  format: "date",
+                  example: "2026-10-12",
+                },
+                dayOfWeek: { type: "string", example: "Segunda" },
+                activityType: { type: "string", example: "Rodagem Leve" },
+                isRestDay: { type: "boolean", example: false },
+                targetDistanceKm: {
+                  type: "number",
+                  nullable: true,
+                  example: 8,
+                },
+                targetPaceFormatted: {
+                  type: "string",
+                  nullable: true,
+                  example: "5:40",
+                },
+                description: { type: "string", nullable: true },
+                status: {
+                  type: "string",
+                  enum: [...WEEKLY_PLAN_STATUSES],
+                },
+                matchedSessionId: { type: "string", nullable: true },
+                matchedSession: {
+                  type: "object",
+                  nullable: true,
+                  allOf: [
+                    {
+                      $ref: "#/components/schemas/TrainingSessionResponse/properties/data",
                     },
-                  },
+                  ],
+                  description: "Objeto completo da sessão de treino vinculada.",
                 },
               },
-              suggestedActivityType: { type: "string", nullable: true, example: "corrida_continua" },
-              suggestedNotes: { type: "string", example: "Rodagem Matinal" },
-              allowedActivityTypes: {
-                type: "array",
-                items: { type: "string" },
+            },
+          },
+          summary: {
+            type: "object",
+            properties: {
+              totalPlanned: { type: "integer" },
+              completed: { type: "integer" },
+              partial: { type: "integer" },
+              planned: { type: "integer" },
+              missed: { type: "integer" },
+              adherencePercent: {
+                type: "integer",
+                nullable: true,
+                example: 83,
               },
             },
           },
-          timestamp: { type: "string", format: "date-time" },
-        },
-        required: ["success", "data", "timestamp"],
-      },
-      WeeklyPlanResponse: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: true },
-          data: {
+          rollingFourWeeksAverage: {
             type: "object",
             properties: {
-              weekStart: { type: "string", format: "date", example: "2026-10-12" },
-              weekEnd: { type: "string", format: "date", example: "2026-10-18" },
-              weekLabel: { type: "string", example: "12/10 – 18/10" },
-              isCurrentWeek: { type: "boolean", example: true },
-              hasNextPlannedWeek: { type: "boolean", example: false },
-              items: {
+              averagePercent: {
+                type: "integer",
+                nullable: true,
+                example: 79,
+              },
+              weeksCount: { type: "integer", example: 4 },
+              weeks: {
                 type: "array",
                 items: {
                   type: "object",
                   properties: {
-                    id: { type: "string" },
-                    planExternalId: { type: "string", example: "plan-20261012-rodagem_leve" },
-                    plannedDate: { type: "string", format: "date", example: "2026-10-12" },
-                    dayOfWeek: { type: "string", example: "Segunda" },
-                    activityType: { type: "string", example: "Rodagem Leve" },
-                    isRestDay: { type: "boolean", example: false },
-                    targetDistanceKm: { type: "number", nullable: true, example: 8 },
-                    targetPaceFormatted: { type: "string", nullable: true, example: "5:40" },
-                    description: { type: "string", nullable: true },
-                    status: {
-                      type: "string",
-                      enum: ["Planejado", "Concluído", "Parcial", "Perdido"],
-                    },
-                    matchedSessionId: { type: "string", nullable: true },
-                    matchedSession: {
-                      allOf: [
-                        {
-                          $ref: "#/components/schemas/TrainingSessionResponse/properties/data",
-                        },
-                      ],
-                      nullable: true,
-                      description: "Objeto completo da sessão de treino vinculada.",
-                    },
+                    weekStart: { type: "string", format: "date" },
+                    weekEnd: { type: "string", format: "date" },
+                    label: { type: "string" },
+                    adherencePercent: { type: "integer" },
+                    completed: { type: "integer" },
+                    partial: { type: "integer" },
+                    totalPlanned: { type: "integer" },
                   },
-                },
-              },
-              summary: {
-                type: "object",
-                properties: {
-                  totalPlanned: { type: "integer" },
-                  completed: { type: "integer" },
-                  partial: { type: "integer" },
-                  planned: { type: "integer" },
-                  missed: { type: "integer" },
-                  adherencePercent: { type: "integer", nullable: true, example: 83 },
-                },
-              },
-              rollingFourWeeksAverage: {
-                type: "object",
-                properties: {
-                  averagePercent: { type: "integer", nullable: true, example: 79 },
-                  weeksCount: { type: "integer", example: 4 },
-                  weeks: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        weekStart: { type: "string", format: "date" },
-                        weekEnd: { type: "string", format: "date" },
-                        label: { type: "string" },
-                        adherencePercent: { type: "integer" },
-                        completed: { type: "integer" },
-                        partial: { type: "integer" },
-                        totalPlanned: { type: "integer" },
-                      },
-                    },
-                  },
-                },
-              },
-              extraSessions: {
-                type: "array",
-                items: {
-                  $ref: "#/components/schemas/TrainingSessionResponse/properties/data",
-                },
-                description:
-                  "Sessões realizadas na semana sem vínculo ao plano prescrito.",
-              },
-              extraSummary: {
-                type: "object",
-                properties: {
-                  count: { type: "integer" },
-                  totalDistanceKm: { type: "number" },
                 },
               },
             },
           },
-          timestamp: { type: "string", format: "date-time" },
+          extraSessions: {
+            type: "array",
+            items: {
+              $ref: "#/components/schemas/TrainingSessionResponse/properties/data",
+            },
+            description:
+              "Sessões realizadas na semana sem vínculo ao plano prescrito.",
+          },
+          extraSummary: {
+            type: "object",
+            properties: {
+              count: { type: "integer" },
+              totalDistanceKm: { type: "number" },
+            },
+          },
         },
-        required: ["success", "data", "timestamp"],
-      },
+      }),
     },
   },
 } as const;
-
-export type SwaggerSpec = typeof swaggerSpec;

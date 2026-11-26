@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { HeartPulse, Info, Sparkles, User } from "lucide-react";
 import { classifyCooperVo2Max } from "@/lib/math/cooper";
+import { getCooperVisuals } from "@/components/shared/biometricVisuals";
 
 interface CooperVo2MaxCardProps {
   distanceMeters: number;
@@ -29,6 +30,7 @@ export function CooperVo2MaxCard({
   const [showDetails, setShowDetails] = useState(false);
 
   const result = classifyCooperVo2Max(distanceMeters, age, gender);
+  const visuals = getCooperVisuals(result.classification);
 
   if (!distanceMeters || distanceMeters <= 504.9) {
     return null;
@@ -70,7 +72,7 @@ export function CooperVo2MaxCard({
               onClick={() => setGender("M")}
               className={`px-2 py-1 rounded-md transition-all ${
                 gender === "M"
-                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -81,7 +83,7 @@ export function CooperVo2MaxCard({
               onClick={() => setGender("F")}
               className={`px-2 py-1 rounded-md transition-all ${
                 gender === "F"
-                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -133,7 +135,7 @@ export function CooperVo2MaxCard({
         <div className="sm:col-span-2 flex flex-col justify-center">
           <div className="flex items-center gap-2 mb-1.5">
             <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold ${result.badgeBgClass}`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold ${visuals.badgeBgClass}`}
             >
               <Sparkles className="w-3.5 h-3.5" />
               {result.classification}
@@ -203,7 +205,7 @@ export function CooperVo2MaxCard({
       </div>
 
       {showDetails && (
-        <div className="mt-3 p-3.5 rounded-xl bg-[#0B1020]/80 border border-[#1E2942] text-xs text-[#8E9BB0] space-y-2 animate-in fade-in">
+        <div className="mt-3 p-3.5 rounded-xl bg-[#0B1020]/80 border border-[#1E2942] text-xs text-[#8E9BB0] space-y-2 animate-fade-in">
           <p>
             O <strong className="text-white">VO2 Máx</strong> representa o volume máximo de oxigênio que seu corpo consegue captar, transportar e utilizar durante o esforço físico exaustivo. No teste de 12 minutos (Cooper), ele se correlaciona diretamente com o pace sustentável em alta intensidade.
           </p>

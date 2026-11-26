@@ -1,5 +1,15 @@
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import {
+  apiDeleted,
+  apiNotFound,
+  apiSuccess,
+  withApiHandler,
+} from "@/lib/api/response";
+import {
+  parseJsonBody,
+  parsePathId,
+  resolveDefinedUpdateFields,
+} from "@/lib/api/request";
 import { shouldSkipSheetsSync, syncRecordWithSheets } from "@/lib/api/sheetsSync";
 import {
   deleteTafAttemptFromSheet,
@@ -11,68 +21,52 @@ import { UpdateTafAttemptSchema } from "@/lib/validations/taf";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+export async function GET(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  return withApiHandler(async () => {
+    const id = parsePathId(params);
+    const attempt = await prisma.tafAttempt.findUnique({
+      where: { id },
+    });
+
+    if (!attempt) {
+      return apiNotFound("Simulado não encontrado no banco de dados");
+    }
+
+    return apiSuccess(attempt);
+  });
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   return withApiHandler(async () => {
-    const { id } = params;
+    const id = parsePathId(params);
     const skipSheetsSync = shouldSkipSheetsSync(request);
-    const body = await request.json();
-    const validated = UpdateTafAttemptSchema.parse(body);
+    const { body, data: validated } = await parseJsonBody(
+      request,
+      UpdateTafAttemptSchema
+    );
 
-    const hasRawField = (key: string) =>
-      Boolean(
-        body &&
-          typeof body === "object" &&
-          Object.prototype.hasOwnProperty.call(body, key) &&
-          (body as Record<string, unknown>)[key] !== undefined
-      );
+    const updateData = {
+      ...resolveDefinedUpdateFields(body, validated, {
+        testDate: (val) => new Date(val),
+        syncedToSheetsAt: (val) => (val ? new Date(val) : null),
+        locationType: (val) => val || null,
+        notes: (val) => val || null,
+        laps: (val) => val || [],
+      }),
+      ...(validated.syncedToSheetsAt === undefined
+        ? { syncedToSheetsAt: null }
+        : {}),
+    };
 
     const updated = await prisma.tafAttempt.update({
       where: { id },
-      data: {
-        ...(hasRawField("testDate") && validated.testDate
-          ? { testDate: new Date(validated.testDate) }
-          : {}),
-        syncedToSheetsAt:
-          validated.syncedToSheetsAt !== undefined
-            ? validated.syncedToSheetsAt
-              ? new Date(validated.syncedToSheetsAt)
-              : null
-            : null,
-        ...(hasRawField("targetDurationSeconds") &&
-        validated.targetDurationSeconds !== undefined
-          ? { targetDurationSeconds: validated.targetDurationSeconds }
-          : {}),
-        ...(validated.actualDurationSeconds !== undefined
-          ? { actualDurationSeconds: validated.actualDurationSeconds }
-          : {}),
-        ...(validated.distanceMeters !== undefined
-          ? { distanceMeters: validated.distanceMeters }
-          : {}),
-        ...(validated.speedKmh !== undefined ? { speedKmh: validated.speedKmh } : {}),
-        ...(validated.paceSeconds !== undefined ? { paceSeconds: validated.paceSeconds } : {}),
-        ...(validated.paceFormatted !== undefined
-          ? { paceFormatted: validated.paceFormatted }
-          : {}),
-        ...(validated.locationType !== undefined
-          ? { locationType: validated.locationType || null }
-          : {}),
-        ...(hasRawField("shoeName") && validated.shoeName !== undefined
-          ? { shoeName: validated.shoeName }
-          : {}),
-        ...(validated.avgHeartRate !== undefined
-          ? { avgHeartRate: validated.avgHeartRate }
-          : {}),
-        ...(validated.maxHeartRate !== undefined
-          ? { maxHeartRate: validated.maxHeartRate }
-          : {}),
-        ...(validated.notes !== undefined ? { notes: validated.notes || null } : {}),
-        ...(hasRawField("laps") && validated.laps !== undefined
-          ? { laps: validated.laps || [] }
-          : {}),
-      },
+      data: updateData,
     });
 
     const syncedUpdated = await syncRecordWithSheets(
@@ -90,11 +84,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   return withApiHandler(async () => {
-    const { id } = params;
+    const id = parsePathId(params);
     await prisma.tafAttempt.delete({
       where: { id },
     });
     await safeAutoSync(() => deleteTafAttemptFromSheet(id));
-    return apiSuccess({ success: true, deletedId: id });
+    return apiDeleted(id);
   });
 }

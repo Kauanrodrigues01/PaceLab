@@ -9,8 +9,9 @@ import {
   ACTIVITY_LABELS,
 } from "@/types";
 import { TrainingCard } from "./TrainingCard";
-import { TrainingDetailModal } from "../treinos/TrainingDetailModal";
+import { TrainingDetailModal } from "./TrainingDetailModal";
 import { formatPace, formatTime } from "@/lib/formatting/time";
+import { getTodayFortalezaDateKey, toFortalezaDateKey } from "@/lib/formatting/date";
 import { parseSafeDate } from "@/lib/math/evolution";
 import {
   Flame,
@@ -103,8 +104,12 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
         })
         .slice(0, sessionCount);
     } else if (filterMode === "custom") {
-      const startMs = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null;
-      const endMs = endDate ? new Date(`${endDate}T23:59:59.999`).getTime() : null;
+      const startMs = startDate
+        ? new Date(`${startDate}T00:00:00.000-03:00`).getTime()
+        : null;
+      const endMs = endDate
+        ? new Date(`${endDate}T23:59:59.999-03:00`).getTime()
+        : null;
 
       list = list.filter((t) => {
         const tDate = parseSafeDate(t.sessionDate);
@@ -129,8 +134,9 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
           case "90d":
             return diffMs <= 90 * 24 * 60 * 60 * 1000 + 86400000;
           case "year": {
-            const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
-            return tDate.getTime() >= startOfYear - 86400000;
+            const currentYear = getTodayFortalezaDateKey().slice(0, 4);
+            const tKey = toFortalezaDateKey(tDate);
+            return tKey !== null && tKey >= `${currentYear}-01-01`;
           }
           default:
             return true;
@@ -230,7 +236,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
   return (
     <div data-testid="training-list" className="space-y-4">
       {/* ─── Painel Completo de Filtros do Diário ─── */}
-      <div className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-4 sm:p-5 shadow-xs space-y-3.5">
+      <div className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-4 sm:p-5 shadow-sm space-y-3.5">
         {/* Cabeçalho do painel de filtros */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
@@ -266,7 +272,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             }}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               filterMode === "preset" && periodFilter === "all"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -280,7 +286,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             }}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               filterMode === "preset" && periodFilter === "7d"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -294,7 +300,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             }}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               filterMode === "preset" && periodFilter === "30d"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -308,7 +314,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             }}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               filterMode === "preset" && periodFilter === "90d"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -322,7 +328,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             }}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               filterMode === "preset" && periodFilter === "year"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -341,7 +347,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             }}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               filterMode === "sessions" && sessionCount === 2
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -355,7 +361,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             }}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               filterMode === "sessions" && sessionCount === 4
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -369,7 +375,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             }}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               filterMode === "sessions" && sessionCount === 6
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -385,7 +391,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             onClick={() => setFilterMode("custom")}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
               filterMode === "custom"
-                ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                 : "text-[#8E9BB0] hover:text-white"
             }`}
           >
@@ -407,7 +413,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-[#131A2E] border border-[#1E2942] rounded-xl px-2.5 py-1 text-white text-xs focus:outline-hidden focus:border-[#B7F34A] transition-colors"
+                  className="bg-[#131A2E] border border-[#1E2942] rounded-xl px-2.5 py-1 text-white text-xs focus:outline-none focus:border-[#B7F34A] transition-colors"
                   data-testid="list-filter-start-date"
                 />
               </div>
@@ -417,7 +423,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-[#131A2E] border border-[#1E2942] rounded-xl px-2.5 py-1 text-white text-xs focus:outline-hidden focus:border-[#B7F34A] transition-colors"
+                  className="bg-[#131A2E] border border-[#1E2942] rounded-xl px-2.5 py-1 text-white text-xs focus:outline-none focus:border-[#B7F34A] transition-colors"
                   data-testid="list-filter-end-date"
                 />
               </div>
@@ -447,7 +453,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
             <select
               value={activityFilter}
               onChange={(e) => setActivityFilter(e.target.value as "all" | ActivityType)}
-              className="h-9 px-3 text-xs font-semibold rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-hidden focus:border-[#B7F34A] w-full sm:w-auto"
+              className="h-9 px-3 text-xs font-semibold rounded-xl border border-[#1E2942] bg-[#0B1020] text-white focus:outline-none focus:border-[#B7F34A] w-full sm:w-auto"
             >
               <option value="all">Todas as Modalidades</option>
               {ACTIVITY_TYPES.map((type) => (
@@ -564,7 +570,7 @@ export function TrainingList({ trainings, onEdit, onDelete }: TrainingListProps)
               placeholder="Buscar por notas ou tênis..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-7 h-9 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white placeholder-[#8E9BB0] focus:outline-hidden focus:border-[#B7F34A] font-medium"
+              className="w-full pl-8 pr-7 h-9 text-xs rounded-xl border border-[#1E2942] bg-[#0B1020] text-white placeholder-[#8E9BB0] focus:outline-none focus:border-[#B7F34A] font-medium"
             />
             {searchQuery && (
               <button

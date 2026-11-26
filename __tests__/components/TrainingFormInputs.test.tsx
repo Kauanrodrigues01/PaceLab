@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
-import { TrainingForm } from "@/components/meu-taf/TrainingForm";
+import { TrainingForm } from "@/components/treinos/TrainingForm";
 import { TrainingSession } from "@/types";
 
 describe("TrainingForm - Comportamento de Inputs Numéricos", () => {

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import TreinosPage from "@/app/treinos/page";
 import { tafService } from "@/lib/services/tafService";
 import { CROSS_PAGE_SHEETS_CACHE_KEYS } from "@/lib/sheetsSyncUi";
-import { setupMockTafApi } from "@/test/helpers/mockTafApi";
+import { setupMockTafApi } from "@/__tests__/helpers/mockTafApi";
 import { ACTIVITY_TYPES, ActivityParsePreview, TrainingSession } from "@/types";
 
 const mockTrainingSession: TrainingSession = {

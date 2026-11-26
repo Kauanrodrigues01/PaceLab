@@ -95,13 +95,13 @@ export function TafApprovalRuler({
           {/* Zona 1: Abaixo do Mínimo */}
           <div
             style={{ width: `${minPercent}%` }}
-            className="h-full bg-linear-to-r from-rose-500/80 to-amber-500/80 transition-all"
+            className="h-full bg-gradient-to-r from-rose-500/80 to-amber-500/80 transition-all"
             title={`Zona de Reprovação (0m até ${safeMin}m)`}
           />
           {/* Zona 2: Entre o Mínimo e a Meta */}
           <div
             style={{ width: `${targetPercent - minPercent}%` }}
-            className="h-full bg-linear-to-r from-[#B7F34A]/40 to-[#B7F34A]/80 transition-all"
+            className="h-full bg-gradient-to-r from-[#B7F34A]/40 to-[#B7F34A]/80 transition-all"
             title={`Zona de Aprovação no Limite (${safeMin}m até ${safeTarget}m)`}
           />
           {/* Zona 3: Acima da Meta de Segurança */}
@@ -123,7 +123,7 @@ export function TafApprovalRuler({
               <Trophy className="w-3 h-3 text-[#0B1020] shrink-0" />
               <span>{currentDistance.toLocaleString("pt-BR")} m</span>
             </div>
-            <div className="w-2 h-2 bg-[#B7F34A] rotate-45 -mt-1 shadow-xs" />
+            <div className="w-2 h-2 bg-[#B7F34A] rotate-45 -mt-1 shadow-sm" />
           </div>
         )}
 
@@ -157,7 +157,7 @@ export function TafApprovalRuler({
           <span
             className={`text-[10px] font-black text-[#B7F34A] whitespace-nowrap flex items-center gap-0.5 transition-all ${
               isMarkersClose
-                ? "mt-0 sm:mt-1 bg-[#0B1020]/95 px-1.5 py-0.5 rounded border border-[#B7F34A]/30 shadow-xs"
+                ? "mt-0 sm:mt-1 bg-[#0B1020]/95 px-1.5 py-0.5 rounded border border-[#B7F34A]/30 shadow-sm"
                 : "mt-1"
             }`}
           >

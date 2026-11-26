@@ -2,8 +2,9 @@
 
 import React, { useState } from "react";
 import { TafAttempt, LOCATION_LABELS, SOURCE_LABELS } from "@/types";
+import { formatDateTimeFortaleza } from "@/lib/formatting/date";
 import { formatTime } from "@/lib/formatting/time";
-import { SheetsSyncBadge } from "./SheetsSyncBadge";
+import { SheetsSyncBadge } from "@/components/shared/SheetsSyncBadge";
 import {
   Trophy,
   CheckCircle2,
@@ -42,17 +43,7 @@ export function TafAttemptCard({
   const isApproved = attempt.distanceMeters >= targetDistanceMeters;
   const deficitMeters = targetDistanceMeters - attempt.distanceMeters;
 
-  const parsedDate = attempt.testDate ? new Date(attempt.testDate) : null;
-  const formattedDate =
-    parsedDate && !Number.isNaN(parsedDate.getTime())
-      ? parsedDate.toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "--/--/----";
+  const formattedDate = formatDateTimeFortaleza(attempt.testDate, "--/--/----");
 
   const safeSpeedKmh =
     typeof attempt.speedKmh === "number" && Number.isFinite(attempt.speedKmh)
@@ -219,15 +210,19 @@ export function TafAttemptCard({
         {/* Ações de Edição e Exclusão */}
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => onEdit(attempt)}
             title="Editar este teste"
+            aria-label="Editar este teste"
             className="p-1.5 text-[#8E9BB0] hover:text-[#B7F34A] hover:bg-[#1E2942] rounded-lg transition-colors"
           >
             <Edit2 className="w-4 h-4" />
           </button>
           <button
+            type="button"
             onClick={() => setShowDeleteConfirm(true)}
             title="Excluir teste"
+            aria-label="Excluir este teste"
             className="p-1.5 text-[#8E9BB0] hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors"
           >
             <Trash2 className="w-4 h-4" />
@@ -247,7 +242,9 @@ export function TafAttemptCard({
       {attempt.laps && attempt.laps.length > 0 && (
         <div className="mt-3 pt-2 border-t border-[#1E2942]">
           <button
+            type="button"
             onClick={() => setShowLaps(!showLaps)}
+            aria-expanded={showLaps}
             className="flex items-center justify-between w-full text-xs font-semibold text-[#8E9BB0] hover:text-[#B7F34A] transition-colors"
           >
             <span>Ver parciais ({attempt.laps.length} voltas registradas)</span>
@@ -290,12 +287,14 @@ export function TafAttemptCard({
           </p>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => setShowDeleteConfirm(false)}
               className="px-3 py-1.5 text-xs font-semibold text-[#8E9BB0] bg-[#131A2E] border border-[#1E2942] rounded-lg hover:bg-[#1E2942] hover:text-white transition-colors"
             >
               Cancelar
             </button>
             <button
+              type="button"
               onClick={() => {
                 onDelete(attempt.id);
                 setShowDeleteConfirm(false);

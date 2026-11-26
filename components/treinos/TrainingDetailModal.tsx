@@ -6,7 +6,8 @@ import {
   SOURCE_LABELS,
   TrainingSession,
 } from "@/types";
-import { ACTIVITY_CONFIG } from "@/lib/activity";
+import { ACTIVITY_CONFIG } from "@/components/shared/activityVisuals";
+import { formatDateTimeFortaleza } from "@/lib/formatting/date";
 import { formatTime } from "@/lib/formatting/time";
 import { analyzeSplits } from "@/lib/math/splitsAnalysis";
 import { SplitsInsights } from "./SplitsInsights";
@@ -77,22 +78,15 @@ export function TrainingDetailModal({
   const activityConfig =
     ACTIVITY_CONFIG[training.activityType] || ACTIVITY_CONFIG.corrida_continua;
   const ActivityIcon = activityConfig.icon;
-  const activityLabel =
-    ACTIVITY_LABELS[training.activityType] ?? activityConfig.label;
+  const activityLabel = ACTIVITY_LABELS[training.activityType] || activityConfig.label;
   const sourceKey = training.source ?? "manual";
   const sourceLabel = SOURCE_LABELS[sourceKey] ?? sourceKey;
 
-  const parsedSessionDate = new Date(training.sessionDate);
-  const formattedDate = Number.isNaN(parsedSessionDate.getTime())
-    ? training.sessionDate || "Data não informada"
-    : parsedSessionDate.toLocaleDateString("pt-BR", {
-        weekday: "short",
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+  const formattedDate = formatDateTimeFortaleza(training.sessionDate, {
+    fallback: training.sessionDate || "Data não informada",
+    includeWeekday: true,
+    shortMonth: true,
+  });
 
   const avgHrText = training.avgHeartRate != null ? `${training.avgHeartRate} bpm` : "—";
   const maxHrText = training.maxHeartRate != null ? `${training.maxHeartRate} bpm` : "—";

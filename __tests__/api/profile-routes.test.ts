@@ -193,7 +193,9 @@ describe("API Routes de Perfil e Histórico de Pesagem (Fase 2)", () => {
         },
       ] as never);
 
-      const res = await getWeights();
+      const res = await getWeights(
+        new Request("http://localhost:3000/api/profile/weight")
+      );
       const body = await res.json();
 
       expect(res.status).toBe(200);
@@ -205,12 +207,36 @@ describe("API Routes de Perfil e Histórico de Pesagem (Fase 2)", () => {
     it("retorna array vazio quando ainda não existe perfil", async () => {
       vi.mocked(prisma.userProfile.findFirst).mockResolvedValueOnce(null);
 
-      const res = await getWeights();
+      const res = await getWeights(
+        new Request("http://localhost:3000/api/profile/weight")
+      );
       const body = await res.json();
 
       expect(res.status).toBe(200);
       expect(body.success).toBe(true);
       expect(body.data).toEqual([]);
+    });
+
+    it("aplica ?limit válido e rejeita ?limit fora de 1..365 com 400", async () => {
+      vi.mocked(prisma.userProfile.findFirst).mockResolvedValueOnce({
+        id: "prof_123",
+      } as never);
+      vi.mocked(prisma.weightRecord.findMany).mockResolvedValueOnce([] as never);
+
+      const okRes = await getWeights(
+        new Request("http://localhost:3000/api/profile/weight?limit=5")
+      );
+      expect(okRes.status).toBe(200);
+      expect(prisma.weightRecord.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 5 })
+      );
+
+      const badRes = await getWeights(
+        new Request("http://localhost:3000/api/profile/weight?limit=999")
+      );
+      const badBody = await badRes.json();
+      expect(badRes.status).toBe(400);
+      expect(badBody.code).toBe("VALIDATION_ERROR");
     });
   });
 
@@ -310,6 +336,7 @@ describe("API Routes de Perfil e Histórico de Pesagem (Fase 2)", () => {
 
       expect(res.status).toBe(200);
       expect(body.success).toBe(true);
+      expect(body.data).toEqual({ deletedId: "w_to_delete", deleted: true });
       expect(prisma.weightRecord.delete).toHaveBeenCalledWith({
         where: { id: "w_to_delete" },
       });
@@ -317,6 +344,64 @@ describe("API Routes de Perfil e Histórico de Pesagem (Fase 2)", () => {
         where: { id: "prof_123" },
         data: { currentWeightKg: 71 },
       });
+    });
+
+    it("zera currentWeightKg do perfil quando a última pesagem restante é removida", async () => {
+      vi.mocked(prisma.weightRecord.findUnique).mockResolvedValueOnce({
+        id: "w_last",
+        profileId: "prof_123",
+        weightKg: 71,
+      } as never);
+      vi.mocked(prisma.weightRecord.delete).mockResolvedValueOnce({} as never);
+      vi.mocked(prisma.userProfile.findUnique).mockResolvedValueOnce({
+        id: "prof_123",
+      } as never);
+      vi.mocked(prisma.weightRecord.findFirst).mockResolvedValueOnce(null);
+      vi.mocked(prisma.userProfile.update).mockResolvedValueOnce({
+        id: "prof_123",
+        currentWeightKg: null,
+      } as never);
+
+      const res = await deleteWeight(
+        new Request("http://localhost:3000/api/profile/weight/w_last"),
+        { params: { id: "w_last" } }
+      );
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.data).toEqual({ deletedId: "w_last", deleted: true });
+      expect(prisma.userProfile.update).toHaveBeenCalledWith({
+        where: { id: "prof_123" },
+        data: { currentWeightKg: null },
+      });
+    });
+
+    it("retorna 404 NOT_FOUND quando registro de pesagem não existe", async () => {
+      vi.mocked(prisma.weightRecord.findUnique).mockResolvedValueOnce(null);
+
+      const res = await deleteWeight(
+        new Request("http://localhost:3000/api/profile/weight/w_inexistente"),
+        { params: { id: "w_inexistente" } }
+      );
+      const body = await res.json();
+
+      expect(res.status).toBe(404);
+      expect(body.success).toBe(false);
+      expect(body.code).toBe("NOT_FOUND");
+      expect(prisma.weightRecord.delete).not.toHaveBeenCalled();
+    });
+
+    it("retorna 400 INVALID_PATH_ID quando o ID na rota está em branco", async () => {
+      const res = await deleteWeight(
+        new Request("http://localhost:3000/api/profile/weight/%20"),
+        { params: { id: "   " } }
+      );
+      const body = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(body.success).toBe(false);
+      expect(body.code).toBe("INVALID_PATH_ID");
+      expect(prisma.weightRecord.findUnique).not.toHaveBeenCalled();
     });
   });
 

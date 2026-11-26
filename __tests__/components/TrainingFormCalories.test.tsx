@@ -2,8 +2,8 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { TrainingForm } from "@/components/meu-taf/TrainingForm";
-import { TrainingCard } from "@/components/meu-taf/TrainingCard";
+import { TrainingForm } from "@/components/treinos/TrainingForm";
+import { TrainingCard } from "@/components/treinos/TrainingCard";
 import { profileService } from "@/lib/services/profileService";
 import { TrainingSession } from "@/types";
 

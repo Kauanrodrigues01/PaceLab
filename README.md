@@ -16,7 +16,7 @@ flowchart LR
 - **Painel Inicial (`/`), Calculadoras (`/calculadora`, `/taf`, `/metas`, `/intervalado`, `/historico`):** Quick Pace Widget, card de aderência semanal (`WeeklyAdherenceCard`), tática em pista de `400 m`, simulador intervalado com limitadores e Modo Pista, médias ponderadas e motores científicos (**Compêndio 2024** + **VO2 Máx de Cooper**).
 - **Diário de Treinos & Analytics (`/treinos`):** cadastro manual com previsão calórica em tempo real, importação `.FIT`/`.GPX` individual e em massa (pareamento `.FIT + .GPX`, escolha única de destino e push consolidado), reconciliação em 2 passadas com `Plano_Semanal`, análise detalhada de parciais e dashboard com 6 KPIs, Heatmap de 12 semanas e 7 painéis (6 gráficos Recharts + Pirâmide RPE 80/20).
 - **Meu TAF (`/meu-taf`) & Perfil Biométrico (`/perfil`):** régua visual de aprovação, exercícios complementares (Barra Fixa, Flexão e Abdominal com tempo opcional), comparador de períodos, backup/exportação JSON v3 & CSV seguro, cálculo de IMC (OMS), pesagem semanal automática (`WeeklyWeightModal`) e presets oficiais configuráveis **`PM-SP`, `PF`, `PRF` e `PMPR`**.
-- **API Documentada (`/docs`):** interface Swagger UI servida por OpenAPI 3.0.3 em `/api/docs/spec`.
+- **API Documentada (`/docs`):** interface Swagger UI em tema **Dark Performance Athletics** servida por OpenAPI 3.0.3 em `/api/docs/spec`, derivada automaticamente dos schemas Zod v4 (`z.toJSONSchema`).
 
 ---
 
@@ -68,7 +68,7 @@ flowchart LR
 
 O índice completo por perfil de leitor e o mapa de rotas estão em **[`docs/README.md`](docs/README.md)**:
 
-- **Arquitetura & Contratos:** [Ecossistema dos 4 Pilares](docs/architecture/02_ecossistema_strava_pacelab_sheets_gemini.md) · [Modelo de Dados e APIs](docs/architecture/03_modelo_de_dados_e_apis.md) · [Leitura `.FIT`/`.GPX` e Divergências Strava](docs/architecture/01_leitura_fit_gpx_e_divergencias_strava.md)
+- **Arquitetura & Contratos:** [Ecossistema dos 4 Pilares](docs/architecture/02_ecossistema_strava_pacelab_sheets_gemini.md) · [Modelo de Dados e APIs](docs/architecture/03_modelo_de_dados_e_apis.md) · [Padrões de Código e Design System](docs/architecture/04_padroes_de_codigo_e_design_system.md) · [Leitura `.FIT`/`.GPX` e Divergências Strava](docs/architecture/01_leitura_fit_gpx_e_divergencias_strava.md)
 - **Integrações Externas:** [Exportação Strava e Classificação](docs/integrations/01_strava_exportacao_e_classificacao.md) · [Setup Google Cloud, Sheets (4 Abas) e Gemini Coach](docs/integrations/02_google_sheets_e_gemini_passo_a_passo.md)
 - **Guias de Produto:** [Calculadoras e Motores Científicos](docs/features/01_calculadoras_e_motores_cientificos.md) · [Treinos, Aderência Semanal e Analytics](docs/features/02_treinos_e_dashboard_analitico.md) · [Meu TAF, Simulados e Perfil](docs/features/03_meu_taf_simulados_e_perfil.md)
-- **Operações & Evolução:** [Testes, Deploy e Troubleshooting](docs/operations/01_testes_deploy_e_troubleshooting.md) · [Roadmap de Melhorias](docs/roadmap/01_roadmap_melhorias_futuras.md)
+- **Operações & Evolução:** [Testes, Deploy e Troubleshooting](docs/operations/01_testes_deploy_e_troubleshooting.md) · [Arquitetura e Padrões de Testes](docs/operations/02_arquitetura_e_padroes_de_testes.md) · [Roadmap de Melhorias](docs/roadmap/01_roadmap_melhorias_futuras.md)

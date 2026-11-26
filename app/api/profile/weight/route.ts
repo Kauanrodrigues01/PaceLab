@@ -1,13 +1,19 @@
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { apiSuccess, withApiHandler } from "@/lib/api/response";
+import { parseJsonBody, parseQueryParams } from "@/lib/api/request";
 import { safeAutoSync, syncProfileAndGoalToSheet } from "@/lib/googleSheets";
-import { CreateWeightRecordSchema } from "@/lib/validations/taf";
+import {
+  CreateWeightRecordSchema,
+  WeightListQuerySchema,
+} from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   return withApiHandler(async () => {
+    const { limit } = parseQueryParams(request, WeightListQuerySchema);
+
     const profile = await prisma.userProfile.findFirst();
 
     if (!profile) {
@@ -17,6 +23,7 @@ export async function GET() {
     const records = await prisma.weightRecord.findMany({
       where: { profileId: profile.id },
       orderBy: { recordedAt: "desc" },
+      take: limit,
     });
 
     return apiSuccess(records);
@@ -25,8 +32,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   return withApiHandler(async () => {
-    const body = await request.json();
-    const validated = CreateWeightRecordSchema.parse(body);
+    const { data: validated } = await parseJsonBody(
+      request,
+      CreateWeightRecordSchema
+    );
 
     let profile = await prisma.userProfile.findFirst();
 
@@ -38,7 +47,9 @@ export async function POST(request: Request) {
       });
     }
 
-    const recordDate = validated.recordedAt ? new Date(validated.recordedAt) : new Date();
+    const recordDate = validated.recordedAt
+      ? new Date(validated.recordedAt)
+      : new Date();
 
     const record = await prisma.weightRecord.create({
       data: {
@@ -50,7 +61,6 @@ export async function POST(request: Request) {
       },
     });
 
-    // Se esta pesagem for a mais recente ou recente no tempo, atualizar o perfil
     const latestRecord = await prisma.weightRecord.findFirst({
       where: { profileId: profile.id },
       orderBy: { recordedAt: "desc" },

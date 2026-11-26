@@ -15,6 +15,12 @@ import {
   PACE_ACTIVITY_OPTIONS,
 } from "@/lib/activity";
 import { formatPace, formatTime } from "@/lib/formatting/time";
+import {
+  formatShortDateFortaleza,
+  getFortalezaWeekInfo,
+  getTodayFortalezaDateKey,
+  toFortalezaDateKey,
+} from "@/lib/formatting/date";
 import { parseSafeDate } from "@/lib/math/evolution";
 import {
   ResponsiveContainer,
@@ -99,10 +105,14 @@ export function TrainingEvolutionDashboard({
       });
     }
 
-    // Modo 2: Período Personalizado (Datas Início e Fim)
+    // Modo 2: Período Personalizado (Datas Início e Fim em Fortaleza)
     if (filterMode === "custom") {
-      const startMs = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null;
-      const endMs = endDate ? new Date(`${endDate}T23:59:59.999`).getTime() : null;
+      const startMs = startDate
+        ? new Date(`${startDate}T00:00:00.000-03:00`).getTime()
+        : null;
+      const endMs = endDate
+        ? new Date(`${endDate}T23:59:59.999-03:00`).getTime()
+        : null;
 
       return trainings
         .filter((t) => {
@@ -140,8 +150,9 @@ export function TrainingEvolutionDashboard({
           case "90d":
             return diffMs <= 90 * 24 * 60 * 60 * 1000 + 86400000;
           case "year": {
-            const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
-            return tDate.getTime() >= startOfYear - 86400000;
+            const currentYear = getTodayFortalezaDateKey().slice(0, 4);
+            const tKey = toFortalezaDateKey(tDate);
+            return tKey !== null && tKey >= `${currentYear}-01-01`;
           }
           case "all":
           default:
@@ -240,23 +251,15 @@ export function TrainingEvolutionDashboard({
     > = {};
 
     filteredTrainings.forEach((t) => {
-      const date = parseSafeDate(t.sessionDate);
-      if (!date) return;
+      const weekInfo = getFortalezaWeekInfo(t.sessionDate);
+      if (!weekInfo) return;
 
-      // Segunda-feira como início da semana
-      const day = date.getDay();
-      const diffToMonday = date.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(date);
-      monday.setDate(diffToMonday);
-      monday.setHours(0, 0, 0, 0);
-
-      const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
-      const weekLabel = `${String(monday.getDate()).padStart(2, "0")}/${String(monday.getMonth() + 1).padStart(2, "0")}`;
+      const { weekKey, weekLabel, timestamp } = weekInfo;
 
       if (!weekMap[weekKey]) {
         weekMap[weekKey] = {
           weekLabel,
-          timestamp: monday.getTime(),
+          timestamp,
           distanceKm: 0,
           durationSeconds: 0,
           sessionsCount: 0,
@@ -294,10 +297,7 @@ export function TrainingEvolutionDashboard({
         return true;
       })
       .map((t, idx) => {
-        const d = parseSafeDate(t.sessionDate);
-        const dateLabel = d
-          ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`
-          : `#${idx + 1}`;
+        const dateLabel = formatShortDateFortaleza(t.sessionDate, `#${idx + 1}`);
 
         const paceSec =
           t.paceSeconds && t.paceSeconds > 0
@@ -331,17 +331,10 @@ export function TrainingEvolutionDashboard({
     > = {};
 
     filteredTrainings.forEach((t) => {
-      const date = parseSafeDate(t.sessionDate);
-      if (!date) return;
+      const weekInfo = getFortalezaWeekInfo(t.sessionDate);
+      if (!weekInfo) return;
 
-      const day = date.getDay();
-      const diffToMonday = date.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(date);
-      monday.setDate(diffToMonday);
-      monday.setHours(0, 0, 0, 0);
-
-      const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
-      const weekLabel = `${String(monday.getDate()).padStart(2, "0")}/${String(monday.getMonth() + 1).padStart(2, "0")}`;
+      const { weekKey, weekLabel, timestamp } = weekInfo;
 
       const rpe =
         typeof t.perceivedEffort === "number" && t.perceivedEffort > 0
@@ -353,7 +346,7 @@ export function TrainingEvolutionDashboard({
       if (!loadMap[weekKey]) {
         loadMap[weekKey] = {
           weekLabel,
-          timestamp: monday.getTime(),
+          timestamp,
           loadScore: 0,
           sessionsCount: 0,
         };
@@ -471,22 +464,15 @@ export function TrainingEvolutionDashboard({
     > = {};
 
     filteredTrainings.forEach((t) => {
-      const date = parseSafeDate(t.sessionDate);
-      if (!date) return;
+      const weekInfo = getFortalezaWeekInfo(t.sessionDate);
+      if (!weekInfo) return;
 
-      const day = date.getDay();
-      const diffToMonday = date.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(date);
-      monday.setDate(diffToMonday);
-      monday.setHours(0, 0, 0, 0);
-
-      const weekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
-      const weekLabel = `${String(monday.getDate()).padStart(2, "0")}/${String(monday.getMonth() + 1).padStart(2, "0")}`;
+      const { weekKey, weekLabel, timestamp } = weekInfo;
 
       if (!weekMap[weekKey]) {
         weekMap[weekKey] = {
           weekLabel,
-          timestamp: monday.getTime(),
+          timestamp,
           activeCalories: 0,
           totalCalories: 0,
           sessionsCount: 0,
@@ -552,10 +538,10 @@ export function TrainingEvolutionDashboard({
   return (
     <div
       data-testid="training-evolution-dashboard"
-      className="space-y-6 animate-in fade-in duration-200"
+      className="space-y-6 animate-fade-in"
     >
       {/* ─── Barra Superior de Controle do Filtro Temporal & Avançado ─── */}
-      <div className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
+      <div className="bg-[#131A2E] border border-[#1E2942] rounded-3xl p-4 sm:p-5 shadow-sm space-y-3">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div>
             <span className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -581,7 +567,7 @@ export function TrainingEvolutionDashboard({
               }}
               className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                 filterMode === "preset" && timeRange === "7d"
-                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -595,7 +581,7 @@ export function TrainingEvolutionDashboard({
               }}
               className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                 filterMode === "preset" && timeRange === "30d"
-                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -609,7 +595,7 @@ export function TrainingEvolutionDashboard({
               }}
               className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                 filterMode === "preset" && timeRange === "90d"
-                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -623,7 +609,7 @@ export function TrainingEvolutionDashboard({
               }}
               className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                 filterMode === "preset" && timeRange === "year"
-                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -637,7 +623,7 @@ export function TrainingEvolutionDashboard({
               }}
               className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                 filterMode === "preset" && timeRange === "all"
-                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -656,7 +642,7 @@ export function TrainingEvolutionDashboard({
               }}
               className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                 filterMode === "sessions" && sessionCount === 2
-                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -670,7 +656,7 @@ export function TrainingEvolutionDashboard({
               }}
               className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                 filterMode === "sessions" && sessionCount === 4
-                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -684,7 +670,7 @@ export function TrainingEvolutionDashboard({
               }}
               className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                 filterMode === "sessions" && sessionCount === 6
-                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -700,7 +686,7 @@ export function TrainingEvolutionDashboard({
               onClick={() => setFilterMode("custom")}
               className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                 filterMode === "custom"
-                  ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -723,7 +709,7 @@ export function TrainingEvolutionDashboard({
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-[#0B1020] border border-[#1E2942] rounded-xl px-2.5 py-1 text-white text-xs focus:outline-hidden focus:border-[#B7F34A] transition-colors"
+                  className="bg-[#0B1020] border border-[#1E2942] rounded-xl px-2.5 py-1 text-white text-xs focus:outline-none focus:border-[#B7F34A] transition-colors"
                   data-testid="input-filter-start-date"
                 />
               </div>
@@ -733,7 +719,7 @@ export function TrainingEvolutionDashboard({
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-[#0B1020] border border-[#1E2942] rounded-xl px-2.5 py-1 text-white text-xs focus:outline-hidden focus:border-[#B7F34A] transition-colors"
+                  className="bg-[#0B1020] border border-[#1E2942] rounded-xl px-2.5 py-1 text-white text-xs focus:outline-none focus:border-[#B7F34A] transition-colors"
                   data-testid="input-filter-end-date"
                 />
               </div>
@@ -762,7 +748,7 @@ export function TrainingEvolutionDashboard({
         {/* 1. Volume Total */}
         <div
           data-testid="kpi-total-volume"
-          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm"
         >
           <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
             <Activity className="w-3.5 h-3.5 text-[#B7F34A]" />
@@ -779,7 +765,7 @@ export function TrainingEvolutionDashboard({
         {/* 2. Tempo em Movimento */}
         <div
           data-testid="kpi-total-time"
-          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm"
         >
           <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
             <Clock className="w-3.5 h-3.5 text-[#B7F34A]" />
@@ -794,7 +780,7 @@ export function TrainingEvolutionDashboard({
         {/* 3. Gasto Calórico Ativo (Fase 5) */}
         <div
           data-testid="kpi-total-calories"
-          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm"
         >
           <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
             <Flame className="w-3.5 h-3.5 text-[#B7F34A]" />
@@ -814,7 +800,7 @@ export function TrainingEvolutionDashboard({
         {/* 4. Pace Médio Ponderado */}
         <div
           data-testid="kpi-avg-pace"
-          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm"
         >
           <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
             <Zap className="w-3.5 h-3.5 text-[#B7F34A]" />
@@ -829,7 +815,7 @@ export function TrainingEvolutionDashboard({
         {/* 5. Carga de Treino (TRIMP) */}
         <div
           data-testid="kpi-training-load"
-          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm"
         >
           <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
             <HeartPulse className="w-3.5 h-3.5 text-purple-400" />
@@ -845,7 +831,7 @@ export function TrainingEvolutionDashboard({
         {/* 6. Maior Longão */}
         <div
           data-testid="kpi-longest-run"
-          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
+          className="p-4 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm"
         >
           <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8E9BB0] mb-1">
             <Award className="w-3.5 h-3.5 text-rose-400" />
@@ -971,7 +957,7 @@ export function TrainingEvolutionDashboard({
                         onClick={() => setPaceActivityFilter(opt.value)}
                         className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                           isActive
-                            ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                            ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                             : "text-[#8E9BB0] hover:text-white"
                         }`}
                       >

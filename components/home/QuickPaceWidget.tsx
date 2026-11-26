@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import { formatDecimal, formatTime, parseTime } from "@/lib/formatting/time";
-import { validateDistance, validateTimeString } from "@/lib/validation/inputs";
+import { validateDistance, validateTimeString } from "@/lib/validations/calculatorInputs";
 
 export function QuickPaceWidget() {
   const [distance, setDistance] = useState("5");
@@ -98,7 +98,7 @@ export function QuickPaceWidget() {
             value={distance}
             onChange={(e) => setDistance(e.target.value)}
             placeholder="Ex: 5"
-            className="w-full px-3.5 py-2.5 rounded-xl bg-[#0B1020] border border-[#1E2942] text-[#FFFFFF] font-mono text-sm focus:outline-hidden focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A] transition-all"
+            className="w-full px-3.5 py-2.5 rounded-xl bg-[#0B1020] border border-[#1E2942] text-[#FFFFFF] font-mono text-sm focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A] transition-all"
           />
         </div>
 
@@ -112,7 +112,7 @@ export function QuickPaceWidget() {
             value={time}
             onChange={(e) => setTime(e.target.value)}
             placeholder="Ex: 25:00"
-            className="w-full px-3.5 py-2.5 rounded-xl bg-[#0B1020] border border-[#1E2942] text-[#FFFFFF] font-mono text-sm focus:outline-hidden focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A] transition-all"
+            className="w-full px-3.5 py-2.5 rounded-xl bg-[#0B1020] border border-[#1E2942] text-[#FFFFFF] font-mono text-sm focus:outline-none focus:border-[#B7F34A] focus:ring-1 focus:ring-[#B7F34A] transition-all"
           />
         </div>
 

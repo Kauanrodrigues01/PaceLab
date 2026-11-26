@@ -5,11 +5,14 @@ import {
   isWeeklyWeightDue,
   isWeightPromptDismissed,
   dismissWeightPrompt,
+  getCachedProfile,
+  setCachedProfile,
+  setCachedWeights,
   PROFILE_CACHE_KEY,
   WEIGHTS_CACHE_KEY,
   DISMISSED_PROMPT_KEY,
 } from "@/lib/services/profileService";
-import { setupMockTafApi } from "@/test/helpers/mockTafApi";
+import { setupMockTafApi } from "@/__tests__/helpers/mockTafApi";
 
 describe("profileService e Funções Biométricas", () => {
   beforeEach(() => {
@@ -77,36 +80,36 @@ describe("profileService e Funções Biométricas", () => {
     });
 
     it("retorna true se for segunda-feira", () => {
-      // Mock de segunda-feira (day 1)
-      const fakeMonday = new Date(2026, 9, 12); // 12 de outubro de 2026 é segunda-feira
+      // Mock de segunda-feira em America/Fortaleza
+      const fakeMonday = new Date("2026-10-12T12:00:00-03:00");
       vi.useFakeTimers();
       vi.setSystemTime(fakeMonday);
 
-      const recentDate = new Date(2026, 9, 11); // Ontem
+      const recentDate = new Date("2026-10-11T18:00:00-03:00"); // Ontem em Fortaleza
       expect(isWeeklyWeightDue(recentDate.toISOString())).toBe(true);
 
       vi.useRealTimers();
     });
 
     it("retorna false se foi pesado há 2 dias e não é segunda-feira", () => {
-      // Mock de quarta-feira (14 de outubro de 2026)
-      const fakeWednesday = new Date(2026, 9, 14);
+      // Mock de quarta-feira (14 de outubro de 2026 em Fortaleza)
+      const fakeWednesday = new Date("2026-10-14T12:00:00-03:00");
       vi.useFakeTimers();
       vi.setSystemTime(fakeWednesday);
 
-      const recentDate = new Date(2026, 9, 12); // 2 dias atrás
+      const recentDate = new Date("2026-10-12T12:00:00-03:00"); // 2 dias atrás
       expect(isWeeklyWeightDue(recentDate.toISOString())).toBe(false);
 
       vi.useRealTimers();
     });
 
-    it("retorna false se já se pesou hoje (mesmo sendo segunda-feira)", () => {
-      // Mock de segunda-feira (12 de outubro de 2026)
-      const fakeMonday = new Date(2026, 9, 12, 14, 0, 0);
+    it("retorna false se já se pesou hoje no calendário de Fortaleza (mesmo após 21h ou sendo segunda-feira)", () => {
+      // 22:30 em Fortaleza equivale a 01:30Z do dia seguinte em UTC
+      const fakeMondayLateNight = new Date("2026-10-12T22:30:00-03:00");
       vi.useFakeTimers();
-      vi.setSystemTime(fakeMonday);
+      vi.setSystemTime(fakeMondayLateNight);
 
-      const todayMorning = new Date(2026, 9, 12, 8, 30, 0); // Pesou hoje pela manhã
+      const todayMorning = new Date("2026-10-12T08:30:00-03:00"); // Pesou hoje pela manhã
       expect(isWeeklyWeightDue(todayMorning.toISOString())).toBe(false);
 
       vi.useRealTimers();
@@ -177,7 +180,8 @@ describe("profileService e Funções Biométricas", () => {
       expect(cachedProfile.currentWeightKg).toBe(69.8);
     });
 
-    it("exclui registro de pesagem", async () => {
+    it("exclui registro de pesagem e zera peso no cache quando última pesagem é removida", async () => {
+      await profileService.getProfile();
       const created = await profileService.addWeightRecord({
         id: "w_to_remove",
         weightKg: 75.0,
@@ -187,6 +191,69 @@ describe("profileService e Funções Biométricas", () => {
       await profileService.deleteWeightRecord(created.id);
       const weights = await profileService.getWeightHistory();
       expect(weights.find((w) => w.id === created.id)).toBeUndefined();
+
+      // Remove todas as pesagens do cache local e garante fallback null no perfil
+      setCachedWeights([
+        {
+          id: "w_only",
+          weightKg: 74,
+          recordedAt: new Date().toISOString(),
+          source: "manual",
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      await profileService.addWeightRecord({
+        id: "w_only",
+        weightKg: 74,
+        recordedAt: new Date().toISOString(),
+      });
+      await profileService.deleteWeightRecord("w_only");
+      expect(getCachedProfile()?.currentWeightKg).toBeNull();
+    });
+
+    it("usa cache ou perfil local fallback quando a API falha (offline) e suporta limpar cache", async () => {
+      expect(isWeeklyWeightDue("data-invalida")).toBe(true);
+
+      // Limpar cache com null
+      setCachedProfile({
+        id: "p-1",
+        name: "Cache Atleta",
+        heightCm: 175,
+        currentWeightKg: 72,
+        birthDate: null,
+        gender: "masculino",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      expect(getCachedProfile()?.name).toBe("Cache Atleta");
+
+      // Offline com cache preenchido
+      vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("Offline"));
+      const fromCache = await profileService.getProfile();
+      expect(fromCache.name).toBe("Cache Atleta");
+
+      // Limpa cache -> offline sem cache retorna perfil padrão profile_local
+      setCachedProfile(null);
+      expect(getCachedProfile()).toBeNull();
+      vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("Offline"));
+      const fallback = await profileService.getProfile();
+      expect(fallback.id).toBe("profile_local");
+      expect(fallback.currentWeightKg).toBeNull();
+
+      // getWeightHistory offline cai para cache local
+      setCachedWeights([
+        {
+          id: "w_offline",
+          weightKg: 71.2,
+          recordedAt: new Date().toISOString(),
+          source: "manual",
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("Offline"));
+      const cachedWeights = await profileService.getWeightHistory();
+      expect(cachedWeights).toHaveLength(1);
+      expect(cachedWeights[0].id).toBe("w_offline");
     });
   });
 });

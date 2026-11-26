@@ -1,10 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { TrainingSession, ActivityType, SplitDetail } from "@/types";
-import { ACTIVITY_FORM_OPTIONS } from "@/lib/activity";
+import {
+  TrainingSession,
+  ActivityType,
+  SplitDetail,
+  SOURCE_LABELS,
+} from "@/types";
+import { ACTIVITY_FORM_OPTIONS } from "@/components/shared/activityVisuals";
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import { formatPace } from "@/lib/formatting/time";
+import {
+  formatFortalezaDateTimeInput,
+  fromFortalezaDateTimeInput,
+} from "@/lib/formatting/date";
+import { generateClientRecordId } from "@/lib/sheetsSyncUi";
 import { estimateTrainingCalories, buildCaloriePayload } from "@/lib/math/calories";
 import { profileService } from "@/lib/services/profileService";
 import {
@@ -20,15 +30,12 @@ import {
   Mountain,
   Footprints,
 } from "lucide-react";
-import { SOURCE_LABELS } from "@/types";
 
 interface TrainingFormProps {
   editingTraining?: TrainingSession | null;
   onSave: (training: TrainingSession) => Promise<void>;
   onCancelEdit?: () => void;
 }
-
-const ACTIVITIES = ACTIVITY_FORM_OPTIONS;
 
 const DISTANCE_SHORTCUTS_KM = [2.3, 3.0, 5.0, 8.0, 10.0, 15.0, 21.1];
 
@@ -47,11 +54,9 @@ const RPE_LEVELS = [
 
 export function TrainingForm({ editingTraining, onSave, onCancelEdit }: TrainingFormProps) {
   // Estados do formulário
-  const [sessionDate, setSessionDate] = useState(() => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - offset).toISOString().slice(0, 16);
-  });
+  const [sessionDate, setSessionDate] = useState(() =>
+    formatFortalezaDateTimeInput()
+  );
   const [activityType, setActivityType] = useState<ActivityType>("corrida_continua");
   const [distanceInput, setDistanceInput] = useState<string>("5.0");
   const [hoursInput, setHoursInput] = useState<string>("0");
@@ -84,9 +89,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
     let mounted = true;
 
     if (editingTraining) {
-      const d = new Date(editingTraining.sessionDate);
-      const offset = d.getTimezoneOffset() * 60000;
-      setSessionDate(new Date(d.getTime() - offset).toISOString().slice(0, 16));
+      setSessionDate(formatFortalezaDateTimeInput(editingTraining.sessionDate));
 
       setActivityType(editingTraining.activityType);
       setDistanceInput(String(editingTraining.distanceKm));
@@ -334,10 +337,10 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
       const elapsedSeconds = parseOptionalInt(elapsedSecondsInput);
 
       const sessionToSave: TrainingSession = {
-        id: editingTraining ? editingTraining.id : `trn_${Date.now()}`,
+        id: editingTraining ? editingTraining.id : generateClientRecordId("trn"),
         ...(editingTraining?.source ? { source: editingTraining.source } : {}),
         ...(editingTraining?.externalId ? { externalId: editingTraining.externalId } : {}),
-        sessionDate: new Date(sessionDate).toISOString(),
+        sessionDate: fromFortalezaDateTimeInput(sessionDate),
         activityType,
         distanceKm: Number(finalDistanceKm.toFixed(3)),
         durationSeconds: totalDurationSeconds,
@@ -448,7 +451,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
           Tipo de Atividade
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {ACTIVITIES.map((act) => {
+          {ACTIVITY_FORM_OPTIONS.map((act) => {
             const Icon = act.icon;
             const isSelected = activityType === act.type;
             return (
@@ -1008,7 +1011,7 @@ export function TrainingForm({ editingTraining, onSave, onCancelEdit }: Training
         type="submit"
         disabled={isSubmitting}
         data-testid="submit-training-btn"
-        className="w-full h-12 bg-[#B7F34A] hover:bg-[#a6e03f] text-[#0B1020] font-black text-sm rounded-xl shadow-lg shadow-[#B7F34A]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+        className="w-full h-12 bg-[#B7F34A] hover:bg-[#A3E332] text-[#0B1020] font-black text-sm rounded-xl shadow-lg shadow-[#B7F34A]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
       >
         <Plus className="w-4 h-4" />
         {isSubmitting

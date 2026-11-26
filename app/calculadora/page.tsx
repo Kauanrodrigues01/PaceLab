@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ResultBlock } from "@/components/ui/ResultBlock";
+import { getTodayFortalezaDateKey } from "@/lib/formatting/date";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { PaceSpeedTable } from "@/components/calculadora/PaceSpeedTable";
 import TafPage from "@/app/taf/page";
@@ -51,7 +52,7 @@ import {
   validatePaceString,
   validateSpeed,
   validateTimeString,
-} from "@/lib/validation/inputs";
+} from "@/lib/validations/calculatorInputs";
 import { historyStorage } from "@/lib/storage/localStorage";
 
 export type CalcMode =
@@ -502,7 +503,7 @@ export default function CalculadoraPage() {
 
     historyStorage.save({
       id: "hist-" + Date.now(),
-      date: new Date().toISOString().split("T")[0],
+      date: getTodayFortalezaDateKey(),
       distanceKm: distNum,
       timeSeconds: sec,
       paceSeconds: dtResult.paceSeconds,
@@ -768,7 +769,7 @@ export default function CalculadoraPage() {
                       />
                     </div>
 
-                    <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                    <p className="text-xs text-[#8E9BB0] bg-[#0B1020] p-3 rounded-xl border border-[#1E2942]">
                       ⚡ <strong>Sincronização instantânea:</strong> altere qualquer um dos campos ou selecione um ritmo na tabela abaixo para preenchimento imediato.
                     </p>
 
@@ -818,7 +819,7 @@ export default function CalculadoraPage() {
                               setDistanceInput(sc.value);
                               clearError("distance");
                             }}
-                            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium"
+                            className="text-xs px-2.5 py-1 rounded-lg bg-[#0B1020] hover:bg-[#1E2942] border border-[#1E2942] text-[#E2E8F0] font-medium transition-colors cursor-pointer"
                           >
                             {sc.label}
                           </button>
@@ -833,7 +834,7 @@ export default function CalculadoraPage() {
                         onClick={() => setTimeCalcMethod("pace")}
                         className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                           timeCalcMethod === "pace"
-                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-xs font-bold"
+                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-sm font-bold"
                             : "text-[#8E9BB0] hover:text-[#FFFFFF]"
                         }`}
                       >
@@ -844,7 +845,7 @@ export default function CalculadoraPage() {
                         onClick={() => setTimeCalcMethod("speed")}
                         className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                           timeCalcMethod === "speed"
-                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-xs font-bold"
+                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-sm font-bold"
                             : "text-[#8E9BB0] hover:text-[#FFFFFF]"
                         }`}
                       >
@@ -915,7 +916,7 @@ export default function CalculadoraPage() {
                         onClick={() => setDistCalcMethod("speed")}
                         className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                           distCalcMethod === "speed"
-                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-xs font-bold"
+                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-sm font-bold"
                             : "text-[#8E9BB0] hover:text-[#FFFFFF]"
                         }`}
                       >
@@ -926,7 +927,7 @@ export default function CalculadoraPage() {
                         onClick={() => setDistCalcMethod("pace")}
                         className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                           distCalcMethod === "pace"
-                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-xs font-bold"
+                            ? "bg-[#131A2E] text-[#B7F34A] border border-[#B7F34A]/30 shadow-sm font-bold"
                             : "text-[#8E9BB0] hover:text-[#FFFFFF]"
                         }`}
                       >

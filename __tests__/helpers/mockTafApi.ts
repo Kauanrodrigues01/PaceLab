@@ -22,6 +22,20 @@ export interface MockTafStore {
     | ((weekStart: string, store: MockTafStore) => WeeklyPlanData);
 }
 
+export type MockRequestInterceptor = (
+  url: string,
+  init: RequestInit | undefined,
+  defaultHandler: () => Promise<Response>
+) => Promise<Response>;
+
+export function createMockJsonResponse(payload: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => payload,
+  } as Response;
+}
+
 export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
   const store: MockTafStore = {
     goal: initialState?.goal ? { ...initialState.goal } : { ...DEFAULT_GOAL },
@@ -44,7 +58,9 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
     weeklyPlan: initialState?.weeklyPlan,
   };
 
-  const mockFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  let requestInterceptor: MockRequestInterceptor | null = null;
+
+  const handleDefaultRequest = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input.toString();
     const method = init?.method?.toUpperCase() || "GET";
 
@@ -60,6 +76,7 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
             database: "PostgreSQL",
             orm: "Prisma",
             latencyMs: 10,
+            sheetsConfigured: true,
           },
           timestamp: new Date().toISOString(),
         }),
@@ -100,6 +117,32 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
       const attemptId = matchId ? decodeURIComponent(matchId[1]) : null;
 
       if (method === "GET") {
+        if (attemptId) {
+          const found = store.attempts.find((a) => a.id === attemptId);
+          if (!found) {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({
+                success: false,
+                error: "Simulado não encontrado no banco de dados",
+                code: "NOT_FOUND",
+                timestamp: new Date().toISOString(),
+              }),
+            } as Response;
+          }
+
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              success: true,
+              data: found,
+              timestamp: new Date().toISOString(),
+            }),
+          } as Response;
+        }
+
         return {
           ok: true,
           status: 200,
@@ -158,7 +201,7 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
           status: 200,
           json: async () => ({
             success: true,
-            data: { success: true, deletedId: attemptId },
+            data: { deletedId: attemptId, deleted: true },
             timestamp: new Date().toISOString(),
           }),
         } as Response;
@@ -177,6 +220,7 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
           json: async () => ({
             success: false,
             error: "Parâmetros inválidos",
+            code: "VALIDATION_ERROR",
             timestamp: new Date().toISOString(),
           }),
         } as Response;
@@ -270,6 +314,7 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
               json: async () => ({
                 success: false,
                 error: "Treino não encontrado no banco de dados",
+                code: "NOT_FOUND",
                 timestamp: new Date().toISOString(),
               }),
             } as Response;
@@ -344,7 +389,7 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
           status: 200,
           json: async () => ({
             success: true,
-            data: { success: true, deletedId: trainingId },
+            data: { deletedId: trainingId, deleted: true },
             timestamp: new Date().toISOString(),
           }),
         } as Response;
@@ -410,7 +455,7 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
           status: 200,
           json: async () => ({
             success: true,
-            data: { success: true, deletedId: weightId },
+            data: { deletedId: weightId, deleted: true },
             timestamp: new Date().toISOString(),
           }),
         } as Response;
@@ -457,11 +502,15 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
       }
     }
 
-    return {
-      ok: true,
-      status: 200,
-      json: async () => ({}),
-    } as Response;
+    return createMockJsonResponse({}, 200);
+  };
+
+  const mockFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (requestInterceptor) {
+      return requestInterceptor(url, init, () => handleDefaultRequest(input, init));
+    }
+    return handleDefaultRequest(input, init);
   });
 
   global.fetch = mockFetch as unknown as typeof fetch;
@@ -469,5 +518,8 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
   return {
     store,
     mockFetch,
+    setRequestHandler: (handler: MockRequestInterceptor | null) => {
+      requestInterceptor = handler;
+    },
   };
 }

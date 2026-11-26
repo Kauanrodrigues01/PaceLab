@@ -958,7 +958,7 @@ describe("Fase 4 — Hooks de Sincronização em Tempo Real nas Rotas REST", () 
         new Request("http://localhost:3000/api/profile/weight/missing", { method: "DELETE" }),
         { params: { id: "missing" } }
       );
-      expect(notFoundDelRes.status).toBe(200);
+      expect(notFoundDelRes.status).toBe(404);
       expect(mockSyncProfileAndGoalToSheet).toHaveBeenCalledTimes(1);
 
       vi.mocked(prisma.weightRecord.findUnique).mockResolvedValueOnce(weightRecord as never);

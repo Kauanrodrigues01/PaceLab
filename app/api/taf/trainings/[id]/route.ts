@@ -1,9 +1,19 @@
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess, apiError } from "@/lib/api/response";
+import {
+  apiDeleted,
+  apiNotFound,
+  apiSuccess,
+  withApiHandler,
+} from "@/lib/api/response";
+import {
+  parseJsonBody,
+  parsePathId,
+  resolveDefinedUpdateFields,
+} from "@/lib/api/request";
 import {
   safeReconcileWeeklyPlans,
   shouldSkipSheetsSync,
-  syncRecordWithSheets,
+  syncTrainingRecordWithPlanAndSheets,
 } from "@/lib/api/sheetsSync";
 import {
   deleteTrainingSessionFromSheet,
@@ -21,12 +31,13 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   return withApiHandler(async () => {
+    const id = parsePathId(params);
     const session = await prisma.trainingSession.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!session) {
-      return apiError("Treino não encontrado no banco de dados", 404);
+      return apiNotFound("Treino não encontrado no banco de dados");
     }
 
     return apiSuccess(session);
@@ -38,101 +49,36 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   return withApiHandler(async () => {
-    const { id } = params;
+    const id = parsePathId(params);
     const skipSheetsSync = shouldSkipSheetsSync(request);
-    const body = await request.json();
-    const validated = UpdateTrainingSessionSchema.parse(body);
+    const { body, data: validated } = await parseJsonBody(
+      request,
+      UpdateTrainingSessionSchema
+    );
 
-    const hasRawField = (key: string) =>
-      Boolean(
-        body &&
-          typeof body === "object" &&
-          Object.prototype.hasOwnProperty.call(body, key) &&
-          (body as Record<string, unknown>)[key] !== undefined
-      );
+    const updateData = {
+      ...resolveDefinedUpdateFields(body, validated, {
+        sessionDate: (val) => new Date(val),
+        syncedToSheetsAt: (val) => (val ? new Date(val) : null),
+        notes: (val) => val || null,
+        splits: (val) => val || [],
+      }),
+      ...(validated.syncedToSheetsAt === undefined
+        ? { syncedToSheetsAt: null }
+        : {}),
+    };
 
     const updated = await prisma.trainingSession.update({
       where: { id },
-      data: {
-        ...(hasRawField("sessionDate") && validated.sessionDate
-          ? { sessionDate: new Date(validated.sessionDate) }
-          : {}),
-        ...(hasRawField("activityType") && validated.activityType
-          ? { activityType: validated.activityType }
-          : {}),
-        syncedToSheetsAt:
-          validated.syncedToSheetsAt !== undefined
-            ? validated.syncedToSheetsAt
-              ? new Date(validated.syncedToSheetsAt)
-              : null
-            : null,
-        ...(validated.distanceKm !== undefined ? { distanceKm: validated.distanceKm } : {}),
-        ...(validated.durationSeconds !== undefined
-          ? { durationSeconds: validated.durationSeconds }
-          : {}),
-        ...(validated.elapsedSeconds !== undefined
-          ? { elapsedSeconds: validated.elapsedSeconds }
-          : {}),
-        ...(validated.speedKmh !== undefined ? { speedKmh: validated.speedKmh } : {}),
-        ...(validated.paceSeconds !== undefined ? { paceSeconds: validated.paceSeconds } : {}),
-        ...(validated.paceFormatted !== undefined
-          ? { paceFormatted: validated.paceFormatted }
-          : {}),
-        ...(validated.avgHeartRate !== undefined
-          ? { avgHeartRate: validated.avgHeartRate }
-          : {}),
-        ...(validated.maxHeartRate !== undefined
-          ? { maxHeartRate: validated.maxHeartRate }
-          : {}),
-        ...(validated.elevationGainM !== undefined
-          ? { elevationGainM: validated.elevationGainM }
-          : {}),
-        ...(validated.avgCadence !== undefined
-          ? { avgCadence: validated.avgCadence }
-          : {}),
-        ...(hasRawField("shoeName") && validated.shoeName !== undefined
-          ? { shoeName: validated.shoeName }
-          : {}),
-        ...(validated.perceivedEffort !== undefined
-          ? { perceivedEffort: validated.perceivedEffort }
-          : {}),
-        ...(validated.bodyWeightKg !== undefined
-          ? { bodyWeightKg: validated.bodyWeightKg }
-          : {}),
-        ...(validated.notes !== undefined ? { notes: validated.notes || null } : {}),
-        ...(hasRawField("splits") && validated.splits !== undefined
-          ? { splits: validated.splits || [] }
-          : {}),
-        ...(validated.activeCalories !== undefined
-          ? { activeCalories: validated.activeCalories }
-          : {}),
-        ...(validated.totalCalories !== undefined
-          ? { totalCalories: validated.totalCalories }
-          : {}),
-        ...(validated.metValue !== undefined ? { metValue: validated.metValue } : {}),
-        ...(validated.calorieMethod !== undefined
-          ? { calorieMethod: validated.calorieMethod }
-          : {}),
-        ...(validated.calorieSource !== undefined
-          ? { calorieSource: validated.calorieSource }
-          : {}),
-        ...(validated.calorieMetadata !== undefined
-          ? { calorieMetadata: validated.calorieMetadata }
-          : {}),
-      },
+      data: updateData,
     });
 
-    await safeReconcileWeeklyPlans({ editedSessionId: id });
-
-    const syncedUpdated = await syncRecordWithSheets(
+    const syncedUpdated = await syncTrainingRecordWithPlanAndSheets(
       updated,
       () => syncTrainingSessionToSheet(updated),
-      { skip: skipSheetsSync }
+      () => pushWeeklyPlanStatusToSheets(),
+      { skipSheetsSync, editedSessionId: id }
     );
-
-    if (!skipSheetsSync) {
-      await safeAutoSync(() => pushWeeklyPlanStatusToSheets());
-    }
 
     return apiSuccess(syncedUpdated);
   });
@@ -143,7 +89,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   return withApiHandler(async () => {
-    const { id } = params;
+    const id = parsePathId(params);
     const skipSheetsSync = shouldSkipSheetsSync(request);
 
     await prisma.trainingSession.delete({
@@ -156,6 +102,6 @@ export async function DELETE(
       await safeAutoSync(() => pushWeeklyPlanStatusToSheets());
     }
 
-    return apiSuccess({ success: true, deletedId: id });
+    return apiDeleted(id);
   });
 }

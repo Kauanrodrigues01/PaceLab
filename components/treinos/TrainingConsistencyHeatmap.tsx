@@ -2,7 +2,12 @@
 
 import React, { useMemo } from "react";
 import { TrainingSession } from "@/types";
-import { parseSafeDate } from "@/lib/math/evolution";
+import {
+  formatShortDateFortaleza,
+  getTodayFortalezaDateKey,
+  shiftFortalezaDateKey,
+  toFortalezaDateKey,
+} from "@/lib/formatting/date";
 import { Flame, Trophy } from "lucide-react";
 
 interface TrainingConsistencyHeatmapProps {
@@ -18,17 +23,21 @@ interface DayData {
   sessions: TrainingSession[];
 }
 
+function getDayOfWeekFromDateKey(dateKey: string): number {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
+}
+
 export function TrainingConsistencyHeatmap({
   trainings,
   weeksCount = 12,
 }: TrainingConsistencyHeatmapProps) {
-  // Mapa de treinos por data (YYYY-MM-DD)
+  // Mapa de treinos por data civil em America/Fortaleza (YYYY-MM-DD)
   const trainingByDay = useMemo(() => {
     const map = new Map<string, { totalKm: number; sessions: TrainingSession[] }>();
     trainings.forEach((t) => {
-      const d = parseSafeDate(t.sessionDate);
-      if (!d) return;
-      const key = d.toISOString().split("T")[0];
+      const key = toFortalezaDateKey(t.sessionDate);
+      if (!key) return;
       const current = map.get(key) || { totalKm: 0, sessions: [] };
       current.totalKm += Number(t.distanceKm) || 0;
       current.sessions.push(t);
@@ -37,23 +46,22 @@ export function TrainingConsistencyHeatmap({
     return map;
   }, [trainings]);
 
-  // Gera a matriz das últimas `weeksCount` semanas
+  // Gera a matriz das últimas `weeksCount` semanas (sempre iniciando no Domingo em Fortaleza)
   const { weeks, totalDaysTrained, totalKmPeriod, currentStreak, maxStreak } = useMemo(() => {
-    const now = new Date();
-    // Começa no domingo da semana `weeksCount` atrás
-    const startDate = new Date(now);
-    startDate.setDate(now.getDate() - (weeksCount * 7) + (6 - now.getDay()));
-    startDate.setHours(0, 0, 0, 0);
+    const todayStr = getTodayFortalezaDateKey();
+    const todayDow = getDayOfWeekFromDateKey(todayStr); // 0=Dom..6=Sáb
+    const totalGridOffsetDays = (weeksCount - 1) * 7 + todayDow;
+    const startKey = shiftFortalezaDateKey(todayStr, -totalGridOffsetDays) ?? todayStr;
 
     const generatedWeeks: DayData[][] = [];
     let currentWeek: DayData[] = [];
     let daysTrained = 0;
     let kmSum = 0;
 
-    const pointer = new Date(startDate);
-    while (pointer <= now) {
-      const dateStr = pointer.toISOString().split("T")[0];
-      const dayData = trainingByDay.get(dateStr);
+    let pointerKey = startKey;
+    while (pointerKey <= todayStr) {
+      const dayOfWeek = getDayOfWeekFromDateKey(pointerKey);
+      const dayData = trainingByDay.get(pointerKey);
       const totalKm = dayData?.totalKm || 0;
       const sessionCount = dayData?.sessions.length || 0;
 
@@ -63,54 +71,50 @@ export function TrainingConsistencyHeatmap({
       }
 
       currentWeek.push({
-        dateStr,
-        dayOfWeek: pointer.getDay(),
+        dateStr: pointerKey,
+        dayOfWeek,
         totalKm,
         sessionCount,
         sessions: dayData?.sessions || [],
       });
 
-      if (pointer.getDay() === 6) {
+      if (dayOfWeek === 6) {
         generatedWeeks.push(currentWeek);
         currentWeek = [];
       }
 
-      pointer.setDate(pointer.getDate() + 1);
+      const nextKey = shiftFortalezaDateKey(pointerKey, 1);
+      if (!nextKey || nextKey <= pointerKey) break;
+      pointerKey = nextKey;
     }
 
     if (currentWeek.length > 0) {
       generatedWeeks.push(currentWeek);
     }
 
-    // Cálculo do Streak Atual e Maior Streak
-    // Ordena todas as datas únicas que tiveram treino
+    // Cálculo do Streak Atual e Maior Streak por dias civis exatos em UTC
     const sortedActiveDates = Array.from(trainingByDay.keys()).sort();
     let curStreak = 0;
     let highestStreak = 0;
     let runningStreak = 0;
-    let prevDate: Date | null = null;
+    let prevEpochDay: number | null = null;
 
     sortedActiveDates.forEach((dStr) => {
-      const d = new Date(dStr + "T00:00:00");
-      if (!prevDate) {
+      const [y, m, d] = dStr.split("-").map(Number);
+      const epochDay = Math.round(Date.UTC(y, m - 1, d) / 86_400_000);
+      if (prevEpochDay === null) {
         runningStreak = 1;
+      } else if (epochDay - prevEpochDay === 1) {
+        runningStreak++;
       } else {
-        const diffDays = Math.round((d.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays === 1) {
-          runningStreak++;
-        } else {
-          runningStreak = 1;
-        }
+        runningStreak = 1;
       }
       if (runningStreak > highestStreak) highestStreak = runningStreak;
-      prevDate = d;
+      prevEpochDay = epochDay;
     });
 
-    // Se treinou hoje ou ontem, streak continua ativo
-    const todayStr = now.toISOString().split("T")[0];
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    const yestStr = yesterday.toISOString().split("T")[0];
+    // Se treinou hoje ou ontem (em Fortaleza), streak continua ativo
+    const yestStr = shiftFortalezaDateKey(todayStr, -1) ?? todayStr;
 
     if (trainingByDay.has(todayStr) || trainingByDay.has(yestStr)) {
       curStreak = runningStreak;
@@ -131,7 +135,7 @@ export function TrainingConsistencyHeatmap({
     if (km === 0) return "bg-[#0B1020] border border-[#1E2942] text-transparent";
     if (km < 4) return "bg-[#B7F34A]/30 text-white";
     if (km < 8) return "bg-[#B7F34A]/70 text-[#0B1020]";
-    return "bg-[#B7F34A] text-[#0B1020] font-black shadow-xs shadow-[#B7F34A]/20";
+    return "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm shadow-[#B7F34A]/20";
   };
 
   const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -188,9 +192,9 @@ export function TrainingConsistencyHeatmap({
             <div key={wIdx} className="flex flex-col gap-1.5">
               {week.map((day) => {
                 const isTrained = day.totalKm > 0;
-                const formattedDate = new Date(day.dateStr + "T12:00:00").toLocaleDateString("pt-BR", {
-                  day: "2-digit",
-                  month: "short",
+                const formattedDate = formatShortDateFortaleza(day.dateStr, {
+                  fallback: day.dateStr,
+                  monthStyle: "short",
                 });
 
                 return (

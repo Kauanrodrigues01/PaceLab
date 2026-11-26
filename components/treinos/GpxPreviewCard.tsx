@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import { ActivityParsePreview } from "@/types";
+import { formatDateTimeFortaleza } from "@/lib/formatting/date";
 import { formatTime } from "@/lib/formatting/time";
 import { analyzeSplits } from "@/lib/math/splitsAnalysis";
 import { SplitsInsights } from "./SplitsInsights";
@@ -39,19 +40,10 @@ export function GpxPreviewCard({ preview }: GpxPreviewCardProps) {
       ? "Strava / Garmin .FIT (Oficial)"
       : "Strava .GPX (Fallback)";
 
-  const formattedDate = (() => {
-    try {
-      return new Date(preview.startedAt).toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch {
-      return preview.startedAt || "—";
-    }
-  })();
+  const formattedDate = formatDateTimeFortaleza(
+    preview.startedAt,
+    preview.startedAt || "—"
+  );
 
   const mismatchWarning = preview.warnings.find(
     (w) => w.code === "MISMATCHED_ACTIVITY_FILES"

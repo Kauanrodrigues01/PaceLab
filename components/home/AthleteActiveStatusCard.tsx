@@ -13,6 +13,13 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
+import {
+  formatCalendarDateFortaleza,
+  getDaysDifferenceFortaleza,
+  getTodayFortalezaDateKey,
+  shiftFortalezaDateKey,
+  toFortalezaDateKey,
+} from "@/lib/formatting/date";
 import { tafService } from "@/lib/services/tafService";
 import { profileService } from "@/lib/services/profileService";
 import { TafGoalConfig, TafAttempt, TrainingSession, UserProfile } from "@/types";
@@ -54,12 +61,12 @@ export function AthleteActiveStatusCard() {
 
         if (trainingsRes.status === "fulfilled" && Array.isArray(trainingsRes.value)) {
           const trainings: TrainingSession[] = trainingsRes.value;
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          const todayKey = getTodayFortalezaDateKey();
+          const sevenDaysAgoKey = shiftFortalezaDateKey(todayKey, -7) ?? todayKey;
 
           const recent = trainings.filter((t) => {
-            const d = new Date(t.sessionDate);
-            return d >= sevenDaysAgo;
+            const key = toFortalezaDateKey(t.sessionDate);
+            return key !== null && key >= sevenDaysAgoKey;
           });
 
           const totalCalories = recent.reduce((acc, t) => acc + (t.totalCalories || t.activeCalories || 0), 0);
@@ -82,16 +89,10 @@ export function AthleteActiveStatusCard() {
     };
   }, []);
 
-  // Contagem regressiva
-  let daysToExam: number | null = null;
-  if (goal?.targetExamDate) {
-    const examDate = new Date(goal.targetExamDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    examDate.setHours(0, 0, 0, 0);
-    const diffTime = examDate.getTime() - today.getTime();
-    daysToExam = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  }
+  // Contagem regressiva no calendário oficial de America/Fortaleza
+  const daysToExam = goal?.targetExamDate
+    ? getDaysDifferenceFortaleza(goal.targetExamDate)
+    : null;
 
   const minDistance = goal?.minDistanceMeters ?? 2400;
   const isApproved = latestAttempt ? latestAttempt.distanceMeters >= minDistance : false;
@@ -248,7 +249,7 @@ export function AthleteActiveStatusCard() {
               </div>
               <div className="text-[11px] text-[#8E9BB0] font-medium mt-1 truncate">
                 {goal?.targetExamDate
-                  ? new Date(goal.targetExamDate).toLocaleDateString("pt-BR")
+                  ? formatCalendarDateFortaleza(goal.targetExamDate, "Definida")
                   : "Definida"}
               </div>
             </div>

@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { apiSuccess, withApiHandler } from "@/lib/api/response";
+import { parseQueryParams } from "@/lib/api/request";
 import { WeeklyPlanQuerySchema } from "@/lib/validations/taf";
 import {
   calculateRollingFourWeeksAdherence,
@@ -118,10 +119,7 @@ function serializeTrainingSession(session: RawSessionRecord): TrainingSession {
 
 export async function GET(request: NextRequest | Request) {
   return withApiHandler(async () => {
-    const { searchParams } = new URL(request.url);
-    const parsedQuery = WeeklyPlanQuerySchema.parse({
-      weekStart: searchParams.get("weekStart")?.trim() || undefined,
-    });
+    const parsedQuery = parseQueryParams(request, WeeklyPlanQuerySchema);
 
     const currentWeekBounds = getFortalezaWeekBounds();
     const targetBounds = parsedQuery.weekStart

@@ -1,8 +1,21 @@
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess, apiConflict } from "@/lib/api/response";
+import { apiSuccess, withApiHandler } from "@/lib/api/response";
+import {
+  mergeDefinedFields,
+  parseJsonBody,
+  parseQueryParams,
+} from "@/lib/api/request";
+import {
+  buildCursorPaginatedResponse,
+  getCursorPaginationPrismaArgs,
+} from "@/lib/api/pagination";
+import {
+  buildDuplicateExternalIdResponse,
+  isPrismaUniqueConstraintError,
+} from "@/lib/api/externalIdConflict";
 import { shouldSkipSheetsSync, syncRecordWithSheets } from "@/lib/api/sheetsSync";
 import { syncTafAttemptToSheet } from "@/lib/googleSheets";
+import { resolvePaceMetricsFallback } from "@/lib/math/pace";
 import { CreateTafAttemptSchema, PaginationQuerySchema } from "@/lib/validations/taf";
 
 export const dynamic = "force-dynamic";
@@ -10,53 +23,31 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   return withApiHandler(async () => {
-    const { searchParams } = new URL(request.url);
-    const queryParams: Record<string, string> = {};
-    const limitParam = searchParams.get("limit")?.trim();
-    const cursorParam = searchParams.get("cursor")?.trim();
-    if (limitParam) queryParams.limit = limitParam;
-    if (cursorParam) queryParams.cursor = cursorParam;
-
-    const { limit, cursor } = PaginationQuerySchema.parse(queryParams);
+    const { limit, cursor } = parseQueryParams(request, PaginationQuerySchema);
 
     const items = await prisma.tafAttempt.findMany({
-      take: limit + 1,
-      skip: cursor ? 1 : 0,
-      cursor: cursor ? { id: cursor } : undefined,
+      ...getCursorPaginationPrismaArgs(limit, cursor),
       orderBy: { testDate: "desc" },
     });
 
-    const hasMore = items.length > limit;
-    const paginatedItems = hasMore ? items.slice(0, limit) : items;
-    const nextCursor =
-      hasMore && paginatedItems.length > 0
-        ? paginatedItems[paginatedItems.length - 1].id
-        : null;
-
-    return apiSuccess(paginatedItems, 200, {
-      limit,
-      nextCursor,
-      hasMore,
-    });
+    return buildCursorPaginatedResponse(items, limit);
   });
 }
 
 export async function POST(request: Request) {
   return withApiHandler(async () => {
     const skipSheetsSync = shouldSkipSheetsSync(request);
-    const body = await request.json();
-    const validated = CreateTafAttemptSchema.parse(body);
+    const { body, data: validated } = await parseJsonBody(
+      request,
+      CreateTafAttemptSchema
+    );
 
     const distanceKm = validated.distanceMeters / 1000;
-    const speedKmh =
-      validated.speedKmh ??
-      Number((distanceKm / (validated.actualDurationSeconds / 3600)).toFixed(2));
-    const paceSeconds =
-      validated.paceSeconds ??
-      Math.round(validated.actualDurationSeconds / distanceKm);
-    const paceFormatted =
-      validated.paceFormatted ??
-      `${Math.floor(paceSeconds / 60)}:${String(paceSeconds % 60).padStart(2, "0")}`;
+    const { speedKmh, paceSeconds, paceFormatted } = resolvePaceMetricsFallback(
+      validated,
+      distanceKm,
+      validated.actualDurationSeconds
+    );
 
     const attemptData = {
       userId: validated.userId || null,
@@ -82,12 +73,6 @@ export async function POST(request: Request) {
       laps: validated.laps || [],
     };
 
-    const conflictLabel =
-      attemptData.source === "fit_upload" ||
-      validated.externalId?.startsWith("fit_")
-        ? ".FIT"
-        : ".GPX";
-
     if (validated.externalId) {
       const existing = await prisma.tafAttempt.findUnique({
         where: { externalId: validated.externalId },
@@ -95,35 +80,35 @@ export async function POST(request: Request) {
 
       if (existing) {
         if (validated.onDuplicate !== "update") {
-          return apiConflict(`Este arquivo ${conflictLabel} já foi importado`, {
-            existingId: existing.id,
-          });
+          return buildDuplicateExternalIdResponse(
+            attemptData.source,
+            validated.externalId,
+            existing.id
+          );
         }
 
-        const hasRawField = (key: string) =>
-          Boolean(
-            body &&
-              typeof body === "object" &&
-              Object.prototype.hasOwnProperty.call(body, key) &&
-              (body as Record<string, unknown>)[key] !== undefined
-          );
+        const updatePayload = mergeDefinedFields(
+          body,
+          attemptData,
+          existing as Record<string, unknown>,
+          [
+            "userId",
+            "syncedToSheetsAt",
+            "testDate",
+            "targetDurationSeconds",
+            "locationType",
+            "shoeName",
+            "avgHeartRate",
+            "maxHeartRate",
+            "notes",
+            "laps",
+          ],
+          { laps: [] }
+        );
 
         const updated = await prisma.tafAttempt.update({
           where: { id: existing.id },
-          data: {
-            ...attemptData,
-            testDate: hasRawField("testDate")
-              ? attemptData.testDate
-              : existing.testDate,
-            locationType: hasRawField("locationType")
-              ? attemptData.locationType
-              : existing.locationType,
-            notes: hasRawField("notes") ? attemptData.notes : existing.notes,
-            shoeName: hasRawField("shoeName")
-              ? attemptData.shoeName
-              : existing.shoeName,
-            laps: hasRawField("laps") ? attemptData.laps : (existing.laps ?? []),
-          },
+          data: updatePayload as typeof attemptData,
         });
 
         const syncedUpdated = await syncRecordWithSheets(
@@ -158,18 +143,15 @@ export async function POST(request: Request) {
 
       return apiSuccess(syncedCreated, 201);
     } catch (err) {
-      if (
-        validated.externalId &&
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-      ) {
+      if (validated.externalId && isPrismaUniqueConstraintError(err)) {
         const raceExisting = await prisma.tafAttempt
           .findUnique({ where: { externalId: validated.externalId } })
           .catch(() => null);
-        return apiConflict(`Este arquivo ${conflictLabel} já foi importado`, {
-          ...(raceExisting?.id ? { existingId: raceExisting.id } : {}),
-          code: "DUPLICATE_EXTERNAL_ID",
-        });
+        return buildDuplicateExternalIdResponse(
+          attemptData.source,
+          validated.externalId,
+          raceExisting?.id
+        );
       }
       throw err;
     }

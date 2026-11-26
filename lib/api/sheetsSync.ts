@@ -63,3 +63,30 @@ export async function syncRecordWithSheets<
     ? { ...record, syncedToSheetsAt: syncedAt }
     : record;
 }
+
+/**
+ * Executa o ciclo completo pós-mutação de `TrainingSession`: reconcilia `Plano_Semanal`,
+ * sincroniza a sessão com `Log_Treinos` e propaga o status atualizado do plano para o Sheets.
+ */
+export async function syncTrainingRecordWithPlanAndSheets<
+  TRecord extends { syncedToSheetsAt?: Date | null },
+>(
+  record: TRecord,
+  syncSessionFn: () => Promise<SingleSyncResult>,
+  pushWeeklyPlanFn: () => Promise<unknown>,
+  options: { skipSheetsSync: boolean; editedSessionId?: string }
+): Promise<TRecord> {
+  await safeReconcileWeeklyPlans(
+    options.editedSessionId ? { editedSessionId: options.editedSessionId } : undefined
+  );
+
+  const syncedRecord = await syncRecordWithSheets(record, syncSessionFn, {
+    skip: options.skipSheetsSync,
+  });
+
+  if (!options.skipSheetsSync) {
+    await safeAutoSync(pushWeeklyPlanFn);
+  }
+
+  return syncedRecord;
+}

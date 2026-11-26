@@ -56,7 +56,7 @@ export function TrackWorkoutCardModal({
   return (
     <div
       data-testid="track-workout-card-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0B1020]/90 backdrop-blur-md animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0B1020]/90 backdrop-blur-md animate-fade-in"
     >
       <div className="bg-[#0B1020] border border-[#1E2942] text-white w-full max-w-lg rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
         {/* Cabeçalho */}

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { apiSuccess, withApiHandler } from "@/lib/api/response";
+import { parseJsonBody } from "@/lib/api/request";
 import { safeAutoSync, syncProfileAndGoalToSheet } from "@/lib/googleSheets";
 import { UserProfileInputSchema } from "@/lib/validations/taf";
 
@@ -41,8 +42,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   return withApiHandler(async () => {
-    const body = await request.json();
-    const validated = UserProfileInputSchema.parse(body);
+    const { data: validated } = await parseJsonBody(request, UserProfileInputSchema);
 
     let profile = await prisma.userProfile.findFirst();
 

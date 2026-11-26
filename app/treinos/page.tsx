@@ -11,9 +11,10 @@ import {
   getSheetsSyncErrorMessage,
 } from "@/lib/sheetsSyncUi";
 import { formatPace } from "@/lib/formatting/time";
+import { getTodayFortalezaDateKey, toFortalezaDateKey } from "@/lib/formatting/date";
 import { parseSafeDate } from "@/lib/math/evolution";
-import { TrainingForm } from "@/components/meu-taf/TrainingForm";
-import { TrainingList } from "@/components/meu-taf/TrainingList";
+import { TrainingForm } from "@/components/treinos/TrainingForm";
+import { TrainingList } from "@/components/treinos/TrainingList";
 import { GpxImportPanel } from "@/components/treinos/GpxImportPanel";
 import { TrainingDetailModal } from "@/components/treinos/TrainingDetailModal";
 import { TrainingEvolutionDashboard } from "@/components/treinos/TrainingEvolutionDashboard";
@@ -413,7 +414,7 @@ export default function TreinosPage() {
     let todayActiveCalories = 0;
     let monthActiveCalories = 0;
 
-    const nowDateString = new Date().toDateString();
+    const todayKey = getTodayFortalezaDateKey();
 
     trainings.forEach((t) => {
       const parsedDate = parseSafeDate(t.sessionDate);
@@ -421,8 +422,8 @@ export default function TreinosPage() {
       const diff = now - time;
       const actCalories = t.activeCalories || 0;
 
-      // Hoje
-      if (parsedDate && parsedDate.toDateString() === nowDateString) {
+      // Hoje no calendário oficial de America/Fortaleza
+      if (parsedDate && toFortalezaDateKey(parsedDate) === todayKey) {
         todayActiveCalories += actCalories;
       }
 
@@ -479,8 +480,8 @@ export default function TreinosPage() {
           data-testid="toast-notification"
           className={`fixed top-4 right-4 z-50 max-w-[calc(100vw-2rem)] flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold border transition-all ${
             notification.type === "success"
-              ? "bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800"
-              : "bg-red-50 dark:bg-red-950/90 text-red-800 dark:text-red-200 border-red-200 dark:border-red-800"
+              ? "bg-emerald-950/90 text-emerald-200 border-emerald-800"
+              : "bg-red-950/90 text-red-200 border-red-800"
           }`}
         >
           {notification.type === "success" ? (
@@ -498,7 +499,7 @@ export default function TreinosPage() {
               }
               setNotification(null);
             }}
-            className="text-slate-400 hover:text-slate-600 ml-2"
+            className="text-[#8E9BB0] hover:text-[#FFFFFF] ml-2"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -578,7 +579,7 @@ export default function TreinosPage() {
                 setIsFormOpen(true);
               }
             }}
-            className={`inline-flex items-center justify-center font-bold transition-all duration-150 select-none active:scale-[0.98] border text-xs px-3.5 py-2.5 rounded-xl gap-1.5 cursor-pointer shadow-2xs ${
+            className={`inline-flex items-center justify-center font-bold transition-all duration-150 select-none active:scale-[0.98] border text-xs px-3.5 py-2.5 rounded-xl gap-1.5 cursor-pointer shadow-sm ${
               activeTab === "diario" &&
               isFormOpen &&
               !editingTraining &&
@@ -596,7 +597,7 @@ export default function TreinosPage() {
             data-testid="sync-sheets-btn"
             onClick={handleSyncSheets}
             disabled={isSyncingSheets}
-            className="inline-flex items-center justify-center font-bold transition-all duration-150 select-none active:scale-[0.98] border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-950/60 text-emerald-300 text-xs px-3.5 py-2.5 rounded-xl gap-1.5 cursor-pointer shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center font-bold transition-all duration-150 select-none active:scale-[0.98] border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-950/60 text-emerald-300 text-xs px-3.5 py-2.5 rounded-xl gap-1.5 cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <RefreshCw
               className={`w-3.5 h-3.5 ${isSyncingSheets ? "animate-spin" : ""}`}
@@ -608,14 +609,14 @@ export default function TreinosPage() {
 
           <Link
             href="/calculadora"
-            className="inline-flex items-center justify-center font-medium transition-all duration-150 select-none active:scale-[0.98] border border-[#1E2942] bg-[#0B1020] hover:bg-[#1E2942] text-white text-xs px-3 py-2 rounded-xl gap-1.5 cursor-pointer shadow-2xs"
+            className="inline-flex items-center justify-center font-medium transition-all duration-150 select-none active:scale-[0.98] border border-[#1E2942] bg-[#0B1020] hover:bg-[#1E2942] text-white text-xs px-3 py-2 rounded-xl gap-1.5 cursor-pointer shadow-sm"
           >
             <Calculator className="w-3.5 h-3.5 text-[#B7F34A]" />
             <span>Calculadoras</span>
           </Link>
           <Link
             href="/meu-taf"
-            className="inline-flex items-center justify-center font-medium transition-all duration-150 select-none active:scale-[0.98] border border-[#1E2942] bg-[#0B1020] hover:bg-[#1E2942] text-white text-xs px-3 py-2 rounded-xl gap-1.5 cursor-pointer shadow-2xs"
+            className="inline-flex items-center justify-center font-medium transition-all duration-150 select-none active:scale-[0.98] border border-[#1E2942] bg-[#0B1020] hover:bg-[#1E2942] text-white text-xs px-3 py-2 rounded-xl gap-1.5 cursor-pointer shadow-sm"
           >
             <Trophy className="w-3.5 h-3.5 text-amber-400" />
             <span>Meu TAF</span>
@@ -709,7 +710,7 @@ export default function TreinosPage() {
             {/* 1. Volume Semanal */}
             <div
               data-testid="kpi-weekly-volume"
-              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
+              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm"
             >
               <div className="flex items-center gap-2 text-xs font-semibold text-[#8E9BB0] mb-1">
                 <Activity className="w-3.5 h-3.5 text-[#B7F34A]" />
@@ -735,7 +736,7 @@ export default function TreinosPage() {
             {/* 2. Volume Mensal */}
             <div
               data-testid="kpi-monthly-volume"
-              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
+              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm"
             >
               <div className="flex items-center gap-2 text-xs font-semibold text-[#8E9BB0] mb-1">
                 <TrendingUp className="w-3.5 h-3.5 text-[#B7F34A]" />
@@ -750,7 +751,7 @@ export default function TreinosPage() {
             {/* 3. Gasto Calórico Semanal (Fase 5) */}
             <div
               data-testid="kpi-weekly-calories"
-              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
+              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm"
             >
               <div className="flex items-center gap-2 text-xs font-semibold text-[#8E9BB0] mb-1">
                 <Flame className="w-3.5 h-3.5 text-amber-400" />
@@ -780,7 +781,7 @@ export default function TreinosPage() {
             {/* 4. Pace Médio da Semana */}
             <div
               data-testid="kpi-avg-pace"
-              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs"
+              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm"
             >
               <div className="flex items-center gap-2 text-xs font-semibold text-[#8E9BB0] mb-1">
                 <Clock className="w-3.5 h-3.5 text-[#B7F34A]" />
@@ -795,7 +796,7 @@ export default function TreinosPage() {
             {/* 5. Média de Esforço (RPE) */}
             <div
               data-testid="kpi-avg-rpe"
-              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-xs col-span-2 lg:col-span-1"
+              className="p-4 sm:p-5 rounded-3xl bg-[#131A2E] border border-[#1E2942] shadow-sm col-span-2 lg:col-span-1"
             >
               <div className="flex items-center gap-2 text-xs font-semibold text-[#8E9BB0] mb-1">
                 <HeartPulse className="w-3.5 h-3.5 text-rose-400" />
@@ -823,7 +824,7 @@ export default function TreinosPage() {
 
           {/* Formulário de Registro / Importação / Edição (exibido quando aberto ou editando) */}
           {isFormOpen && (
-            <div className="pt-2 space-y-3 animate-in fade-in slide-in-from-top-4 duration-200">
+            <div className="pt-2 space-y-3 animate-fade-in">
               {!editingTraining && (
                 <div
                   role="tablist"
@@ -839,7 +840,7 @@ export default function TreinosPage() {
                     onClick={() => setFormMode("manual")}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                       formMode === "manual"
-                        ? "bg-[#B7F34A] text-[#0B1020] shadow-xs"
+                        ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
                         : "text-[#8E9BB0] hover:text-white"
                     }`}
                   >
@@ -854,7 +855,7 @@ export default function TreinosPage() {
                     onClick={() => setFormMode("import")}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                       formMode === "import"
-                        ? "bg-orange-500 text-white shadow-xs"
+                        ? "bg-orange-500 text-white shadow-sm"
                         : "text-[#8E9BB0] hover:text-white"
                     }`}
                   >

@@ -38,7 +38,7 @@ export function PaceBarChart({
   if (!mounted || !data || data.length === 0) {
     return (
       <div
-        className={`h-56 w-full flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-400 ${className}`}
+        className={`h-56 w-full flex items-center justify-center rounded-xl bg-[#0B1020] border border-[#1E2942] text-xs text-[#8E9BB0] ${className}`}
       >
         Nenhum dado para exibir no gráfico
       </div>
@@ -76,7 +76,7 @@ export function PaceBarChart({
               if (active && payload && payload.length) {
                 const item = payload[0].payload as PaceChartDataPoint;
                 return (
-                  <div className="bg-slate-900 text-white text-xs px-3 py-2 rounded-lg shadow-lg border border-slate-700">
+                  <div className="bg-[#131A2E] text-[#FFFFFF] text-xs px-3 py-2 rounded-lg shadow-lg border border-[#1E2942]">
                     <p className="font-bold">{item.label}</p>
                     <p className="text-blue-400 font-semibold mt-0.5">
                       Pace: {item.formatted || formatPace(item.paceSeconds)} min/km

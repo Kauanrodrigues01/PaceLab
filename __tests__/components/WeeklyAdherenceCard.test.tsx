@@ -10,7 +10,7 @@ import "@testing-library/jest-dom";
 
 import { WeeklyAdherenceCard } from "@/components/dashboard/WeeklyAdherenceCard";
 import { getFortalezaWeekBounds, shiftFortalezaDays } from "@/lib/math/weeklyAdherence";
-import { setupMockTafApi } from "@/test/helpers/mockTafApi";
+import { createMockJsonResponse, setupMockTafApi } from "@/__tests__/helpers/mockTafApi";
 import type { TrainingSession, WeeklyPlanData } from "@/types";
 
 function makeSession(overrides: Partial<TrainingSession> = {}): TrainingSession {
@@ -451,18 +451,11 @@ describe("WeeklyAdherenceCard (Fase 5)", () => {
 
     // Erro de API quando sem dados em memória exibe botão Tentar novamente e recupera
     sessionStorage.clear();
-    const errorFetch = vi
-      .fn()
+    mockFetch
       .mockRejectedValueOnce(new Error("Falha temporária"))
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          success: true,
-          data: makePlanData(),
-        }),
-      } as Response);
-    global.fetch = errorFetch as typeof fetch;
+      .mockResolvedValueOnce(
+        createMockJsonResponse({ success: true, data: makePlanData() })
+      );
 
     render(<WeeklyAdherenceCard refreshTrigger={0} />);
 

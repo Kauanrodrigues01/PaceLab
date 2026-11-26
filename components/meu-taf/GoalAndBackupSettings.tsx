@@ -12,6 +12,12 @@ import {
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import { formatTime } from "@/lib/formatting/time";
 import {
+  getDaysDifferenceFortaleza,
+  getTodayFortalezaDateKey,
+  toFortalezaCalendarDateKey,
+  toFortalezaNoonIso,
+} from "@/lib/formatting/date";
+import {
   Target,
   Database,
   Download,
@@ -48,14 +54,16 @@ export function GoalAndBackupSettings({
   // Estado da Meta
   const [distanceMeters, setDistanceMeters] = useState(goal.targetDistanceMeters || 2300);
   const [durationMinutes, setDurationMinutes] = useState(goal.targetDurationMinutes || 12);
-  const [examDate, setExamDate] = useState(goal.targetExamDate || "");
+  const [examDate, setExamDate] = useState(
+    () => toFortalezaCalendarDateKey(goal.targetExamDate) || ""
+  );
   const [isSavingGoal, setIsSavingGoal] = useState(false);
 
   // Sincroniza campos locais quando a meta externa é atualizada (ex.: sync com Sheets ou restore)
   useEffect(() => {
     setDistanceMeters(goal.targetDistanceMeters || 2300);
     setDurationMinutes(goal.targetDurationMinutes || 12);
-    setExamDate(goal.targetExamDate || "");
+    setExamDate(toFortalezaCalendarDateKey(goal.targetExamDate) || "");
   }, [goal.targetDistanceMeters, goal.targetDurationMinutes, goal.targetExamDate]);
 
   // Status do Banco
@@ -168,16 +176,8 @@ export function GoalAndBackupSettings({
     }
   }
 
-  // Contagem regressiva para a data da prova
-  let daysUntilExam: number | null = null;
-  if (examDate) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const [y, m, d] = examDate.split("-").map(Number);
-    const exam = new Date(y, m - 1, d);
-    const diff = exam.getTime() - today.getTime();
-    daysUntilExam = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  }
+  // Contagem regressiva para a data da prova em Fortaleza
+  const daysUntilExam = examDate ? getDaysDifferenceFortaleza(examDate) : null;
 
   // Salvar Meta
   const handleSaveGoal = async (e: React.FormEvent) => {
@@ -189,10 +189,11 @@ export function GoalAndBackupSettings({
 
     setIsSavingGoal(true);
     try {
+      const trimmedExamDate = examDate.trim();
       const updated: TafGoalConfig = {
         targetDistanceMeters: distanceMeters,
         targetDurationMinutes: durationMinutes,
-        targetExamDate: examDate.trim() || undefined,
+        targetExamDate: trimmedExamDate ? toFortalezaNoonIso(trimmedExamDate) : undefined,
       };
 
       const saved = await tafService.saveGoal(updated);
@@ -231,7 +232,7 @@ export function GoalAndBackupSettings({
       const blob = new Blob([jsonStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const dateStr = new Date().toISOString().slice(0, 10);
+      const dateStr = getTodayFortalezaDateKey();
       a.href = url;
       a.download = `pacelab-backup-${dateStr}.json`;
       a.click();
@@ -249,7 +250,7 @@ export function GoalAndBackupSettings({
       const blob = new Blob(["\uFEFF" + csvStr], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const dateStr = new Date().toISOString().slice(0, 10);
+      const dateStr = getTodayFortalezaDateKey();
       a.href = url;
       a.download = `pacelab-simulados-taf-${dateStr}.csv`;
       a.click();
@@ -267,7 +268,7 @@ export function GoalAndBackupSettings({
       const blob = new Blob(["\uFEFF" + csvStr], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const dateStr = new Date().toISOString().slice(0, 10);
+      const dateStr = getTodayFortalezaDateKey();
       a.href = url;
       a.download = `pacelab-treinos-${dateStr}.csv`;
       a.click();

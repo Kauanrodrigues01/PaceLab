@@ -3,15 +3,21 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MeuTafPage from "@/app/meu-taf/page";
 import { tafService, TafApiError } from "@/lib/services/tafService";
-import { setupMockTafApi } from "@/test/helpers/mockTafApi";
+import { createMockJsonResponse, setupMockTafApi } from "@/__tests__/helpers/mockTafApi";
+import {
+  getTodayFortalezaDateKey,
+  shiftFortalezaDateKey,
+} from "@/lib/formatting/date";
 
 describe("MeuTafPage - Fase F (Comparador de Períodos & Configuração de Meta / Backup)", () => {
+  let mockApi: ReturnType<typeof setupMockTafApi>;
+
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
     vi.restoreAllMocks();
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
-    setupMockTafApi();
+    mockApi = setupMockTafApi();
     URL.createObjectURL = vi.fn(() => "blob:mock-url");
     URL.revokeObjectURL = vi.fn();
   });
@@ -60,16 +66,9 @@ describe("MeuTafPage - Fase F (Comparador de Períodos & Configuração de Meta 
 
     it("calcula deltas comparativos corretamente quando há treinos e simulados nos dois períodos", async () => {
       const user = userEvent.setup();
-      const now = new Date();
-      const todayStr = now.toISOString().slice(0, 10);
-
-      const d10 = new Date(now);
-      d10.setDate(now.getDate() - 10);
-      const date10Ago = d10.toISOString().slice(0, 10);
-
-      const d40 = new Date(now);
-      d40.setDate(now.getDate() - 40);
-      const date40Ago = d40.toISOString().slice(0, 10);
+      const todayStr = getTodayFortalezaDateKey();
+      const date10Ago = shiftFortalezaDateKey(todayStr, -10) ?? todayStr;
+      const date40Ago = shiftFortalezaDateKey(todayStr, -40) ?? todayStr;
 
       // Período A (anterior: ~40 dias atrás): 3 treinos
       await tafService.saveTraining({
@@ -285,21 +284,12 @@ describe("MeuTafPage - Fase F (Comparador de Períodos & Configuração de Meta 
       const tabConfig = await screen.findByRole("button", { name: /Meta & Banco/i });
       await user.click(tabConfig);
 
-      // Simula falha na rota de health
-      global.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : input.toString();
+      // Simula falha na rota de health preservando o restante do mock
+      mockApi.setRequestHandler(async (url, _init, fallback) => {
         if (url.includes("/api/taf/health")) {
-          return {
-            ok: false,
-            status: 503,
-            json: async () => ({ status: "error", error: "Database offline" }),
-          } as Response;
+          return createMockJsonResponse({ status: "error", error: "Database offline" }, 503);
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({}),
-        } as Response;
+        return fallback();
       });
 
       const testDbBtn = screen.getByRole("button", { name: /Testar Conexão/i });

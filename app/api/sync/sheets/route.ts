@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { apiError, apiSuccess, ApiResponse, withApiHandler } from "@/lib/api/response";
+import {
+  apiError,
+  apiServiceUnavailable,
+  apiSuccess,
+  ApiResponse,
+  withApiHandler,
+} from "@/lib/api/response";
+import { parseOptionalJsonBody } from "@/lib/api/request";
 import { getGoogleSheetsEnvConfig } from "@/lib/env";
 import {
   extractGoogleApiStatus,
@@ -72,26 +79,18 @@ export async function GET() {
 
 export async function POST(request: Request) {
   return withApiHandler(async () => {
-    const rawText = await request.text();
-    let rawBody: unknown = {};
-
-    if (rawText.trim().length > 0) {
-      try {
-        rawBody = JSON.parse(rawText);
-      } catch {
-        return apiError("Corpo da requisição JSON inválido.", 400);
-      }
-    }
-
-    const validated = SheetsSyncRequestSchema.parse(rawBody);
+    const { data: validated } = await parseOptionalJsonBody(
+      request,
+      SheetsSyncRequestSchema
+    );
     const envConfig = getGoogleSheetsEnvConfig();
 
     if (!envConfig.isConfigured) {
-      return apiError(
+      return apiServiceUnavailable(
         envConfig.error ||
           "Integração com Google Sheets não configurada. Defina GOOGLE_SHEETS_SPREADSHEET_ID e GOOGLE_CREDENTIALS_BASE64 conforme o README.md.",
-        503,
-        { code: "SHEETS_NOT_CONFIGURED" }
+        { code: "SHEETS_NOT_CONFIGURED" },
+        "SHEETS_NOT_CONFIGURED"
       );
     }
 

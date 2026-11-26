@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Footer } from "@/components/layout/Footer";
@@ -43,16 +42,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" className="dark">
       <body
-        className={`${inter.variable} font-sans antialiased min-h-screen bg-slate-50 dark:bg-[#0B1020] text-slate-900 dark:text-[#FFFFFF] flex flex-col`}
+        className={`${inter.variable} font-sans antialiased min-h-screen bg-[#0B1020] text-[#FFFFFF] flex flex-col`}
       >
-        <ThemeProvider>
-          <Navbar />
-          <div className="flex-1 pb-20 md:pb-8">{children}</div>
-          <Footer />
-          <BottomNav />
-        </ThemeProvider>
+        <Navbar />
+        <div className="flex-1 pb-20 md:pb-8">{children}</div>
+        <Footer />
+        <BottomNav />
       </body>
     </html>
   );

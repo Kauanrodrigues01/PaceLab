@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { analyzeSplits } from "@/lib/math/splitsAnalysis";
@@ -8,19 +8,9 @@ import { SplitsTable } from "@/components/treinos/SplitsTable";
 import { SplitsPaceChart } from "@/components/treinos/SplitsPaceChart";
 import { TrainingDetailModal } from "@/components/treinos/TrainingDetailModal";
 import { GpxPreviewCard } from "@/components/treinos/GpxPreviewCard";
-import { TrainingCard } from "@/components/meu-taf/TrainingCard";
-import { TrainingList } from "@/components/meu-taf/TrainingList";
+import { TrainingCard } from "@/components/treinos/TrainingCard";
+import { TrainingList } from "@/components/treinos/TrainingList";
 import { ACTIVITY_TYPES, ActivityParsePreview, SplitDetail, TrainingSession } from "@/types";
-
-beforeAll(() => {
-  if (typeof globalThis.ResizeObserver === "undefined") {
-    globalThis.ResizeObserver = class ResizeObserver {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    };
-  }
-});
 
 const richSplits: SplitDetail[] = [
   {

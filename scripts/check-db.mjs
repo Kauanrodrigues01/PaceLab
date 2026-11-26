@@ -77,7 +77,7 @@ async function runCheck() {
       console.log("✔ Tabelas detectadas e sincronizadas:");
       console.log(`  ├── taf_goals: ${goalsCount} registro(s)`);
       console.log(`  ├── taf_attempts: ${attemptsCount} simulado(s) de 12 min`);
-      console.log(`  └── taf_trainings: ${trainingsCount} treino(s) registrado(s)`);
+      console.log(`  └── training_sessions: ${trainingsCount} treino(s) registrado(s)`);
     }
 
     console.log("\n=======================================================");

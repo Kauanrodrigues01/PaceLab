@@ -2,7 +2,7 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { WeeklyWeightModal } from "@/components/profile/WeeklyWeightModal";
-import { setupMockTafApi } from "@/test/helpers/mockTafApi";
+import { setupMockTafApi } from "@/__tests__/helpers/mockTafApi";
 import { DISMISSED_PROMPT_KEY } from "@/lib/services/profileService";
 
 describe("WeeklyWeightModal Component", () => {

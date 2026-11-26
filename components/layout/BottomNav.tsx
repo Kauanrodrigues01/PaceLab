@@ -25,7 +25,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Navegação móvel"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0B1020]/95 backdrop-blur-md border-t border-slate-200 dark:border-[#1E2942] px-2 py-1.5 shadow-lg safe-area-bottom"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B1020]/95 backdrop-blur-md border-t border-[#1E2942] px-2 py-1.5 shadow-lg safe-area-bottom"
     >
       <div className="grid grid-cols-5 max-w-md mx-auto gap-1">
         {mobileNavItems.map((item) => {
@@ -43,21 +43,21 @@ export function BottomNav() {
               className={`flex flex-col items-center justify-center py-1 px-1 rounded-2xl text-[11px] transition-all ${
                 isActive
                   ? isHighlight
-                    ? "text-lime-600 dark:text-[#B7F34A] font-black"
-                    : "text-lime-600 dark:text-[#B7F34A] font-bold"
+                    ? "text-[#B7F34A] font-black"
+                    : "text-[#B7F34A] font-bold"
                   : isHighlight
-                  ? "text-lime-700 dark:text-[#B7F34A] font-bold"
-                  : "text-slate-500 dark:text-[#8E9BB0] hover:text-slate-800 dark:hover:text-[#FFFFFF]"
+                  ? "text-[#B7F34A] font-bold"
+                  : "text-[#8E9BB0] hover:text-[#FFFFFF]"
               }`}
             >
               <div
                 className={`p-1.5 rounded-xl transition-all ${
                   isActive
                     ? isHighlight
-                      ? "bg-lime-400 dark:bg-[#B7F34A] text-slate-950 dark:text-[#0B1020] shadow-xs"
-                      : "bg-lime-100 dark:bg-[#B7F34A]/20 text-lime-700 dark:text-[#B7F34A]"
+                      ? "bg-[#B7F34A] text-[#0B1020] shadow-sm"
+                      : "bg-[#B7F34A]/20 text-[#B7F34A]"
                     : isHighlight
-                    ? "bg-lime-500/10 dark:bg-[#B7F34A]/10 text-lime-700 dark:text-[#B7F34A]"
+                    ? "bg-[#B7F34A]/10 text-[#B7F34A]"
                     : ""
                 }`}
               >

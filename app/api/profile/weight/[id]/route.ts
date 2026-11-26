@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { withApiHandler, apiSuccess } from "@/lib/api/response";
+import { apiDeleted, apiNotFound, withApiHandler } from "@/lib/api/response";
+import { parsePathId } from "@/lib/api/request";
 import { safeAutoSync, syncProfileAndGoalToSheet } from "@/lib/googleSheets";
 
 export const dynamic = "force-dynamic";
@@ -10,21 +11,20 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   return withApiHandler(async () => {
-    const { id } = params;
+    const id = parsePathId(params);
 
     const record = await prisma.weightRecord.findUnique({
       where: { id },
     });
 
     if (!record) {
-      return apiSuccess({ success: true, deletedId: id });
+      return apiNotFound("Registro de pesagem não encontrado no banco de dados");
     }
 
     await prisma.weightRecord.delete({
       where: { id },
     });
 
-    // Se houver perfil vinculado, verificar se o peso atual precisa ser recalculado
     const profile = await prisma.userProfile.findUnique({
       where: { id: record.profileId },
     });
@@ -45,6 +45,6 @@ export async function DELETE(
 
     await safeAutoSync(() => syncProfileAndGoalToSheet());
 
-    return apiSuccess({ success: true, deletedId: id });
+    return apiDeleted(id);
   });
 }

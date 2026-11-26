@@ -2,7 +2,7 @@ import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TrainingList } from "@/components/meu-taf/TrainingList";
+import { TrainingList } from "@/components/treinos/TrainingList";
 import { TrainingSession } from "@/types";
 
 const mockTrainings: TrainingSession[] = [

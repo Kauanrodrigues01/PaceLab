@@ -19,10 +19,10 @@ const SHEETS_NOT_CONFIGURED_MESSAGE =
 let clientRecordFallbackSeq = 0;
 
 /**
- * Gera um identificador único no cliente (`trn_...`, `att_...` ou `grp_...`) resistente a colisões
+ * Gera um identificador único no cliente (`trn_...`, `att_...`, `grp_...` ou `taf_...`) resistente a colisões
  * em salvamentos consecutivos ou em lote no mesmo milissegundo.
  */
-export function generateClientRecordId(prefix: "trn" | "att" | "grp"): string {
+export function generateClientRecordId(prefix: "trn" | "att" | "grp" | "taf"): string {
   const randomUuid =
     typeof globalThis !== "undefined" &&
     globalThis.crypto &&

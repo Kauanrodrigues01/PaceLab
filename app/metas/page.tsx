@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ResultBlock } from "@/components/ui/ResultBlock";
 import { CopyButton } from "@/components/ui/CopyButton";
+import { getTodayFortalezaDateKey } from "@/lib/formatting/date";
 import { calcGoalFromPace, calcGoalFromTime } from "@/lib/math/goals";
 import {
   formatDecimal,
@@ -30,7 +31,7 @@ import {
   validateDistance,
   validatePaceString,
   validateTimeString,
-} from "@/lib/validation/inputs";
+} from "@/lib/validations/calculatorInputs";
 import { historyStorage } from "@/lib/storage/localStorage";
 import { tafService } from "@/lib/services/tafService";
 import { GoalResult, PacingStrategy, TafGoalConfig } from "@/types";
@@ -197,7 +198,7 @@ export default function MetasPage() {
 
     historyStorage.save({
       id: "meta-" + Date.now(),
-      date: new Date().toISOString().split("T")[0],
+      date: getTodayFortalezaDateKey(),
       distanceKm: distNum,
       timeSeconds: goalResult.totalTimeSeconds,
       paceSeconds: goalResult.paceSeconds,
@@ -237,7 +238,7 @@ export default function MetasPage() {
           }}
           className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
             method === "pace"
-              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-xs font-bold"
+              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-sm font-bold"
               : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
           }`}
         >
@@ -253,7 +254,7 @@ export default function MetasPage() {
           }}
           className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
             method === "time"
-              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-xs font-bold"
+              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-sm font-bold"
               : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
           }`}
         >
@@ -387,7 +388,7 @@ export default function MetasPage() {
                     onClick={() => setPacingStrategy("even")}
                     className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${
                       pacingStrategy === "even"
-                        ? "border-[#B7F34A] bg-[#B7F34A]/10 text-[#B7F34A] shadow-xs font-bold"
+                        ? "border-[#B7F34A] bg-[#B7F34A]/10 text-[#B7F34A] shadow-sm font-bold"
                         : "border-[#1E2942] bg-[#0B1020] text-[#8E9BB0] hover:text-[#FFFFFF] hover:border-[#1E2942]/80"
                     }`}
                   >
@@ -400,7 +401,7 @@ export default function MetasPage() {
                     onClick={() => setPacingStrategy("negative")}
                     className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${
                       pacingStrategy === "negative"
-                        ? "border-[#B7F34A] bg-[#B7F34A]/10 text-[#B7F34A] shadow-xs font-bold"
+                        ? "border-[#B7F34A] bg-[#B7F34A]/10 text-[#B7F34A] shadow-sm font-bold"
                         : "border-[#1E2942] bg-[#0B1020] text-[#8E9BB0] hover:text-[#FFFFFF] hover:border-[#1E2942]/80"
                     }`}
                   >
@@ -413,7 +414,7 @@ export default function MetasPage() {
                     onClick={() => setPacingStrategy("progressive")}
                     className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${
                       pacingStrategy === "progressive"
-                        ? "border-[#B7F34A] bg-[#B7F34A]/10 text-[#B7F34A] shadow-xs font-bold"
+                        ? "border-[#B7F34A] bg-[#B7F34A]/10 text-[#B7F34A] shadow-sm font-bold"
                         : "border-[#1E2942] bg-[#0B1020] text-[#8E9BB0] hover:text-[#FFFFFF] hover:border-[#1E2942]/80"
                     }`}
                   >
@@ -448,7 +449,7 @@ export default function MetasPage() {
 
               {/* Mensagem de Erro Geral */}
               {errors.form && (
-                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-900 text-rose-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{errors.form}</span>
                 </div>

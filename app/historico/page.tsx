@@ -33,7 +33,14 @@ import {
 import { calcPaceFromDistanceAndTime } from "@/lib/math/pace";
 import { getMetForSpeedAndActivity, calcCalories } from "@/lib/math/calories";
 import { tafService } from "@/lib/services/tafService";
-import { validateDistance, validateTimeString } from "@/lib/validation/inputs";
+import { validateDistance, validateTimeString } from "@/lib/validations/calculatorInputs";
+import {
+  formatDateFortaleza,
+  getTodayFortalezaDateKey,
+  shiftFortalezaDateKey,
+  toFortalezaDateKey,
+  toFortalezaNoonIso,
+} from "@/lib/formatting/date";
 import { HistoryEntry, TrainingSession } from "@/types";
 
 type HistoryCategory = "all" | "runs" | "taf" | "goals";
@@ -44,7 +51,7 @@ export default function HistoricoPage() {
 
   // Formulário de Adição
   const [showAddForm, setShowAddForm] = useState(false);
-  const [dateInput, setDateInput] = useState(() => new Date().toISOString().split("T")[0]);
+  const [dateInput, setDateInput] = useState(() => getTodayFortalezaDateKey());
   const [distanceInput, setDistanceInput] = useState("");
   const [timeInput, setTimeInput] = useState("");
   const [notesInput, setNotesInput] = useState("");
@@ -61,6 +68,10 @@ export default function HistoricoPage() {
   // Filtros e Conversão
   const [activeFilter, setActiveFilter] = useState<HistoryCategory>("all");
   const [convertedIds, setConvertedIds] = useState<Set<string>>(new Set());
+  const [convertingIds, setConvertingIds] = useState<Set<string>>(new Set());
+  const [convertError, setConvertError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
 
   // Auto-cálculo em tempo real para novo registro
   const [previewPace, setPreviewPace] = useState<string | null>(null);
@@ -86,8 +97,25 @@ export default function HistoricoPage() {
     return getEntryCategory(e) === activeFilter;
   });
 
+  const resetConfirmations = () => {
+    setConfirmDeleteId(null);
+    setConfirmClearAll(false);
+  };
+
+  const handleFilterChange = (category: HistoryCategory) => {
+    resetConfirmations();
+    setActiveFilter(category);
+  };
+
   // Converter entrada em treino do diário em 1 clique
   const handleConvertToTraining = async (entry: HistoryEntry) => {
+    if (convertingIds.has(entry.id) || convertedIds.has(entry.id)) {
+      return;
+    }
+
+    setConvertError(null);
+    setConvertingIds((prev) => new Set(prev).add(entry.id));
+
     try {
       const metData = getMetForSpeedAndActivity("corrida_continua", entry.speedKmh);
       const cals = calcCalories({
@@ -98,7 +126,7 @@ export default function HistoricoPage() {
 
       const trainingSession: TrainingSession = {
         id: "converted-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-        sessionDate: entry.date,
+        sessionDate: toFortalezaNoonIso(entry.date),
         activityType: "corrida_continua",
         distanceKm: entry.distanceKm,
         durationSeconds: entry.timeSeconds,
@@ -118,7 +146,17 @@ export default function HistoricoPage() {
       await tafService.saveTraining(trainingSession);
       setConvertedIds((prev) => new Set(prev).add(entry.id));
     } catch (err) {
-      console.error("Erro ao converter para diário de treinos:", err);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Não foi possível converter este registro para o Diário de Treinos.";
+      setConvertError(msg);
+    } finally {
+      setConvertingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(entry.id);
+        return next;
+      });
     }
   };
 
@@ -200,6 +238,7 @@ export default function HistoricoPage() {
       setTimeInput("");
       setNotesInput("");
       setFormErrors({});
+      resetConfirmations();
       setShowAddForm(false);
       loadEntries();
     } catch (err: unknown) {
@@ -210,6 +249,7 @@ export default function HistoricoPage() {
 
   // Iniciar edição
   const handleStartEdit = (entry: HistoryEntry) => {
+    resetConfirmations();
     setEditingId(entry.id);
     setEditDate(entry.date);
     setEditDistance(entry.distanceKm.toString());
@@ -221,6 +261,13 @@ export default function HistoricoPage() {
   // Salvar edição
   const handleSaveEdit = (id: string) => {
     const errors: Record<string, string> = {};
+    const trimmedDate = editDate.trim();
+    if (!trimmedDate) {
+      errors.date = "Informe a data do treino.";
+    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmedDate) || !toFortalezaDateKey(trimmedDate)) {
+      errors.date = "Informe uma data válida (AAAA-MM-DD).";
+    }
+
     const distNum = Number(editDistance.replace(",", "."));
     const distVal = validateDistance(distNum);
     if (!distVal.valid) errors.distance = distVal.message;
@@ -238,7 +285,7 @@ export default function HistoricoPage() {
       const res = calcPaceFromDistanceAndTime(distNum, totalSec);
 
       historyStorage.update(id, {
-        date: editDate,
+        date: trimmedDate,
         distanceKm: distNum,
         timeSeconds: totalSec,
         paceSeconds: res.paceSeconds,
@@ -257,22 +304,17 @@ export default function HistoricoPage() {
 
   // Excluir registro
   const handleDelete = (id: string) => {
-    if (window.confirm("Deseja realmente remover esta atividade do histórico?")) {
-      historyStorage.delete(id);
-      loadEntries();
-    }
+    historyStorage.delete(id);
+    setConfirmDeleteId(null);
+    loadEntries();
   };
 
   // Limpar todo o histórico
   const handleClearAll = () => {
-    if (
-      window.confirm(
-        "Atenção: Tem certeza de que deseja apagar TODO o histórico? Esta ação não pode ser desfeita."
-      )
-    ) {
-      historyStorage.clear();
-      loadEntries();
-    }
+    historyStorage.clear();
+    setConfirmClearAll(false);
+    setConfirmDeleteId(null);
+    loadEntries();
   };
 
   // Exportar CSV
@@ -282,10 +324,13 @@ export default function HistoricoPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `pacelab-historico-${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute("download", `pacelab-historico-${getTodayFortalezaDateKey()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    if (typeof URL.revokeObjectURL === "function") {
+      URL.revokeObjectURL(url);
+    }
   };
 
   // Exportar JSON
@@ -295,17 +340,21 @@ export default function HistoricoPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `pacelab-historico-${new Date().toISOString().split("T")[0]}.json`);
+    link.setAttribute("download", `pacelab-historico-${getTodayFortalezaDateKey()}.json`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    if (typeof URL.revokeObjectURL === "function") {
+      URL.revokeObjectURL(url);
+    }
   };
 
   // Inserir atividade de demonstração
   const handleAddSample = () => {
+    const todayKey = getTodayFortalezaDateKey();
     historyStorage.save({
       id: "sample-1",
-      date: new Date().toISOString().split("T")[0],
+      date: todayKey,
       distanceKm: 5,
       timeSeconds: 25 * 60,
       paceSeconds: 300,
@@ -316,7 +365,7 @@ export default function HistoricoPage() {
     });
     historyStorage.save({
       id: "sample-2",
-      date: new Date(Date.now() - 86400000 * 2).toISOString().split("T")[0],
+      date: shiftFortalezaDateKey(todayKey, -2) ?? todayKey,
       distanceKm: 10,
       timeSeconds: 54 * 60,
       paceSeconds: 324,
@@ -348,7 +397,10 @@ export default function HistoricoPage() {
         {/* Botão para Adicionar */}
         <div className="flex items-center gap-2 shrink-0">
           <Button
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={() => {
+              resetConfirmations();
+              setShowAddForm(!showAddForm);
+            }}
             icon={showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           >
             {showAddForm ? "Fechar Formulário" : "Registrar Treino"}
@@ -461,10 +513,10 @@ export default function HistoricoPage() {
           <div className="flex flex-wrap items-center gap-1.5 p-1 bg-[#131A2E] border border-[#1E2942] rounded-2xl">
             <button
               type="button"
-              onClick={() => setActiveFilter("all")}
+              onClick={() => handleFilterChange("all")}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                 activeFilter === "all"
-                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -477,10 +529,10 @@ export default function HistoricoPage() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveFilter("runs")}
+              onClick={() => handleFilterChange("runs")}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                 activeFilter === "runs"
-                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -493,10 +545,10 @@ export default function HistoricoPage() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveFilter("taf")}
+              onClick={() => handleFilterChange("taf")}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                 activeFilter === "taf"
-                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -509,10 +561,10 @@ export default function HistoricoPage() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveFilter("goals")}
+              onClick={() => handleFilterChange("goals")}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                 activeFilter === "goals"
-                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-xs"
+                  ? "bg-[#B7F34A] text-[#0B1020] font-black shadow-sm"
                   : "text-[#8E9BB0] hover:text-white"
               }`}
             >
@@ -548,16 +600,66 @@ export default function HistoricoPage() {
               >
                 Exportar JSON
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClearAll}
-                icon={<Trash2 className="w-3.5 h-3.5 text-rose-400" />}
-              >
-                Limpar Tudo
-              </Button>
+              {confirmClearAll ? (
+                <div
+                  role="group"
+                  aria-label="Confirmação para apagar todo o histórico"
+                  className="flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-2.5 py-1"
+                >
+                  <span className="text-[11px] font-semibold text-rose-300">
+                    Apagar tudo?
+                  </span>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={handleClearAll}
+                  >
+                    Confirmar exclusão total
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConfirmClearAll(false)}
+                    aria-label="Cancelar limpeza total do histórico"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setConfirmDeleteId(null);
+                    setConfirmClearAll(true);
+                  }}
+                  icon={<Trash2 className="w-3.5 h-3.5 text-rose-400" />}
+                >
+                  Limpar Tudo
+                </Button>
+              )}
             </div>
           </div>
+        </div>
+      )}
+
+      {convertError && (
+        <div
+          role="alert"
+          className="mb-4 flex items-center justify-between gap-2 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium"
+        >
+          <span className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {convertError}
+          </span>
+          <button
+            type="button"
+            onClick={() => setConvertError(null)}
+            aria-label="Fechar aviso de erro"
+            className="p-1 hover:text-white"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -565,11 +667,11 @@ export default function HistoricoPage() {
       {isLoaded && entries.length === 0 ? (
         <Card>
           <div className="text-center py-12 px-4">
-            <History className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
+            <History className="w-12 h-12 mx-auto text-[#8E9BB0]/60 mb-3" />
+            <h3 className="text-base font-bold text-[#FFFFFF]">
               Nenhuma atividade salva ainda
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+            <p className="text-xs text-[#8E9BB0] mt-1 max-w-sm mx-auto">
               Ao usar a Calculadora Principal, Médias, TAF, Metas ou Intervalados, você pode clicar em &ldquo;Salvar no Histórico&rdquo; ou cadastrar treinos manualmente.
             </p>
             <div className="flex flex-wrap justify-center gap-3 mt-5">
@@ -591,7 +693,7 @@ export default function HistoricoPage() {
           {filteredEntries.map((entry) => (
             <div
               key={entry.id}
-              className="p-4 sm:p-5 rounded-2xl bg-[#131A2E] border border-[#1E2942] shadow-xs hover:border-[#B7F34A]/40 transition-colors"
+              className="p-4 sm:p-5 rounded-2xl bg-[#131A2E] border border-[#1E2942] shadow-sm hover:border-[#B7F34A]/40 transition-colors"
             >
               {editingId === entry.id ? (
                 // MODO EDIÇÃO
@@ -602,6 +704,7 @@ export default function HistoricoPage() {
                       type="date"
                       value={editDate}
                       onChange={(e) => setEditDate(e.target.value)}
+                      error={editErrors.date}
                     />
                     <Input
                       label="Distância (km)"
@@ -638,6 +741,7 @@ export default function HistoricoPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => setEditingId(null)}
+                      aria-label="Cancelar edição do registro"
                     >
                       Cancelar
                     </Button>
@@ -650,7 +754,7 @@ export default function HistoricoPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-semibold text-[#8E9BB0] flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-[#B7F34A]" />
-                        {entry.date}
+                        {formatDateFortaleza(entry.date, entry.date)}
                       </span>
                       <Badge variant="lime">
                         {formatDecimal(entry.distanceKm, 2)} km
@@ -697,30 +801,63 @@ export default function HistoricoPage() {
                         size="sm"
                         variant="outline"
                         className="text-xs"
+                        disabled={convertingIds.has(entry.id)}
                         onClick={() => handleConvertToTraining(entry)}
                         icon={<BookOpen className="w-3.5 h-3.5 text-[#B7F34A]" />}
                       >
-                        Converter em Treino do Diário
+                        {convertingIds.has(entry.id)
+                          ? "Convertendo..."
+                          : "Converter em Treino do Diário"}
                       </Button>
                     )}
 
                     <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(entry)}
-                        aria-label={`Editar treino de ${entry.date}`}
-                        className="p-2 rounded-xl text-[#8E9BB0] hover:text-[#B7F34A] hover:bg-[#B7F34A]/10 transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(entry.id)}
-                        aria-label={`Excluir treino de ${entry.date}`}
-                        className="p-2 rounded-xl text-[#8E9BB0] hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {confirmDeleteId === entry.id ? (
+                        <div
+                          role="group"
+                          aria-label={`Confirmação de exclusão do treino de ${formatDateFortaleza(entry.date, entry.date)}`}
+                          className="flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-2 py-1"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(entry.id)}
+                            aria-label={`Confirmar exclusão do treino de ${formatDateFortaleza(entry.date, entry.date)}`}
+                            className="px-2 py-1 text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors"
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            aria-label={`Cancelar exclusão do treino de ${formatDateFortaleza(entry.date, entry.date)}`}
+                            className="px-2 py-1 text-[11px] font-semibold text-[#8E9BB0] hover:text-white rounded-lg transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(entry)}
+                            aria-label={`Editar treino de ${formatDateFortaleza(entry.date, entry.date)}`}
+                            className="p-2 rounded-xl text-[#8E9BB0] hover:text-[#B7F34A] hover:bg-[#B7F34A]/10 transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmClearAll(false);
+                              setConfirmDeleteId(entry.id);
+                            }}
+                            aria-label={`Excluir treino de ${formatDateFortaleza(entry.date, entry.date)}`}
+                            className="p-2 rounded-xl text-[#8E9BB0] hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

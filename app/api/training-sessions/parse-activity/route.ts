@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import {
-  apiError,
+  apiBadRequest,
   apiPayloadTooLarge,
   apiSuccess,
   apiUnprocessable,
@@ -52,10 +52,10 @@ export async function POST(request: Request) {
     try {
       formData = await request.formData();
     } catch {
-      return apiError(
-        "Nenhum arquivo .FIT ou .GPX foi enviado no corpo multipart/form-data.",
-        400,
-        { code: "MISSING_FILE" }
+      return apiBadRequest(
+        "Nenhum arquivo .FIT ou .GPX foi enviado.",
+        { code: "MISSING_FILE" },
+        "MISSING_FILE"
       );
     }
 
@@ -79,10 +79,10 @@ export async function POST(request: Request) {
     }
 
     if (uploadedFiles.length === 0) {
-      return apiError(
+      return apiBadRequest(
         "Nenhum arquivo .FIT ou .GPX foi enviado.",
-        400,
-        { code: "MISSING_FILE" }
+        { code: "MISSING_FILE" },
+        "MISSING_FILE"
       );
     }
 

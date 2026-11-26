@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ResultBlock } from "@/components/ui/ResultBlock";
 import { CopyButton } from "@/components/ui/CopyButton";
+import { getTodayFortalezaDateKey } from "@/lib/formatting/date";
 import { Badge } from "@/components/ui/Badge";
 import { calcTaf, calcFixedTargetTaf } from "@/lib/math/taf";
 import { formatDecimal, parseTime } from "@/lib/formatting/time";
@@ -215,7 +216,7 @@ export default function TafPage() {
 
       historyStorage.save({
         id: "taf-" + Date.now(),
-        date: new Date().toISOString().split("T")[0],
+        date: getTodayFortalezaDateKey(),
         distanceKm: distKm,
         timeSeconds: timeSec,
         paceSeconds: tafResult.paceSeconds,
@@ -229,7 +230,7 @@ export default function TafPage() {
     } else if (mode === "fixed-distance" && fixedResult) {
       historyStorage.save({
         id: "taf-fixed-" + Date.now(),
-        date: new Date().toISOString().split("T")[0],
+        date: getTodayFortalezaDateKey(),
         distanceKm: fixedResult.targetDistanceKm,
         timeSeconds: fixedResult.maxTimeSeconds,
         paceSeconds: fixedResult.paceSeconds,
@@ -322,7 +323,7 @@ export default function TafPage() {
                   // Fallback silencioso
                 }
               }}
-              className="px-3 py-1.5 rounded-lg bg-[#B7F34A] hover:bg-[#a3db3f] text-[#0B1020] font-black text-xs shadow-xs transition-colors whitespace-nowrap cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-[#B7F34A] hover:bg-[#a3db3f] text-[#0B1020] font-black text-xs shadow-sm transition-colors whitespace-nowrap cursor-pointer"
             >
               Aplicar Meta ({goal.targetDistanceMeters}m)
             </button>
@@ -340,7 +341,7 @@ export default function TafPage() {
           }}
           className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
             mode === "fixed-time"
-              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-xs font-bold"
+              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-sm font-bold"
               : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
           }`}
         >
@@ -356,7 +357,7 @@ export default function TafPage() {
           }}
           className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
             mode === "fixed-distance"
-              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-xs font-bold"
+              ? "bg-[#0B1020] text-[#B7F34A] border border-[#B7F34A]/40 shadow-sm font-bold"
               : "text-[#8E9BB0] hover:text-[#FFFFFF] hover:bg-[#0B1020]/60"
           }`}
         >
@@ -465,7 +466,7 @@ export default function TafPage() {
                 </div>
 
                 {errors.form && (
-                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                  <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-900 text-rose-300 text-xs flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{errors.form}</span>
                   </div>
@@ -524,7 +525,7 @@ export default function TafPage() {
                 />
 
                 {errors.form && (
-                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                  <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-900 text-rose-300 text-xs flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{errors.form}</span>
                   </div>

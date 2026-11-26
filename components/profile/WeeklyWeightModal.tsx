@@ -115,7 +115,7 @@ export function WeeklyWeightModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="weekly-weight-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0B1020]/80 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0B1020]/80 backdrop-blur-sm animate-fade-in"
     >
       <div className="relative w-full max-w-md bg-[#131A2E] border border-[#1E2942] rounded-3xl p-6 shadow-2xl overflow-hidden">
         {/* Glow de fundo */}

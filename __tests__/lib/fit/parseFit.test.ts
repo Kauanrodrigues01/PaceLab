@@ -1045,5 +1045,149 @@ describe("lib/fit/parseFit — Parser Binário .FIT (@garmin/fitsdk)", () => {
       expect(unfiltered.reduce((a, b) => a + b.deltaDistanceM, 0)).toBe(34);
       expect(unfiltered.reduce((a, b) => a + b.movingTimeSeconds, 0)).toBe(21);
     });
+
+    it("cobre desambiguação de sport genérico/fitnessEquipment, fallback de distância/tempo para laps/records e guardas de erro", () => {
+      const start = new Date("2026-11-12T07:00:00Z");
+
+      // 1) sport="generic" + subSport="street" -> run
+      const genericRun = parseFit(
+        buildFitBuffer({
+          session: {
+            startTime: start,
+            totalTimerTime: 1500,
+            totalElapsedTime: 1500,
+            totalDistance: 5000,
+            sport: "generic",
+            subSport: "street",
+          },
+        })
+      );
+      expect(genericRun.sourceActivityKind).toBe("run");
+
+      // 2) sport="generic" sem subSport -> unknown com warning UNKNOWN_ACTIVITY_TYPE
+      const genericUnknown = parseFit(
+        buildFitBuffer({
+          session: {
+            startTime: start,
+            totalTimerTime: 1500,
+            totalElapsedTime: 1500,
+            totalDistance: 4500,
+            sport: "generic",
+          },
+        })
+      );
+      expect(genericUnknown.sourceActivityKind).toBe("unknown");
+      expect(
+        genericUnknown.warnings.some((w) => w.code === "UNKNOWN_ACTIVITY_TYPE")
+      ).toBe(true);
+
+      // 3) sport="fitnessEquipment" + subSport incompatível (indoorCycling) -> UNSUPPORTED_ACTIVITY
+      const cyclingFitnessBuf = buildFitBuffer({
+        session: {
+          startTime: start,
+          totalTimerTime: 1800,
+          totalElapsedTime: 1800,
+          totalDistance: 10000,
+          sport: "fitnessEquipment",
+          subSport: "indoorCycling",
+        },
+      });
+      expect(() => parseFit(cyclingFitnessBuf)).toThrowError(FitParseError);
+
+      // 4) Fallback de startTime, totalDistance e totalTimerTime para records quando ausentes na session/laps
+      const recordsOnlyStart = Date.parse("2026-11-12T08:00:00Z");
+      const fallbackParsed = parseFit(
+        buildFitBuffer({
+          records: [
+            { timestamp: new Date(recordsOnlyStart), distance: 0 },
+            { timestamp: new Date(recordsOnlyStart + 300_000), distance: 1000 },
+            { timestamp: new Date(recordsOnlyStart + 600_000), distance: 2000 },
+          ],
+          session: {
+            sport: "running",
+          },
+        })
+      );
+      expect(fallbackParsed.startedAt).toBe("2026-11-12T08:00:00.000Z");
+      expect(fallbackParsed.distanceKm).toBe(2);
+      expect(fallbackParsed.durationSeconds).toBe(600);
+
+      // 5) Erro NO_SESSION_DATA quando não há nenhum timestamp de início
+      expect(() =>
+        parseFit(
+          buildFitBuffer({
+            session: {
+              sport: "running",
+              totalDistance: 2000,
+              totalTimerTime: 600,
+            },
+          })
+        )
+      ).toThrowError(FitParseError);
+
+      // 6) Erro ZERO_MOVING_TIME quando totalTimerTime <= 0 e sem fallback
+      expect(() =>
+        parseFit(
+          buildFitBuffer({
+            session: {
+              startTime: start,
+              sport: "running",
+              totalDistance: 2000,
+              totalTimerTime: 0,
+            },
+          })
+        )
+      ).toThrowError(FitParseError);
+
+      // 7) Guarda de plausibilidade de velocidade média (> 25 km/h) -> UNSUPPORTED_ACTIVITY
+      expect(() =>
+        parseFit(
+          buildFitBuffer({
+            session: {
+              startTime: start,
+              sport: "running",
+              totalDistance: 10000, // 10 km em 600s = 60 km/h
+              totalTimerTime: 600,
+              totalElapsedTime: 600,
+            },
+          })
+        )
+      ).toThrowError(FitParseError);
+
+      // 8) workoutMesgs.wktName, temperatura média via records, fallback de distância/tempo para laps (sem totalElapsedTime) e fitnessEquipment + treadmill
+      const lapFallbackStart = Date.parse("2026-11-12T09:00:00Z");
+      const lapFallbackParsed = parseFit(
+        buildFitBuffer({
+          workout: { wktName: "Treino de Ritmo na Esteira" },
+          records: [
+            { timestamp: new Date(lapFallbackStart), distance: 0, temperature: 24 },
+            { timestamp: new Date(lapFallbackStart + 300_000), distance: 1000, temperature: 26 },
+          ],
+          laps: [
+            {
+              startTime: new Date(lapFallbackStart),
+              totalTimerTime: 300,
+              totalDistance: 1000,
+            },
+            {
+              startTime: new Date(lapFallbackStart + 300_000),
+              totalTimerTime: 300,
+              totalDistance: 1000,
+            },
+          ],
+          session: {
+            sport: "fitnessEquipment",
+            subSport: "treadmill",
+          },
+        })
+      );
+      expect(lapFallbackParsed.sourceActivityKind).toBe("run");
+      expect(lapFallbackParsed.isIndoor).toBe(true);
+      expect(lapFallbackParsed.name).toBe("Treino de Ritmo na Esteira");
+      expect(lapFallbackParsed.avgTemperatureC).toBe(25);
+      expect(lapFallbackParsed.distanceKm).toBe(2);
+      expect(lapFallbackParsed.durationSeconds).toBe(600);
+      expect(lapFallbackParsed.splits).toHaveLength(2);
+    });
   });
 });

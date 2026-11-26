@@ -56,7 +56,7 @@ export function TafComplementaryExercisesCard({
       </div>
 
       {isOpen && (
-        <div className="mt-5 pt-4 border-t border-[#1E2942] space-y-4 animate-in fade-in">
+        <div className="mt-5 pt-4 border-t border-[#1E2942] space-y-4 animate-fade-in">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* 1. Barra Fixa */}
             <div className="p-4 rounded-2xl bg-[#0B1020] border border-[#1E2942] space-y-2">

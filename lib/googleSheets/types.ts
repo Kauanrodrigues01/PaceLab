@@ -1,10 +1,12 @@
+import type { SheetsSyncDirection, WeeklyPlanStatus } from "@/types";
+
+export type { SheetsSyncDirection, WeeklyPlanStatus };
+
 export type SheetTabName =
   | "Log_Treinos"
   | "Simulados_TAF"
   | "Perfil_e_Metas"
   | "Plano_Semanal";
-
-export type WeeklyPlanStatus = "Planejado" | "Concluído" | "Parcial" | "Perdido";
 
 export interface WeeklyPlanSyncStats {
   imported: number;
@@ -19,8 +21,6 @@ export interface WeeklyPlanSyncStats {
 export interface WeeklyPlanStandaloneSyncResult extends WeeklyPlanSyncStats {
   syncedPlans: number;
 }
-
-export type SheetsSyncDirection = "bidirectional" | "push" | "pull";
 
 export interface SheetsSyncOptions {
   direction?: SheetsSyncDirection;

@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MeuTafPage from "@/app/meu-taf/page";
 import { tafService } from "@/lib/services/tafService";
-import { setupMockTafApi } from "@/test/helpers/mockTafApi";
+import { setupMockTafApi } from "@/__tests__/helpers/mockTafApi";
 
 describe("MeuTafPage - Fase E (Painel de Evolução & 5 Gráficos Recharts)", () => {
   beforeEach(() => {

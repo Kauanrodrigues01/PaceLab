@@ -4,6 +4,10 @@ import React, { useState, useMemo } from "react";
 import { TrainingSession, TafAttempt } from "@/types";
 import { comparePeriods } from "@/lib/math/evolution";
 import {
+  getTodayFortalezaDateKey,
+  shiftFortalezaDateKey,
+} from "@/lib/formatting/date";
+import {
   GitCompare,
   Calendar,
   AlertTriangle,
@@ -28,78 +32,48 @@ export function PeriodComparator({
   attempts,
   targetDurationSeconds = 720,
 }: PeriodComparatorProps) {
-  // Configuração inicial de datas padrão (Últimos 30 dias vs 30 dias anteriores)
+  // Configuração inicial de datas padrão (Últimos 30 dias vs 30 dias anteriores em Fortaleza)
   const [dates, setDates] = useState(() => {
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-
-    const d30 = new Date(now);
-    d30.setDate(now.getDate() - 30);
-    const date30Ago = d30.toISOString().slice(0, 10);
-
-    const d31 = new Date(now);
-    d31.setDate(now.getDate() - 31);
-    const date31Ago = d31.toISOString().slice(0, 10);
-
-    const d60 = new Date(now);
-    d60.setDate(now.getDate() - 60);
-    const date60Ago = d60.toISOString().slice(0, 10);
-
+    const today = getTodayFortalezaDateKey();
     return {
-      periodAStart: date60Ago,
-      periodAEnd: date31Ago,
-      periodBStart: date30Ago,
+      periodAStart: shiftFortalezaDateKey(today, -60) ?? today,
+      periodAEnd: shiftFortalezaDateKey(today, -31) ?? today,
+      periodBStart: shiftFortalezaDateKey(today, -30) ?? today,
       periodBEnd: today,
     };
   });
 
   // Atalhos rápidos de períodos
   const handleShortcut = (type: "14d" | "30d" | "month") => {
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
+    const today = getTodayFortalezaDateKey();
 
     if (type === "14d") {
-      const d14 = new Date(now);
-      d14.setDate(now.getDate() - 14);
-      const d15 = new Date(now);
-      d15.setDate(now.getDate() - 15);
-      const d28 = new Date(now);
-      d28.setDate(now.getDate() - 28);
-
       setDates({
-        periodAStart: d28.toISOString().slice(0, 10),
-        periodAEnd: d15.toISOString().slice(0, 10),
-        periodBStart: d14.toISOString().slice(0, 10),
+        periodAStart: shiftFortalezaDateKey(today, -28) ?? today,
+        periodAEnd: shiftFortalezaDateKey(today, -15) ?? today,
+        periodBStart: shiftFortalezaDateKey(today, -14) ?? today,
         periodBEnd: today,
       });
     } else if (type === "30d") {
-      const d30 = new Date(now);
-      d30.setDate(now.getDate() - 30);
-      const d31 = new Date(now);
-      d31.setDate(now.getDate() - 31);
-      const d60 = new Date(now);
-      d60.setDate(now.getDate() - 60);
-
       setDates({
-        periodAStart: d60.toISOString().slice(0, 10),
-        periodAEnd: d31.toISOString().slice(0, 10),
-        periodBStart: d30.toISOString().slice(0, 10),
+        periodAStart: shiftFortalezaDateKey(today, -60) ?? today,
+        periodAEnd: shiftFortalezaDateKey(today, -31) ?? today,
+        periodBStart: shiftFortalezaDateKey(today, -30) ?? today,
         periodBEnd: today,
       });
     } else if (type === "month") {
-      const startCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-        .toISOString()
-        .slice(0, 10);
-      const endPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0)
-        .toISOString()
-        .slice(0, 10);
-      const startPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-        .toISOString()
-        .slice(0, 10);
+      const [yearStr, monthStr] = today.split("-");
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const startCurrentMonth = `${yearStr}-${monthStr}-01`;
+      const prevYear = month === 1 ? year - 1 : year;
+      const prevMonth = month === 1 ? 12 : month - 1;
+      const prevMonthStr = String(prevMonth).padStart(2, "0");
+      const lastDayPrevMonth = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
 
       setDates({
-        periodAStart: startPrevMonth,
-        periodAEnd: endPrevMonth,
+        periodAStart: `${prevYear}-${prevMonthStr}-01`,
+        periodAEnd: `${prevYear}-${prevMonthStr}-${String(lastDayPrevMonth).padStart(2, "0")}`,
         periodBStart: startCurrentMonth,
         periodBEnd: today,
       });
