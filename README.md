@@ -9,12 +9,12 @@ Plataforma web full-stack para **corredores, praticantes de caminhada e candidat
 ```mermaid
 flowchart LR
     Strava["Strava / Relogio GPS (.FIT / .GPX)"] -->|"Upload individual ou lote (50 arq.)"| PaceLab["PaceLab Web (Next.js + PostgreSQL)"]
-    PaceLab <-->|"Sync bidirecional (4 abas)"| Sheets["Google Planilhas (Treinos_Corrida)"]
-    Sheets <-->|"Analise + prescricao em Plano_Semanal"| Gemini["Google Gemini (Coach + Domingo 19h)"]
+    PaceLab <-->|"Sync bidirecional + Cron Dom 22h (4 abas)"| Sheets["Google Planilhas (Treinos_Corrida)"]
+    Sheets <-->|"Analise (5 status) + prescricao em Plano_Semanal"| Gemini["Google Gemini (Coach + Domingo 19h)"]
 ```
 
-- **Painel Inicial (`/`), Calculadoras (`/calculadora`, `/taf`, `/metas`, `/intervalado`, `/historico`):** Quick Pace Widget, card de aderência semanal (`WeeklyAdherenceCard`), tática em pista de `400 m`, simulador intervalado com limitadores e Modo Pista, médias ponderadas e motores científicos (**Compêndio 2024** + **VO2 Máx de Cooper**).
-- **Diário de Treinos & Analytics (`/treinos`):** cadastro manual com previsão calórica em tempo real, importação `.FIT`/`.GPX` individual e em massa (pareamento `.FIT + .GPX`, escolha única de destino e push consolidado), reconciliação em 2 passadas com `Plano_Semanal`, análise detalhada de parciais e dashboard com 6 KPIs, Heatmap de 12 semanas e 7 painéis (6 gráficos Recharts + Pirâmide RPE 80/20).
+- **Painel Inicial (`/`), Calculadoras (`/calculadora`, `/taf`, `/metas`, `/intervalado`, `/historico`):** Quick Pace Widget, card de aderência semanal (`WeeklyAdherenceCard` com 5 status incluindo `Adaptado`, motivos de desvio, botão rápido de sync e virada dominical às 22h BRT), tática em pista de `400 m`, simulador intervalado com limitadores e Modo Pista, médias ponderadas e motores científicos (**Compêndio 2024** + **VO2 Máx de Cooper**).
+- **Diário de Treinos & Analytics (`/treinos`):** cadastro manual com previsão calórica em tempo real, importação `.FIT`/`.GPX` individual e em massa (pareamento `.FIT + .GPX`, escolha única de destino e push consolidado), reconciliação em 2 passadas com `Plano_Semanal` (5 status `Planejado` / `Concluído` / `Adaptado` / `Parcial` / `Perdido`, pesos `1.0 / 0.75 / 0.50` e write-back imediato `H:I`), análise detalhada de parciais e dashboard com 6 KPIs, Heatmap de 12 semanas e 7 painéis (6 gráficos Recharts + Pirâmide RPE 80/20).
 - **Meu TAF (`/meu-taf`) & Perfil Biométrico (`/perfil`):** régua visual de aprovação, exercícios complementares (Barra Fixa, Flexão e Abdominal com tempo opcional), comparador de períodos, backup/exportação JSON v3 & CSV seguro, cálculo de IMC (OMS), pesagem semanal automática (`WeeklyWeightModal`) e presets oficiais configuráveis **`PM-SP`, `PF`, `PRF` e `PMPR`**.
 - **API Documentada (`/docs`):** interface Swagger UI em tema **Dark Performance Athletics** servida por OpenAPI 3.0.3 em `/api/docs/spec`, derivada automaticamente dos schemas Zod v4 (`z.toJSONSchema`).
 
@@ -35,7 +35,7 @@ flowchart LR
    ```bash
    npm install
    ```
-2. **Configurar variáveis de ambiente:** copie [`.env.example`](.env.example) para `.env`, preenchendo `DATABASE_URL` e `DIRECT_URL` (e opcionalmente `GOOGLE_SHEETS_SPREADSHEET_ID` / `GOOGLE_CREDENTIALS_BASE64` conforme o [guia do Google Sheets e Gemini](docs/integrations/02_google_sheets_e_gemini_passo_a_passo.md)).
+2. **Configurar variáveis de ambiente:** copie [`.env.example`](.env.example) para `.env`, preenchendo `DATABASE_URL` e `DIRECT_URL` (e opcionalmente `GOOGLE_SHEETS_SPREADSHEET_ID`, `GOOGLE_CREDENTIALS_BASE64` e `CRON_SECRET` para o Vercel Cron dominical 22h BRT conforme o [guia do Google Sheets e Gemini](docs/integrations/02_google_sheets_e_gemini_passo_a_passo.md)).
 3. **Aplicar migrations e validar o banco:**
    ```bash
    npx prisma migrate deploy

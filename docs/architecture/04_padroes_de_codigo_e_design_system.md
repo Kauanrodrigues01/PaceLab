@@ -48,7 +48,7 @@ Para evitar duplicação de literais e ciclos de importação entre tipos e Zod,
 - `PULLUP_TYPES` / `PullupType`
 - `DUPLICATE_POLICIES` / `DuplicatePolicy` (`"error" | "update"`)
 - `SHEETS_SYNC_DIRECTIONS` / `SheetsSyncDirection` (`"bidirectional" | "push" | "pull"`)
-- `WEEKLY_PLAN_STATUSES` / `WeeklyPlanStatus`
+- `WEEKLY_PLAN_STATUSES` / `WeeklyPlanStatus` (`"Planejado" | "Concluído" | "Adaptado" | "Parcial" | "Perdido"`)
 
 Em [`lib/validations/taf.ts`](../../lib/validations/taf.ts):
 - Schemas Zod consomem diretamente esses arrays (`z.enum(ACTIVITY_TYPES)`, `z.enum(LOCATION_TYPES)`, etc.).
@@ -130,7 +130,7 @@ O PaceLab opera em **tema escuro exclusivo** (sem `next-themes`, `ThemeProvider`
 | `pacelab-muted` | `#8E9BB0` | Textos secundários, legendas, eixos de gráficos e placeholders |
 
 ### 6.2. Diretrizes de Componentes e UX
-- **Primitivos `components/ui/`:** reutilizar `Card`, `Button`, `Badge`, `Input`, `ResultBlock` e `CopyButton` antes de criar variações duplicadas.
+- **Primitivos `components/ui/`:** reutilizar `Card`, `Button`, `Badge` (incluindo variante semântica `"adapted"` em índigo `bg-indigo-950/60 text-indigo-300 border-indigo-700/80`), `Input`, `ResultBlock` e `CopyButton` antes de criar variações duplicadas.
 - **Zero prefixos `dark:` residuais e zero `bg-white` estrutural:** todas as classes devem mirar diretamente a paleta escura; o Swagger UI em `/docs` aplica tema escuro nativo em [`components/docs/swagger-theme.css`](../../components/docs/swagger-theme.css) sem depender de `.dark`.
 - **Confirmação de ações destrutivas em 2 etapas inline:** é proibido usar `window.confirm` / `confirm()`. Exclusões (treinos, simulados, histórico local e pesagens) devem usar confirmação inline em React em 2 cliques (*Excluir* → *Sim, Excluir* / *Cancelar*), como em [`TafAttemptCard.tsx`](../../components/meu-taf/TafAttemptCard.tsx), [`TrainingCard.tsx`](../../components/treinos/TrainingCard.tsx), [`app/historico/page.tsx`](../../app/historico/page.tsx) e [`app/perfil/page.tsx`](../../app/perfil/page.tsx).
 

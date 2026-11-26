@@ -7,6 +7,7 @@ import { formatZodErrors, FormattedZodError } from "@/lib/validations/taf";
 
 export type ApiErrorCode =
   | "BAD_REQUEST"
+  | "UNAUTHORIZED"
   | "VALIDATION_ERROR"
   | "INVALID_JSON"
   | "INVALID_PATH_ID"
@@ -17,6 +18,7 @@ export type ApiErrorCode =
   | "UNPROCESSABLE_ENTITY"
   | "DATABASE_UNAVAILABLE"
   | "SERVICE_UNAVAILABLE"
+  | "CRON_SECRET_NOT_CONFIGURED"
   | "MISSING_FILE"
   | "TOO_MANY_FILES"
   | "INVALID_EXTENSION"

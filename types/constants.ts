@@ -62,6 +62,7 @@ export type SheetsSyncDirection = (typeof SHEETS_SYNC_DIRECTIONS)[number];
 export const WEEKLY_PLAN_STATUSES = [
   "Planejado",
   "Concluído",
+  "Adaptado",
   "Parcial",
   "Perdido",
 ] as const;

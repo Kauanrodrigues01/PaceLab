@@ -82,10 +82,34 @@ function formatWeeklyPlanActivityDetail(
   if (weeklyPlan.updated > 0) parts.push(`${weeklyPlan.updated} plano(s) atualizado(s)`);
   if (weeklyPlan.removed > 0) parts.push(`${weeklyPlan.removed} plano(s) removido(s)`);
   if (weeklyPlan.matched > 0) parts.push(`${weeklyPlan.matched} treino(s) conciliado(s)`);
+  if (weeklyPlan.adapted && weeklyPlan.adapted > 0) {
+    parts.push(`${weeklyPlan.adapted} adaptado(s)`);
+  }
   if (weeklyPlan.pushed > 0) parts.push(`${weeklyPlan.pushed} status enviado(s)`);
 
   if (parts.length === 0) return null;
   return `Plano Semanal: ${parts.join(", ")}`;
+}
+
+function formatSyncWarningsSuffix(warnings: SheetsSyncReport["warnings"]): string {
+  if (!warnings || warnings.length === 0) return "";
+
+  const prioritized = [
+    ...warnings.filter((w) => w.tab === "Plano_Semanal"),
+    ...warnings.filter((w) => w.tab !== "Plano_Semanal"),
+  ];
+  const nonEmptyMessages = prioritized
+    .map((w) => w.message.trim())
+    .filter((msg) => msg.length > 0);
+
+  if (nonEmptyMessages.length === 0) {
+    return ` (${warnings.length} aviso(s))`;
+  }
+
+  const previews = nonEmptyMessages.slice(0, 2);
+  const extraCount = nonEmptyMessages.length - previews.length;
+  const extra = extraCount > 0 ? ` (+${extraCount})` : "";
+  return ` (${warnings.length} aviso(s)) — ${previews.join("; ")}${extra}`;
 }
 
 export function formatSheetsSyncReportSummary(report: SheetsSyncReport): string {
@@ -98,8 +122,7 @@ export function formatSheetsSyncReportSummary(report: SheetsSyncReport): string 
     report.tafPulledUpdated +
     report.tafPulledLinked;
   const importedNew = report.pulledCreated + report.tafPulledCreated;
-  const warningSuffix =
-    report.warnings.length > 0 ? ` (${report.warnings.length} aviso(s))` : "";
+  const warningSuffix = formatSyncWarningsSuffix(report.warnings);
   const weeklyDetail = formatWeeklyPlanActivityDetail(report.weeklyPlan);
 
   if (pushedNew > 0 || updatedCount > 0 || importedNew > 0) {

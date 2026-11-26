@@ -54,6 +54,7 @@ function makePlanData(overrides: Partial<WeeklyPlanData> = {}): WeeklyPlanData {
     summary: {
       totalPlanned: 0,
       completed: 0,
+      adapted: 0,
       partial: 0,
       planned: 0,
       missed: 0,
@@ -189,6 +190,7 @@ describe("WeeklyAdherenceCard (Fase 5)", () => {
       summary: {
         totalPlanned: 5,
         completed: 2,
+        adapted: 0,
         partial: 1,
         planned: 1,
         missed: 1,
@@ -404,6 +406,7 @@ describe("WeeklyAdherenceCard (Fase 5)", () => {
         summary: {
           totalPlanned: 1,
           completed: 0,
+          adapted: 0,
           partial: 0,
           planned: 1,
           missed: 0,
@@ -475,6 +478,7 @@ describe("WeeklyAdherenceCard (Fase 5)", () => {
       summary: {
         totalPlanned: 1,
         completed: 1,
+        adapted: 0,
         partial: 0,
         planned: 0,
         missed: 0,
@@ -553,6 +557,7 @@ describe("WeeklyAdherenceCard (Fase 5)", () => {
       summary: {
         totalPlanned: 1,
         completed: 1,
+        adapted: 0,
         partial: 0,
         planned: 0,
         missed: 0,
@@ -601,6 +606,7 @@ describe("WeeklyAdherenceCard (Fase 5)", () => {
       summary: {
         totalPlanned: 1,
         completed: 0,
+        adapted: 0,
         partial: 0,
         planned: 0,
         missed: 1,
@@ -653,5 +659,274 @@ describe("WeeklyAdherenceCard (Fase 5)", () => {
       expect(screen.getByText("Treino Atual Fiel")).toBeInTheDocument();
     });
     expect(screen.queryByText("Treino Antigo Atrasado")).not.toBeInTheDocument();
+  });
+
+  it("renderiza badge Adaptado (índigo), motivo do desvio, rótulo humanizado da atividade, contador no resumo e botão Sincronizar", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const adaptedSession = makeSession({
+      id: "sess-adapted-1",
+      activityType: "rodagem_leve",
+      distanceKm: 11.2,
+      paceSeconds: 310,
+      paceFormatted: "5:10",
+    });
+
+    const adaptedWeek = makePlanData({
+      items: [
+        {
+          id: "item-adapted-1",
+          planExternalId: "PLAN-2026-10-12-1",
+          plannedDate: "2026-10-12",
+          dayOfWeek: "Segunda",
+          activityType: "rodagem_leve",
+          isRestDay: false,
+          targetDistanceKm: 8,
+          targetPaceFormatted: "5:45-6:00",
+          description: "Rodagem Z2",
+          status: "Adaptado",
+          adaptationReason: "Volume acima do planejado · Ritmo mais forte que o alvo",
+          adaptationReasons: [
+            "Volume acima do planejado",
+            "Ritmo mais forte que o alvo",
+          ],
+          matchedSessionId: "sess-adapted-1",
+          matchedSession: adaptedSession,
+        },
+      ],
+      summary: {
+        totalPlanned: 1,
+        completed: 0,
+        adapted: 1,
+        partial: 0,
+        planned: 0,
+        missed: 0,
+        adherencePercent: 75,
+      },
+    });
+
+    const { setRequestHandler } = setupMockTafApi({
+      weeklyPlan: adaptedWeek,
+    });
+    setRequestHandler(async (url, init, defaultHandler) => {
+      if (url.includes("/api/sync/sheets") && init?.method === "POST") {
+        return createMockJsonResponse({
+          success: true,
+          data: {
+            direction: "bidirectional",
+            forceFullResync: false,
+            pulledUpdated: 0,
+            pulledCreated: 0,
+            pulledLinked: 0,
+            pushedAppended: 0,
+            pushedUpdated: 0,
+            tafPulledUpdated: 0,
+            tafPulledCreated: 0,
+            tafPulledLinked: 0,
+            tafPushedAppended: 0,
+            tafPushedUpdated: 0,
+            profileSynced: false,
+            weeklyPlan: {
+              imported: 1,
+              updated: 0,
+              removed: 0,
+              matched: 1,
+              adapted: 1,
+              missed: 0,
+              pushed: 1,
+              sheetMissingOrEmpty: false,
+            },
+            skipped: 0,
+            warnings: [
+              {
+                tab: "Plano_Semanal",
+                rowNumber: 4,
+                message: "Linha 4 (Plano_Semanal): Data inválida",
+              },
+            ],
+            durationMs: 120,
+            syncedAt: "2026-10-14T12:00:00.000Z",
+          },
+        });
+      }
+      return defaultHandler();
+    });
+
+    render(<WeeklyAdherenceCard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("weekly-adherence-populated")).toBeInTheDocument();
+    });
+
+    const itemRow = screen.getByTestId("weekly-plan-item-item-adapted-1");
+    // Rótulo humanizado ("Rodagem Leve") em vez de "rodagem_leve" cru
+    expect(within(itemRow).getAllByText("Rodagem Leve").length).toBeGreaterThanOrEqual(1);
+    expect(within(itemRow).queryByText("rodagem_leve")).not.toBeInTheDocument();
+
+    // Badge Adaptado com estilização índigo e indicador do motivo do desvio
+    const badge = within(itemRow).getByText("Adaptado");
+    expect(badge).toHaveClass("bg-indigo-950/60", "text-indigo-300");
+    expect(
+      screen.getByTestId("weekly-plan-adaptation-reason-item-adapted-1")
+    ).toHaveTextContent("Volume acima do planejado · Ritmo mais forte que o alvo");
+
+    // Resumo inclui contagem de adaptados e 75%
+    expect(screen.getByTestId("weekly-adherence-percent")).toHaveTextContent("75%");
+    expect(screen.getByText(/1 adaptado/i)).toBeInTheDocument();
+
+    // Botão Sincronizar autônomo dispara POST /api/sync/sheets e exibe aviso acionável
+    await user.click(screen.getByTestId("weekly-sync-btn"));
+    await waitFor(() => {
+      expect(screen.getByTestId("weekly-sync-feedback")).toHaveTextContent(
+        "Linha 4 (Plano_Semanal): Data inválida"
+      );
+    });
+  });
+
+  it("exibe automaticamente a próxima semana na virada dominical >= 22h BRT mantendo navegação à semana anterior", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    // Domingo 18/10/2026 22:15 BRT === 19/10/2026 01:15Z
+    vi.setSystemTime(new Date("2026-10-19T01:15:00.000Z"));
+
+    const nextWeekBounds = getFortalezaWeekBounds("2026-10-19");
+    const closedWeekBounds = getFortalezaWeekBounds("2026-10-12");
+
+    const nextWeekPayload = makePlanData({
+      weekStart: nextWeekBounds.weekStart,
+      weekEnd: nextWeekBounds.weekEnd,
+      weekLabel: nextWeekBounds.label,
+      isCurrentWeek: true,
+      isSundayRolloverWindow: true,
+      hasNextPlannedWeek: false,
+      items: [
+        {
+          id: "item-new-week",
+          planExternalId: "PLAN-2026-10-19-1",
+          plannedDate: "2026-10-19",
+          dayOfWeek: "Segunda",
+          activityType: "tempo_run",
+          isRestDay: false,
+          targetDistanceKm: 8,
+          targetPaceFormatted: "4:55",
+          description: "Treino da nova semana",
+          status: "Planejado",
+          matchedSessionId: null,
+          matchedSession: null,
+        },
+      ],
+      summary: {
+        totalPlanned: 1,
+        completed: 0,
+        adapted: 0,
+        partial: 0,
+        planned: 1,
+        missed: 0,
+        adherencePercent: 0,
+      },
+    });
+
+    const closedWeekPayload = makePlanData({
+      weekStart: closedWeekBounds.weekStart,
+      weekEnd: closedWeekBounds.weekEnd,
+      weekLabel: closedWeekBounds.label,
+      isCurrentWeek: false,
+      isSundayRolloverWindow: true,
+      hasNextPlannedWeek: true,
+    });
+
+    const { setRequestHandler } = setupMockTafApi();
+    setRequestHandler(async (url, _init, defaultHandler) => {
+      if (url.includes("/api/weekly-plan")) {
+        const parsed = new URL(url, "http://localhost");
+        const ws = parsed.searchParams.get("weekStart");
+        if (!ws || ws === "2026-10-19") {
+          return createMockJsonResponse({ success: true, data: nextWeekPayload });
+        }
+        if (ws === "2026-10-12") {
+          return createMockJsonResponse({ success: true, data: closedWeekPayload });
+        }
+      }
+      return defaultHandler();
+    });
+
+    render(<WeeklyAdherenceCard />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Treino da nova semana")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Semana Atual \(19\/10 – 25\/10\)/)).toBeInTheDocument();
+    expect(screen.getByText("Tempo Run / Ritmo")).toBeInTheDocument();
+
+    // 1 clique em Semana Anterior abre a semana encerrada (12/10 – 18/10)
+    await user.click(screen.getByTestId("weekly-prev-btn"));
+    await waitFor(() => {
+      expect(screen.getByText(/Semana \(12\/10 – 18\/10\)/)).toBeInTheDocument();
+    });
+  });
+
+  it("delega onSyncSheets quando fornecido, trata erro no sync autônomo e recarrega ao cruzar virada dominical no foco da aba", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const onSyncSheets = vi.fn();
+
+    // Cache legado sem summary.adapted deve ser ignorado com segurança
+    sessionStorage.setItem(
+      "pacelab_cache_weekly_plan",
+      JSON.stringify({
+        weekStart: "2026-10-12",
+        items: [],
+        summary: { totalPlanned: 0, completed: 0, partial: 0, planned: 0, missed: 0, adherencePercent: null },
+      })
+    );
+
+    // 1) Com onSyncSheets fornecido pelo pai: clicar no botão delega sem chamar /api/sync/sheets
+    const { setRequestHandler } = setupMockTafApi({
+      weeklyPlan: makePlanData(),
+    });
+    const { unmount } = render(<WeeklyAdherenceCard onSyncSheets={onSyncSheets} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("weekly-adherence-empty")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("weekly-sync-btn"));
+    expect(onSyncSheets).toHaveBeenCalledTimes(1);
+    unmount();
+
+    // 2) Modo autônomo com erro no sync exibe banner de erro fechável + recarga ao focar aba após 22h de domingo
+    vi.setSystemTime(new Date("2026-10-19T00:55:00.000Z")); // Dom 18/10 21:55 BRT
+    let weeklyCalls = 0;
+    setRequestHandler(async (url, init, defaultHandler) => {
+      if (url.includes("/api/sync/sheets") && init?.method === "POST") {
+        return createMockJsonResponse(
+          { success: false, error: "Integração não configurada", code: "SHEETS_NOT_CONFIGURED" },
+          503
+        );
+      }
+      if (url.includes("/api/weekly-plan")) {
+        weeklyCalls += 1;
+        return createMockJsonResponse({ success: true, data: makePlanData() });
+      }
+      return defaultHandler();
+    });
+
+    render(<WeeklyAdherenceCard />);
+    await waitFor(() => {
+      expect(screen.getByTestId("weekly-adherence-empty")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("weekly-sync-btn"));
+    await waitFor(() => {
+      expect(screen.getByTestId("weekly-sync-feedback")).toHaveTextContent(
+        /não configurada/i
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Fechar" }));
+    expect(screen.queryByTestId("weekly-sync-feedback")).not.toBeInTheDocument();
+
+    const callsBeforeRollover = weeklyCalls;
+    // Avança para domingo 22:05 BRT e dispara focus da aba
+    vi.setSystemTime(new Date("2026-10-19T01:05:00.000Z"));
+    window.dispatchEvent(new Event("focus"));
+
+    await waitFor(() => {
+      expect(weeklyCalls).toBeGreaterThan(callsBeforeRollover);
+    });
   });
 });

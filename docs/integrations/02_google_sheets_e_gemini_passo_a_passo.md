@@ -13,7 +13,7 @@ Este manual reúne todo o **passo a passo operacional de configuração e uso** 
 flowchart LR
     GCP["Google Cloud Console ('Sheets API + Service Account JSON')"] -->|"Base64 em linha única"| Env["Variáveis ('.env local ou Vercel Env Vars')"]
     Env -->|"getGoogleSheetsEnvConfig()"| App["PaceLab Server ('@googleapis/sheets')"]
-    App <-->|"Sync Automático + Manual ('/treinos' e '/meu-taf')"| Sheets["Planilha Google Drive: Treinos_Corrida ('4 abas')"]
+    App <-->|"Sync Automático + Cron Dom 22h + Manual ('/', '/treinos', '/meu-taf')"| Sheets["Planilha Google Drive: Treinos_Corrida ('4 abas')"]
     Sheets <-->|"Extensão '@Google Workspace'"| Gemini["Google Gemini ('/treinador-corrida + Domingo 19h')"]
     Gemini -.->|"Lembretes opcionais"| GCal["Google Calendar"]
 ```
@@ -81,6 +81,7 @@ DATABASE_URL="postgresql://..."
 DIRECT_URL="postgresql://..."
 GOOGLE_SHEETS_SPREADSHEET_ID="<SEU_SPREADSHEET_ID>"
 GOOGLE_CREDENTIALS_BASE64="<SUA_STRING_BASE64_EM_LINHA_UNICA>"
+CRON_SECRET="<CHAVE_ALEATORIA_FORTE_PARA_VERCEL_CRON>"
 ```
 
 Em seguida, valide a conexão do banco e inicie a aplicação:
@@ -91,9 +92,10 @@ npm run dev
 
 #### Produção / Deploy na Vercel (*Environment Variables*)
 1. No painel do projeto na **Vercel**, acesse **Settings → Environment Variables**.
-2. Adicione/confirme as variáveis de banco (`DATABASE_URL`, `DIRECT_URL`) e as variáveis da planilha:
+2. Adicione/confirme as variáveis de banco (`DATABASE_URL`, `DIRECT_URL`), as variáveis da planilha e o segredo do Cron semanal:
    - **`GOOGLE_SHEETS_SPREADSHEET_ID`**
    - **`GOOGLE_CREDENTIALS_BASE64`**
+   - **`CRON_SECRET`** *(obrigatória para autenticar o Vercel Cron automático de domingo às 22h BRT em `GET /api/cron/sync-weekly-plan` via `Authorization: Bearer <CRON_SECRET>`)*
 3. Marque os ambientes desejados (**Production**, **Preview** e **Development**), salve e execute um **Redeploy** para carregar as variáveis em runtime.
 4. Após o deploy, confirme em **`/meu-taf` → aba `Meta & Banco`** se o indicador exibe **`Configurada`** (ou consulte `GET /api/taf/health` para checar `"sheetsConfigured": true`).
 
@@ -114,11 +116,11 @@ Na primeira sincronização (`Sincronizar Planilha` ou `Sincronizar Agora (Bidir
 
 Você **não** precisa digitar esses cabeçalhos manualmente.
 
-### 2. Como Criar e Preencher a 4ª Aba Opcional `Plano_Semanal!A:I` (Pós-Plano 15)
-A aba **`Plano_Semanal`** permite que você (ou seu Treinador Gemini) prescreva a semana na planilha e receba automaticamente no PaceLab — e de volta na própria planilha — o status de aderência real (`Planejado`, `Concluído`, `Parcial` ou `Perdido`).
+### 2. Como Criar e Preencher a 4ª Aba Opcional `Plano_Semanal!A:I` (Pós-Planos 15 & 18)
+A aba **`Plano_Semanal`** permite que você (ou seu Treinador Gemini) prescreva a semana na planilha e receba automaticamente no PaceLab — e de volta na própria planilha — o status de aderência real (**5 status:** `Planejado`, `Concluído`, `Adaptado`, `Parcial` ou `Perdido`).
 
 - **Se a aba não existir ainda:** a sincronização das outras 3 abas continua funcionando normalmente sem nenhum erro.
-- **Para ativar a aba:** crie manualmente (ou via conector de escrita autorizado) uma aba chamada exatamente **`Plano_Semanal`** e insira na **linha 1 (`A1:I1`)** os cabeçalhos exatos abaixo:
+- **Para ativar a aba:** crie uma aba chamada **`Plano_Semanal`** (variações como `Plano Semanal` ou `plano_semanal` também são descobertas automaticamente) e insira na **linha 1 (`A1:I1`)** os cabeçalhos abaixo:
 
 | A | B | C | D | E | F | G | H | I |
 |---|---|---|---|---|---|---|---|---|
@@ -133,11 +135,11 @@ A aba **`Plano_Semanal`** permite que você (ou seu Treinador Gemini) prescreva 
 | `PLAN-2026-11-18-1` | `2026-11-18` | `Quarta` | `corrida_intervalada` | `-` | `'4:25-4:35` | `6x400m na pista (treino por tempo)` | `Planejado` | |
 
 **Boas práticas ao preencher `Plano_Semanal`:**
-- **Padrão de IDs:** adote `PLAN-YYYY-MM-DD-N` (ex.: `PLAN-2026-11-18-1`) para evitar colisões entre semanas. IDs duplicados na planilha geram aviso e a linha repetida é ignorada.
+- **Padrão de IDs (e Auto-ID na Coluna `A`):** prefira `PLAN-YYYY-MM-DD-N` (ex.: `PLAN-2026-11-18-1`). Caso a coluna `A` seja deixada em branco ao colar uma tabela nova, o PaceLab gera automaticamente um ID determinístico `PLAN-YYYY-MM-DD-N` e grava de volta na coluna `A` para manter a sincronização idempotente. IDs duplicados na planilha geram aviso e a linha repetida é ignorada.
+- **Formatos aceitos de Data e Pace:** a coluna `B` aceita `YYYY-MM-DD`, `DD/MM/YYYY`, `DD/MM/YY`, `DD-MM-YYYY`, `DD/MM` (ano atual de Fortaleza) e timestamps ISO; a coluna `F` aceita `5:45-6:00`, `'5:45–6:00`, `5:45 a 6:00/km`, `5'45"-6'00"`, `~5:30/km` ou `Z2 (5:50-6:10/km)`.
 - **Dias livres:** preencha a coluna `D` (`Tipo`) com **`Descanso`** (ou `Rest`, `Off`, `Folga`, `Repouso`). Linhas de descanso são ignoradas de forma limpa e **nunca** entram como `"Perdido"`.
-- **Treinos por tempo sem meta de distância:** deixe a coluna `E` (`Distância Alvo (km)`) vazia ou preencha com **`-`** (ou `tempo` / `N/A`). Qualquer sessão compatível vinculada contará automaticamente como `"Concluído"`.
-- **Faixas de pace:** escreva `5:45-6:00` ou `5:45–6:00` (se digitar pace único no Sheets, prefira iniciar com apóstrofo como `'5:40` para o Google Planilhas não converter `5:40` em `05:40:00`, embora o PaceLab também remova sufixo `:00` automaticamente).
-- **Colunas proibidas de edição manual em `Plano_Semanal`:** deixe **`H` (`Status`)** como `Planejado` e **`I` (`ID Treino Realizado`)** vazia ao prescrever — somente o PaceLab atualiza `H:I` via *write-back*.
+- **Treinos por tempo sem meta de distância:** deixe a coluna `E` (`Distância Alvo (km)`) vazia ou preencha com **`-`** (ou `tempo` / `N/A`). Qualquer sessão compatível vinculada contará como `"Concluído"` (ou `"Adaptado"` se houver desvio de pace `±15 s/km` ou choque de intensidade).
+- **Colunas proibidas de edição manual em `Plano_Semanal`:** deixe **`H` (`Status`)** como `Planejado` e **`I` (`ID Treino Realizado`)** vazia ao prescrever — somente o PaceLab atualiza `H:I` via *write-back* imediato ao registrar treinos e na sincronização semanal automática de **domingo às 22h (`America/Fortaleza`)**.
 
 ### 3. O Que Pode vs. NÃO Pode Editar Manualmente em `Log_Treinos` e `Simulados_TAF`
 - **Coluna `A` (`ID`):** nunca altere IDs já preenchidos. Se você inserir uma linha **nova** diretamente pelo Google Planilhas mantendo `A` em branco, no próximo `pull` o PaceLab cria o treino/simulado no PostgreSQL e grava o UUID gerado de volta na coluna `A`.
@@ -148,7 +150,10 @@ A aba **`Plano_Semanal`** permite que você (ou seu Treinador Gemini) prescreva 
     - Em **`Simulados_TAF`**: `Local` e `Observações`.
 
 ### 4. Como Operar os Botões de Sincronização no PaceLab
-- **Auto-Sync automático em cada ação:** salvar, editar ou excluir treinos, simulados, metas, perfil ou pesagens envia automaticamente a atualização correspondente ao Google Sheets (e mutações em treinos também recalculam/enviam `Plano_Semanal!H:I`).
+- **Auto-Sync automático em cada ação:** salvar, editar ou excluir treinos, simulados, metas, perfil ou pesagens envia automaticamente a atualização correspondente ao Google Sheets (e mutações em treinos também carregam/recalculam/enviam `Plano_Semanal!H:I`).
+- **Sync semanal automático (Vercel Cron):** todo **domingo às 22:00 (`America/Fortaleza`)** (`0 1 * * 1` UTC em [`vercel.json`](../../vercel.json)), a Vercel dispara `GET /api/cron/sync-weekly-plan` com `Bearer <CRON_SECRET>`, puxando o plano novo do Gemini e sincronizando `H:I`.
+- **Na Home `/` (Card `Plano Semanal & Aderência`):**
+  - Clique no botão compacto **`Sincronizar`** no cabeçalho do card sempre que quiser puxar imediatamente edições recém-feitas na planilha sem sair da tela inicial.
 - **Em `/treinos`:**
   - Clique no botão **`Sincronizar Planilha`** (topo direito do Diário) para executar uma sincronização bidirecional rápida — ideal logo após você ou o Gemini preencherem a nova semana em `Plano_Semanal`.
   - Cada card de treino exibe seu badge individual (`Sheets ✓` com data/hora em `America/Fortaleza` ou `Pendente Sheets`).
@@ -177,10 +182,10 @@ Com as 4 abas ativas na planilha `"Treinos_Corrida"`, o Google Gemini passa a le
 1. No recurso de **Ações Agendadas (*Scheduled Actions*)** do Google Gemini (ou rotina semanal equivalente na sua conta), crie um agendamento recorrente semanal — por exemplo, **todo domingo às 19:00**.
 2. Vincule ao comando de execução semanal (ex.: *"Execute minha revisão dominical da planilha `Treinos_Corrida`: avalie a aderência desta semana em `Plano_Semanal`, analise `Log_Treinos` e `Simulados_TAF`, e entregue a prescrição da próxima semana no padrão `Plano_Semanal!A:I`"*).
 3. **Atenção ao modo de escrita do conector:**
-   - **Se a extensão Google Workspace operar somente em leitura:** copie a tabela `Plano_Semanal!A:I` gerada na resposta do domingo e cole a partir da próxima linha livre da aba `Plano_Semanal` na planilha; em seguida clique em **`Sincronizar Planilha`** em `/treinos`.
-   - **Se você utilizar automação/conector com permissão de escrita autorizada:** instrua explicitamente para gravar somente novas linhas em `A:G` (com `H = Planejado` e `I` vazio) e **jamais sobrescrever linhas já marcadas pelo PaceLab como `Concluído` ou `Parcial`**.
+   - **Se a extensão Google Workspace operar somente em leitura:** copie a tabela `Plano_Semanal!A:I` gerada na resposta do domingo e cole a partir da próxima linha livre da aba `Plano_Semanal` na planilha; o Vercel Cron sincroniza automaticamente todo **domingo às 22h (`America/Fortaleza`)** (ou clique em **`Sincronizar`** no card / `/treinos` imediatamente).
+   - **Se você utilizar automação/conector com permissão de escrita autorizada:** instrua explicitamente para gravar somente novas linhas em `A:G` (com `H = Planejado` e `I` vazio) e **jamais sobrescrever linhas já marcadas pelo PaceLab como `Concluído`, `Adaptado` ou `Parcial`**.
 
-### 4. Template de Prompt Completo (Placeholder-Safe, Pós-Plano 15)
+### 4. Template de Prompt Completo (Placeholder-Safe, Pós-Plano 18)
 
 Copie o bloco abaixo para configurar seu Gem / rotina semanal no Gemini, preenchendo os marcadores `[PREENCHER_...]` apenas lá:
 
@@ -215,8 +220,9 @@ Seu papel é atuar como coach técnico, progressivo e preventivo de lesões, ana
    - Preencha `Status` como `Planejado` e deixe `ID Treino Realizado` em branco para o PaceLab conciliar automaticamente.
 
 ## REGRAS ESTRITAS DE ANÁLISE E SEGURANÇA
-- **Nunca altere** linhas existentes em `Log_Treinos`, `Simulados_TAF`, `Perfil_e_Metas` nem linhas de semanas passadas em `Plano_Semanal` com `Status` igual a `Concluído` ou `Parcial`.
-- **Aderência semanal primeiro:** compare os itens da semana atual em `Plano_Semanal` (`Concluído`, `Parcial`, `Perdido`) e identifique sessões extras feitas em `Log_Treinos`.
+- **Nunca altere** linhas existentes em `Log_Treinos`, `Simulados_TAF`, `Perfil_e_Metas` nem linhas de semanas passadas em `Plano_Semanal` com `Status` igual a `Concluído`, `Adaptado` ou `Parcial`.
+- **Aderência semanal primeiro (5 status):** compare os itens da semana atual em `Plano_Semanal` (`Concluído` = 100%, `Adaptado` = 75%, `Parcial` = 50%, `Perdido` = 0%) e identifique sessões extras feitas em `Log_Treinos`. Para qualquer treino marcado como `Adaptado`, cruze a Coluna I (`ID Treino Realizado`) com `Log_Treinos` para diagnosticar se houve excesso de ritmo (`±15 s/km`), volume acima de `125%` ou troca de tipo/intensidade.
+- **Sincronização automática dominical (22h BRT):** ao entregar a prescrição no domingo às 19h para inserção em `Plano_Semanal!A:G`, o PaceLab sincroniza automaticamente às **22:00 (`America/Fortaleza`)** e atualiza a semana exibida no site.
 - **Controle de carga (regra dos 10–15%):** some a quilometragem semanal (segunda a domingo) e alerte caso a semana atual ou a prescrição proposta salte mais de 10–15% sobre a semana anterior.
 - **Cruzamento fisiológico:** analise tendência de `Pace Médio (min/km)` vs. `FC Média`, `Cadência` e `RPE (1-10)` buscando sinais precoces de fadiga acumulada ou sobrecarga mecânica.
 - **Controle de tênis:** some os quilômetros por `Tênis` em `Log_Treinos` e alerte quando algum par se aproximar do limite informado.
@@ -236,7 +242,7 @@ Seu papel é atuar como coach técnico, progressivo e preventivo de lesões, ana
 | Status `Não configurada` em `/meu-taf` | `GOOGLE_SHEETS_SPREADSHEET_ID` ou `GOOGLE_CREDENTIALS_BASE64` ausente/inválido | Revise o `.env` (modelo em [`.env.example`](../../.env.example)) ou **Vercel → Environment Variables** e faça **Redeploy**. |
 | Erro `403 SHEETS_PERMISSION_DENIED` | Planilha não compartilhada com `client_email` | Abra **Compartilhar** em `Treinos_Corrida` e adicione o `client_email` da Service Account como **Editor**. |
 | Erro `429 SHEETS_QUOTA_EXCEEDED` | Excesso de chamadas simultâneas à API do Google | Ao importar vários treinos do Strava, use sempre o modo **Em Massa** (`?skipSheetsSync=true` automático + 1 push ao final). |
-| Treinos extras ou modificações em `Plano_Semanal` não aparecem | Ainda não houve sincronização bidirecional após editar a planilha | Clique em **`Sincronizar Planilha`** em `/treinos` ou **`Sincronizar Agora (Bidirecional)`** em `/meu-taf`. |
+| Treinos extras ou modificações em `Plano_Semanal` não aparecem | Ainda não houve sincronização bidirecional após editar a planilha | Clique em **`Sincronizar`** no card da Home `/`, **`Sincronizar Planilha`** em `/treinos` ou **`Sincronizar Agora (Bidirecional)`** em `/meu-taf` (ou aguarde o Cron automático de domingo às 22h BRT). |
 
 - **Passo a passo de exportação no Strava e importação em massa:** [`01_strava_exportacao_e_classificacao.md`](./01_strava_exportacao_e_classificacao.md)
 - **Especificação técnica completa dos 4 pilares e colunas:** [`02_ecossistema_strava_pacelab_sheets_gemini.md`](../architecture/02_ecossistema_strava_pacelab_sheets_gemini.md)

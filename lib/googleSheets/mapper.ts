@@ -202,6 +202,7 @@ export type ParsedRowResult<T> =
 export interface ParsedWeeklyPlanSheetRow {
   rowNumber: number;
   planExternalId: string;
+  needsGeneratedId?: boolean;
   plannedDate: Date;
   dayOfWeek: string;
   activityType: string;
@@ -482,20 +483,26 @@ export function isBlankSheetRow(row: unknown[] | null | undefined): boolean {
 }
 
 /**
- * Faz parse estrito de datas vindas da planilha (`YYYY-MM-DD` ou `DD/MM/YYYY`) para meio-dia UTC.
+ * Faz parse tolerante de datas vindas da planilha para meio-dia UTC:
+ * aceita `YYYY-MM-DD`, `YYYY/MM/DD`, `DD/MM/YYYY`, `DD-MM-YYYY`, `DD/MM/YY`,
+ * `DD-MM-YY`, `DD/MM` (ano de referência em `America/Fortaleza`) e timestamps ISO.
  */
-export function parseSheetDate(value: unknown): Date | null {
+export function parseSheetDate(
+  value: unknown,
+  referenceNow: Date = new Date()
+): Date | null {
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null;
     const formatted = formatDateFortaleza(value);
-    return formatted ? parseSheetDate(formatted) : null;
+    return formatted ? parseSheetDate(formatted, referenceNow) : null;
   }
 
   if (typeof value !== "string") return null;
-  const cleaned = stripLeadingApostrophe(value.trim());
+  const cleaned = stripLeadingApostrophe(value.trim()).trim();
   if (!cleaned) return null;
 
-  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(cleaned);
+  // 1. YYYY-MM-DD ou YYYY/MM/DD
+  const isoMatch = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(cleaned);
   if (isoMatch) {
     return buildMiddayUtcDate(
       Number(isoMatch[1]),
@@ -504,13 +511,89 @@ export function parseSheetDate(value: unknown): Date | null {
     );
   }
 
-  const brMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(cleaned);
+  // 2. Timestamp ISO com hora (ex.: 2026-11-25T00:00:00Z, 2026-11-25T22:30:00-03:00 ou 2026-11-25 08:00:00)
+  const isoTimestampMatch =
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/i.exec(
+      cleaned
+    );
+  if (isoTimestampMatch) {
+    const year = Number(isoTimestampMatch[1]);
+    const month = Number(isoTimestampMatch[2]);
+    const day = Number(isoTimestampMatch[3]);
+    const hours = Number(isoTimestampMatch[4]);
+    const minutes = Number(isoTimestampMatch[5]);
+    const seconds = Number(isoTimestampMatch[6] ?? "0");
+    const tz = isoTimestampMatch[7];
+
+    if (hours > 23 || minutes > 59 || seconds > 59) {
+      return null;
+    }
+
+    // Valida calendário real antes de qualquer conversão (bloqueia ex.: 2026-02-30T10:00:00-03:00)
+    const civilDate = buildMiddayUtcDate(year, month, day);
+    if (!civilDate) {
+      return null;
+    }
+
+    const isUtcZeroOffset = Boolean(tz && (/^Z$/i.test(tz) || /^[+-]00:?00$/.test(tz)));
+
+    // Se for meia-noite UTC pura (+00:00/Z) ou sem timezone explícito, preserva a data civil exata
+    if (!tz || (isUtcZeroOffset && hours === 0 && minutes === 0 && seconds === 0)) {
+      return civilDate;
+    }
+
+    const parsedTs = new Date(cleaned);
+    if (!Number.isNaN(parsedTs.getTime())) {
+      const fortalezaKey = formatDateFortaleza(parsedTs);
+      return fortalezaKey ? parseSheetDate(fortalezaKey, referenceNow) : null;
+    }
+    return null;
+  }
+
+  // 3. DD/MM/YYYY ou DD-MM-YYYY
+  const brMatch = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(cleaned);
   if (brMatch) {
     return buildMiddayUtcDate(
       Number(brMatch[3]),
       Number(brMatch[2]),
       Number(brMatch[1])
     );
+  }
+
+  // 4. DD/MM/YY ou DD-MM-YY (século 2000)
+  const brShortYearMatch = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2})$/.exec(cleaned);
+  if (brShortYearMatch) {
+    return buildMiddayUtcDate(
+      2000 + Number(brShortYearMatch[3]),
+      Number(brShortYearMatch[2]),
+      Number(brShortYearMatch[1])
+    );
+  }
+
+  // 5. DD/MM sem ano (escolhe o ano mais próximo de referenceNow entre refYear-1, refYear e refYear+1)
+  const brDayMonthMatch = /^(\d{1,2})\/(\d{1,2})$/.exec(cleaned);
+  if (brDayMonthMatch) {
+    const day = Number(brDayMonthMatch[1]);
+    const month = Number(brDayMonthMatch[2]);
+    const refKey = formatDateFortaleza(referenceNow);
+    const refYear = refKey ? Number(refKey.slice(0, 4)) : referenceNow.getUTCFullYear();
+    const refAnchor = refKey
+      ? parseSheetDate(refKey, referenceNow) ?? referenceNow
+      : referenceNow;
+    const refMs = refAnchor.getTime();
+
+    let bestDate: Date | null = null;
+    let bestDiffMs = Number.POSITIVE_INFINITY;
+    for (const candidateYear of [refYear - 1, refYear, refYear + 1]) {
+      const candidate = buildMiddayUtcDate(candidateYear, month, day);
+      if (!candidate) continue;
+      const diffMs = Math.abs(candidate.getTime() - refMs);
+      if (diffMs < bestDiffMs) {
+        bestDiffMs = diffMs;
+        bestDate = candidate;
+      }
+    }
+    return bestDate;
   }
 
   return null;
@@ -650,15 +733,17 @@ export function normalizeSheetActivityType(value: unknown): {
 
 /**
  * Normaliza `Pace Alvo (min/km)` vindo da aba `Plano_Semanal!F`.
- * Remove apóstrofo inicial e sufixos (`/km`, `min/km`), corrige `:00` via `parseSheetPaceFormatted`
- * e preserva faixas como `"5:45-6:00"` ou `"5:45–6:00"`.
+ * Aceita apóstrofo inicial, sufixos (`/km`, `min/km`), notação com aspas (`5'45"`),
+ * prefixos (`~`, `entre`, `abaixo de`), conversão `:00` e rótulos com pace embutido (ex.: `Z2 (5:50-6:10/km)`).
  */
 export function parseWeeklyPlanTargetPace(value: unknown): string | null {
   if (typeof value !== "string") return null;
 
   const cleaned = stripLeadingApostrophe(value.trim())
     .trim()
+    .replace(/(\d{1,2})\s*['’]\s*(\d{2})\s*(?:["”]|''|s)?/g, "$1:$2")
     .replace(/\s*(?:min\s*\/\s*km|\/\s*km)/gi, "")
+    .replace(/^(?:~|aprox\.?|cerca\s+de|entre|abaixo\s+de|acima\s+de|ritmo\s+alvo:?)\s*/i, "")
     .trim();
 
   if (!cleaned) return null;
@@ -673,8 +758,9 @@ export function parseWeeklyPlanTargetPace(value: unknown): string | null {
     return single;
   }
 
-  const rangeMatch =
-    /^(\d{1,2}:\d{2}(?::00)?)\s*([-–—]|a|até)\s*(\d{1,2}:\d{2}(?::00)?)$/i.exec(cleaned);
+  const rangeRegex =
+    /(\d{1,2}:\d{2}(?::00)?)\s*([-–—/]|a|até|e)\s*(?:~|aprox\.?\s*)?(\d{1,2}:\d{2}(?::00)?)/i;
+  const rangeMatch = rangeRegex.exec(cleaned);
   if (rangeMatch) {
     const start = parseSheetPaceFormatted(rangeMatch[1]);
     const end = parseSheetPaceFormatted(rangeMatch[3]);
@@ -684,6 +770,12 @@ export function parseWeeklyPlanTargetPace(value: unknown): string | null {
     const rawSep = rangeMatch[2].toLowerCase();
     const sep = rawSep === "-" ? "-" : "–";
     return `${start}${sep}${end}`;
+  }
+
+  // Fallback para texto descritivo contendo um único pace (ex.: "Z2 (5:40)" ou "Ritmo 5:13")
+  const embeddedSingleMatch = /\b(\d{1,2}:\d{2}(?::00)?)\b/.exec(cleaned);
+  if (embeddedSingleMatch) {
+    return parseSheetPaceFormatted(embeddedSingleMatch[1]);
   }
 
   return null;
@@ -726,7 +818,7 @@ function parseBoundedMetric(
 
 function normalizeIdCell(cell: unknown): string | null {
   if (cell === null || cell === undefined) return null;
-  const id = String(cell).trim();
+  const id = stripLeadingApostrophe(String(cell).trim()).trim();
   return id.length > 0 ? id : null;
 }
 
@@ -1026,13 +1118,16 @@ export function hasProfileGoalRowDivergence(
 }
 
 /**
- * Faz o parse e normalização de uma linha da aba `Plano_Semanal!A2:I`.
+ * Faz o parse e normalização de uma linha da aba `Plano_Semanal!A1:I`.
  * Linhas de descanso (`Descanso`, `Off`, `Rest`, `Folga`) são sinalizadas com `kind: "rest"`
  * para serem ignoradas sem warnings espúrios nem contabilização como `"Perdido"`.
+ * Linhas válidas sem ID na coluna `A` recebem `needsGeneratedId: true` com ID determinístico
+ * `PLAN-YYYY-MM-DD-N` para posterior write-back na planilha.
  */
 export function parseWeeklyPlanRowFromSheet(
   row: unknown[],
-  rowNumber: number
+  rowNumber: number,
+  options?: { referenceNow?: Date; sequenceForDate?: number }
 ): ParsedWeeklyPlanRowResult {
   if (isRestPlanActivity(row[3])) {
     return {
@@ -1043,21 +1138,19 @@ export function parseWeeklyPlanRowFromSheet(
     };
   }
 
-  const planExternalId = normalizeIdCell(row[0]);
-  if (!planExternalId) {
-    return {
-      valid: false,
-      warning: `Linha ${rowNumber} (Plano_Semanal): ID ausente.`,
-    };
-  }
-
-  const plannedDate = parseSheetDate(row[1]);
+  const plannedDate = parseSheetDate(row[1], options?.referenceNow);
   if (!plannedDate) {
     return {
       valid: false,
       warning: `Linha ${rowNumber} (Plano_Semanal): Data inválida ou ausente.`,
     };
   }
+
+  const rawId = normalizeIdCell(row[0]);
+  const needsGeneratedId = !rawId;
+  const dateKey = formatDateFortaleza(plannedDate);
+  const planExternalId =
+    rawId ?? `PLAN-${dateKey}-${options?.sequenceForDate ?? Math.max(1, rowNumber - 1)}`;
 
   const warnings: string[] = [];
   const dayOfWeek =
@@ -1116,6 +1209,7 @@ export function parseWeeklyPlanRowFromSheet(
     data: {
       rowNumber,
       planExternalId,
+      ...(needsGeneratedId ? { needsGeneratedId: true } : {}),
       plannedDate,
       dayOfWeek,
       activityType,

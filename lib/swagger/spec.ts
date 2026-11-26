@@ -766,12 +766,34 @@ export const swaggerSpec = {
       },
     },
 
+    "/api/cron/sync-weekly-plan": {
+      get: {
+        tags: ["Sincronização Google Sheets"],
+        summary: "Sincronização automática semanal via Vercel Cron (Domingo 22h BRT)",
+        description:
+          "Acionado automaticamente toda segunda-feira 01:00 UTC (domingo 22:00 America/Fortaleza) via Vercel Cron. Exige autenticação Bearer com `CRON_SECRET`. Puxa o novo planejamento de domingo da aba `Plano_Semanal`, reconcilia os treinos realizados (`Concluído`, `Adaptado`, `Parcial`, `Perdido`, respeitando a tolerância D+1 de sábado/domingo) e grava `H:I` de volta na planilha.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": createJsonResponse(
+            "Sincronização agendada concluída com sucesso.",
+            "SheetsSyncReportResponse"
+          ),
+          ...createErrorResponses([401, 429, 500, 502, 503], {
+            401: "Cabeçalho Authorization ausente ou token CRON_SECRET inválido.",
+            429: "Limite de requisições (quota) da API Google Sheets excedido.",
+            502: "Erro de permissão ou planilha/aba não encontrada no Google Sheets.",
+            503: "CRON_SECRET ou integração Google Sheets não configurada no ambiente.",
+          }),
+        },
+      },
+    },
+
     "/api/weekly-plan": {
       get: {
         tags: ["Plano Semanal"],
         summary: "Consultar plano semanal e aderência consolidada",
         description:
-          "Retorna os treinos prescritos da semana (segunda a domingo em America/Fortaleza), resumo de aderência, média móvel das até 4 últimas semanas com plano, sessões vinculadas e treinos extras realizados.",
+          "Executa reconciliação sob demanda quando detecta pendências reais (disparando write-back em `Plano_Semanal!H:I` quando configurado) e retorna os treinos prescritos da semana (segunda a domingo em America/Fortaleza, com virada dominical automática às 22h BRT quando a próxima semana imediata está planejada), resumo de aderência (pesos 1.0 / 0.75 / 0.50), média móvel das até 4 últimas semanas com plano, motivos de adaptação, sessões vinculadas e treinos extras.",
         parameters: [
           {
             name: "weekStart",
@@ -791,7 +813,9 @@ export const swaggerSpec = {
             "Snapshot semanal consolidado.",
             "WeeklyPlanResponse"
           ),
-          ...createErrorResponses([400, 500]),
+          ...createErrorResponses([400, 500, 503], {
+            503: "Banco de dados temporariamente indisponível.",
+          }),
         },
       },
     },
@@ -816,6 +840,13 @@ export const swaggerSpec = {
   },
 
   components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        description: "Token secreto configurado na variável de ambiente CRON_SECRET.",
+      },
+    },
     responses: {
       ValidationError: createJsonResponse(
         "Erro de validação nos dados fornecidos.",
@@ -945,6 +976,7 @@ export const swaggerSpec = {
               updated: { type: "integer" },
               removed: { type: "integer" },
               matched: { type: "integer" },
+              adapted: { type: "integer" },
               missed: { type: "integer" },
               pushed: { type: "integer" },
               sheetMissingOrEmpty: { type: "boolean" },
@@ -1237,6 +1269,7 @@ export const swaggerSpec = {
           },
           weekLabel: { type: "string", example: "12/10 – 18/10" },
           isCurrentWeek: { type: "boolean", example: true },
+          isSundayRolloverWindow: { type: "boolean", example: false },
           hasNextPlannedWeek: { type: "boolean", example: false },
           items: {
             type: "array",
@@ -1271,6 +1304,15 @@ export const swaggerSpec = {
                   type: "string",
                   enum: [...WEEKLY_PLAN_STATUSES],
                 },
+                adaptationReason: {
+                  type: "string",
+                  nullable: true,
+                  example: "Ritmo mais forte que o alvo",
+                },
+                adaptationReasons: {
+                  type: "array",
+                  items: { type: "string" },
+                },
                 matchedSessionId: { type: "string", nullable: true },
                 matchedSession: {
                   type: "object",
@@ -1290,6 +1332,7 @@ export const swaggerSpec = {
             properties: {
               totalPlanned: { type: "integer" },
               completed: { type: "integer" },
+              adapted: { type: "integer" },
               partial: { type: "integer" },
               planned: { type: "integer" },
               missed: { type: "integer" },
@@ -1319,6 +1362,7 @@ export const swaggerSpec = {
                     label: { type: "string" },
                     adherencePercent: { type: "integer" },
                     completed: { type: "integer" },
+                    adapted: { type: "integer" },
                     partial: { type: "integer" },
                     totalPlanned: { type: "integer" },
                   },

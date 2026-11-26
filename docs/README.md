@@ -4,7 +4,7 @@ Bem-vindo ao portal técnico e funcional do **PaceLab**. Toda a documentação e
 
 > [!IMPORTANT]
 > **Documentação Viva vs. Registro Histórico:**
-> - **Documentação Viva (fonte primária atualizada):** as pastas `architecture/`, `integrations/`, `features/` e `operations/` refletem o comportamento exato em produção na branch `main` (incluindo `Plano_Semanal`, `WeeklyPlanItem`, `WeeklyAdherenceCard`, Swagger `/docs` derivado de Zod e o padrão **Dark Performance Athletics** consolidado no Plano 17).
+> - **Documentação Viva (fonte primária atualizada):** as pastas `architecture/`, `integrations/`, `features/` e `operations/` refletem o comportamento exato em produção na branch `main` (incluindo `Plano_Semanal` com 5 status e `"Adaptado"`, auto-ID, Cron Dominical 22h, `WeeklyPlanItem`, `WeeklyAdherenceCard`, Swagger `/docs` derivado de Zod e o padrão **Dark Performance Athletics**).
 > - **Registro Histórico de Sprints:** os arquivos em [`plans/executed/`](plans/executed) preservam o contexto de cada sprint implementada e **não** devem ser lidos como referência primária do comportamento vigente sem checar a documentação viva.
 
 ---
@@ -40,7 +40,7 @@ Bem-vindo ao portal técnico e funcional do **PaceLab**. Toda a documentação e
 
 ### Arquitetura (`architecture/`)
 - [`01_leitura_fit_gpx_e_divergencias_strava.md`](architecture/01_leitura_fit_gpx_e_divergencias_strava.md) — Engine `.FIT`/`.GPX`, mesclagem prioritária, histerese de movimento e divergências com o Strava. *(Documentação Viva)*
-- [`02_ecossistema_strava_pacelab_sheets_gemini.md`](architecture/02_ecossistema_strava_pacelab_sheets_gemini.md) — Integração ponta a ponta dos 4 pilares pós-Plano 15 (Strava → PaceLab → Google Sheets em 4 abas → Gemini). *(Documentação Viva)*
+- [`02_ecossistema_strava_pacelab_sheets_gemini.md`](architecture/02_ecossistema_strava_pacelab_sheets_gemini.md) — Integração ponta a ponta dos 4 pilares pós-Plano 18 (Strava → PaceLab → Google Sheets em 4 abas com 5 status e Cron Domingo 22h → Gemini). *(Documentação Viva)*
 - [`03_modelo_de_dados_e_apis.md`](architecture/03_modelo_de_dados_e_apis.md) — Persistência híbrida, 6 tabelas Prisma, enums oficiais, contrato `America/Fortaleza`, wrapper `withApiHandler` (`ApiErrorCode`) e catálogo completo de endpoints. *(Documentação Viva)*
 - [`04_padroes_de_codigo_e_design_system.md`](architecture/04_padroes_de_codigo_e_design_system.md) — Arquitetura em camadas (zero UI em `lib/`), fonte única `types/constants.ts`, helpers `lib/api/*` + `apiClient.ts`, Swagger via `z.toJSONSchema`, datas `America/Fortaleza`, segurança e Design System **Dark Performance Athletics**. *(Documentação Viva)*
 
@@ -59,7 +59,7 @@ Bem-vindo ao portal técnico e funcional do **PaceLab**. Toda a documentação e
 
 ### Planejamento & Histórico (`roadmap/` e `plans/`)
 - [`roadmap/01_roadmap_melhorias_futuras.md`](roadmap/01_roadmap_melhorias_futuras.md) — Mapeamento de persistência e histórico dos eixos concluídos + próximos passos (Auth, RLS, PWA, CI). *(Histórico & Backlog)*
-- [`plans/executed/`](plans/executed) — Planos detalhados das sprints concluídas e arquivadas (`01` a `17`). *(Registro Histórico)*
+- [`plans/executed/`](plans/executed) — Planos detalhados das sprints concluídas e arquivadas (`01` a `18`). *(Registro Histórico)*
 - [`plans/`](plans) — Pasta para futuros planos de sprint (atualmente sem planos ativos em aberto).
 
 ---

@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-const { mockPrisma } = vi.hoisted(() => ({
+const {
+  mockPrisma,
+  mockSafeReconcileWeeklyPlans,
+  mockIsGoogleSheetsConfigured,
+  mockPushWeeklyPlanStatusToSheets,
+} = vi.hoisted(() => ({
   mockPrisma: {
     weeklyPlanItem: {
       findMany: vi.fn(),
@@ -9,10 +14,29 @@ const { mockPrisma } = vi.hoisted(() => ({
       findMany: vi.fn(),
     },
   },
+  mockSafeReconcileWeeklyPlans: vi.fn(),
+  mockIsGoogleSheetsConfigured: vi.fn(),
+  mockPushWeeklyPlanStatusToSheets: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: mockPrisma,
+}));
+
+vi.mock("@/lib/api/sheetsSync", () => ({
+  safeReconcileWeeklyPlans: mockSafeReconcileWeeklyPlans,
+}));
+
+vi.mock("@/lib/env", () => ({
+  isGoogleSheetsConfigured: mockIsGoogleSheetsConfigured,
+}));
+
+vi.mock("@/lib/googleSheets", () => ({
+  pushWeeklyPlanStatusToSheets: mockPushWeeklyPlanStatusToSheets,
+  safeAutoSync: async (fn: () => Promise<unknown>) => {
+    const data = await fn();
+    return { skipped: false, ok: true, data };
+  },
 }));
 
 import { GET } from "@/app/api/weekly-plan/route";
@@ -25,6 +49,9 @@ describe("API /api/weekly-plan (GET)", () => {
     vi.setSystemTime(new Date("2026-10-14T12:00:00.000Z"));
     mockPrisma.weeklyPlanItem.findMany.mockResolvedValue([]);
     mockPrisma.trainingSession.findMany.mockResolvedValue([]);
+    mockSafeReconcileWeeklyPlans.mockResolvedValue({ matched: 0, missed: 0, updatedCount: 0 });
+    mockIsGoogleSheetsConfigured.mockReturnValue(false);
+    mockPushWeeklyPlanStatusToSheets.mockResolvedValue({ pushed: 0, sheetMissingOrEmpty: false });
   });
 
   afterEach(() => {
@@ -42,11 +69,13 @@ describe("API /api/weekly-plan (GET)", () => {
       weekEnd: "2026-10-18",
       weekLabel: "12/10 – 18/10",
       isCurrentWeek: true,
+      isSundayRolloverWindow: false,
       hasNextPlannedWeek: false,
       items: [],
       summary: {
         totalPlanned: 0,
         completed: 0,
+        adapted: 0,
         partial: 0,
         planned: 0,
         missed: 0,
@@ -333,10 +362,11 @@ describe("API /api/weekly-plan (GET)", () => {
     });
     expect(matched.splits).toHaveLength(1);
 
-    // Resumo da semana atual: 2 Concluídos + 0 Parcial em 3 planejados => Math.round((2/3)*100) = 67%
+    // Resumo da semana atual: 2 Concluídos + 0 Adaptado + 0 Parcial em 3 planejados => Math.round((2/3)*100) = 67%
     expect(json.data.summary).toEqual({
       totalPlanned: 3,
       completed: 2,
+      adapted: 0,
       partial: 0,
       planned: 1,
       missed: 0,
@@ -440,5 +470,228 @@ describe("API /api/weekly-plan (GET)", () => {
     ]);
     // 100% + 50% -> 75%
     expect(json.data.rollingFourWeeksAverage.averagePercent).toBe(75);
+  });
+
+  it("retorna status Adaptado com adaptationReason/adaptationReasons e aplica peso 0.75 na aderência", async () => {
+    mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+      {
+        id: "plan-adp-1",
+        planExternalId: "PLAN-2026-10-12-1",
+        plannedDate: new Date("2026-10-12T12:00:00.000Z"),
+        dayOfWeek: "Segunda",
+        activityType: "rodagem_leve",
+        targetDistanceKm: 8,
+        targetPaceFormatted: "5:45-6:00",
+        description: "Rodagem Z2",
+        status: "Adaptado",
+        matchedSessionId: "sess-adp-1",
+        matchedSession: {
+          id: "sess-adp-1",
+          source: "fit_upload",
+          sessionDate: new Date("2026-10-12T09:00:00.000Z"),
+          activityType: "rodagem_leve",
+          distanceKm: 11.0,
+          durationSeconds: 3410,
+          speedKmh: 11.6,
+          paceSeconds: 310,
+          paceFormatted: "5:10",
+          splits: [],
+          createdAt: new Date("2026-10-12T10:00:00.000Z"),
+          updatedAt: new Date("2026-10-12T10:00:00.000Z"),
+        },
+      },
+      {
+        id: "plan-ok-2",
+        planExternalId: "PLAN-2026-10-14-1",
+        plannedDate: new Date("2026-10-14T12:00:00.000Z"),
+        dayOfWeek: "Quarta",
+        activityType: "corrida_continua",
+        targetDistanceKm: 6,
+        targetPaceFormatted: "5:20",
+        description: null,
+        status: "Concluído",
+        matchedSessionId: "sess-ok-2",
+        matchedSession: {
+          id: "sess-ok-2",
+          source: "fit_upload",
+          sessionDate: new Date("2026-10-14T09:00:00.000Z"),
+          activityType: "corrida_continua",
+          distanceKm: 6.0,
+          durationSeconds: 1920,
+          speedKmh: 11.25,
+          paceSeconds: 320,
+          paceFormatted: "5:20",
+          splits: [],
+          createdAt: new Date("2026-10-14T10:00:00.000Z"),
+          updatedAt: new Date("2026-10-14T10:00:00.000Z"),
+        },
+      },
+    ]);
+    mockPrisma.trainingSession.findMany.mockResolvedValueOnce([]);
+
+    const res = await GET(new Request("http://localhost/api/weekly-plan?weekStart=2026-10-12"));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+
+    expect(json.data.items[0].status).toBe("Adaptado");
+    expect(json.data.items[0].adaptationReasons).toEqual([
+      "Volume acima do planejado",
+      "Ritmo mais forte que o alvo",
+    ]);
+    expect(json.data.items[0].adaptationReason).toBe(
+      "Volume acima do planejado · Ritmo mais forte que o alvo"
+    );
+    expect(json.data.items[1].adaptationReason).toBeNull();
+    expect(json.data.items[1].adaptationReasons).toEqual([]);
+
+    // (1.0 + 0.75) / 2 = 87.5% -> 88%
+    expect(json.data.summary).toEqual({
+      totalPlanned: 2,
+      completed: 1,
+      adapted: 1,
+      partial: 0,
+      planned: 0,
+      missed: 0,
+      adherencePercent: 88,
+    });
+    expect(json.data.rollingFourWeeksAverage.weeks[0].adapted).toBe(1);
+    expect(mockSafeReconcileWeeklyPlans).not.toHaveBeenCalled();
+  });
+
+  it("executa virada semanal no domingo >= 22h BRT apenas quando existe plano para a próxima semana", async () => {
+    // Domingo 18/10/2026 21:59 BRT === 19/10/2026 00:59Z -> ainda NÃO virou
+    vi.setSystemTime(new Date("2026-10-19T00:59:00.000Z"));
+    mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+      {
+        id: "p-next",
+        planExternalId: "P-NEXT",
+        plannedDate: new Date("2026-10-19T12:00:00.000Z"),
+        dayOfWeek: "Segunda",
+        activityType: "rodagem_leve",
+        targetDistanceKm: 6,
+        targetPaceFormatted: "5:45",
+        description: "Semana nova",
+        status: "Planejado",
+        matchedSessionId: null,
+        matchedSession: null,
+      },
+    ]);
+    mockPrisma.trainingSession.findMany.mockResolvedValueOnce([]);
+
+    const beforeRes = await GET(new Request("http://localhost/api/weekly-plan"));
+    const beforeJson = await beforeRes.json();
+    expect(beforeJson.data.isSundayRolloverWindow).toBe(false);
+    expect(beforeJson.data.weekStart).toBe("2026-10-12");
+
+    // Domingo 18/10/2026 22:00 BRT === 19/10/2026 01:00Z COM plano futuro -> vira para 2026-10-19
+    vi.setSystemTime(new Date("2026-10-19T01:00:00.000Z"));
+    mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+      {
+        id: "p-next",
+        planExternalId: "P-NEXT",
+        plannedDate: new Date("2026-10-19T12:00:00.000Z"),
+        dayOfWeek: "Segunda",
+        activityType: "rodagem_leve",
+        targetDistanceKm: 6,
+        targetPaceFormatted: "5:45",
+        description: "Semana nova",
+        status: "Planejado",
+        matchedSessionId: null,
+        matchedSession: null,
+      },
+    ]);
+    mockPrisma.trainingSession.findMany.mockResolvedValueOnce([]);
+
+    const afterWithNextRes = await GET(new Request("http://localhost/api/weekly-plan"));
+    const afterWithNextJson = await afterWithNextRes.json();
+    expect(afterWithNextJson.data.isSundayRolloverWindow).toBe(true);
+    expect(afterWithNextJson.data.weekStart).toBe("2026-10-19");
+    expect(afterWithNextJson.data.isCurrentWeek).toBe(true);
+    expect(afterWithNextJson.data.items).toHaveLength(1);
+
+    // Domingo 18/10/2026 22:00 BRT SEM plano futuro -> mantém semana encerrada (Mitigação R5)
+    mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+      {
+        id: "p-cur",
+        planExternalId: "P-CUR",
+        plannedDate: new Date("2026-10-18T12:00:00.000Z"),
+        dayOfWeek: "Domingo",
+        activityType: "longao",
+        targetDistanceKm: 12,
+        targetPaceFormatted: "5:50",
+        description: "Longão",
+        status: "Concluído",
+        matchedSessionId: null,
+        matchedSession: null,
+      },
+    ]);
+    mockPrisma.trainingSession.findMany.mockResolvedValueOnce([]);
+
+    const afterWithoutNextRes = await GET(new Request("http://localhost/api/weekly-plan"));
+    const afterWithoutNextJson = await afterWithoutNextRes.json();
+    expect(afterWithoutNextJson.data.isSundayRolloverWindow).toBe(true);
+    expect(afterWithoutNextJson.data.weekStart).toBe("2026-10-12");
+
+    // Domingo 18/10/2026 22:00 BRT com plano APENAS em +14 dias (próxima semana imediata vazia) -> NÃO vira para semana vazia
+    mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+      {
+        id: "p-far-future",
+        planExternalId: "P-FAR",
+        plannedDate: new Date("2026-10-26T12:00:00.000Z"),
+        dayOfWeek: "Segunda",
+        activityType: "rodagem_leve",
+        targetDistanceKm: 6,
+        targetPaceFormatted: "5:45",
+        description: "Semana +2",
+        status: "Planejado",
+        matchedSessionId: null,
+        matchedSession: null,
+      },
+    ]);
+    mockPrisma.trainingSession.findMany.mockResolvedValueOnce([]);
+
+    const afterFarFutureOnlyRes = await GET(new Request("http://localhost/api/weekly-plan"));
+    const afterFarFutureOnlyJson = await afterFarFutureOnlyRes.json();
+    expect(afterFarFutureOnlyJson.data.isSundayRolloverWindow).toBe(true);
+    expect(afterFarFutureOnlyJson.data.weekStart).toBe("2026-10-12");
+  });
+
+  it("dispara reconciliação sob demanda e write-back no Sheets quando detecta plano vencido (Planejado -> Perdido)", async () => {
+    mockIsGoogleSheetsConfigured.mockReturnValue(true);
+    mockSafeReconcileWeeklyPlans.mockResolvedValueOnce({
+      matched: 0,
+      missed: 1,
+      updatedCount: 1,
+    });
+
+    const overduePlan = {
+      id: "p-overdue",
+      planExternalId: "P-OVERDUE",
+      plannedDate: new Date("2026-10-12T12:00:00.000Z"), // Segunda (anteontem frente à quarta 14/10)
+      dayOfWeek: "Segunda",
+      activityType: "rodagem_leve",
+      targetDistanceKm: 6,
+      targetPaceFormatted: "5:50",
+      description: null,
+      status: "Planejado",
+      matchedSessionId: null,
+      matchedSession: null,
+    };
+
+    mockPrisma.weeklyPlanItem.findMany
+      .mockResolvedValueOnce([overduePlan])
+      .mockResolvedValueOnce([{ ...overduePlan, status: "Perdido" }]);
+    mockPrisma.trainingSession.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const res = await GET(new Request("http://localhost/api/weekly-plan?weekStart=2026-10-12"));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+
+    expect(mockSafeReconcileWeeklyPlans).toHaveBeenCalledTimes(1);
+    expect(mockPushWeeklyPlanStatusToSheets).toHaveBeenCalledTimes(1);
+    expect(json.data.items[0].status).toBe("Perdido");
+    expect(json.data.summary.missed).toBe(1);
   });
 });

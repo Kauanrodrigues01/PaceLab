@@ -483,6 +483,8 @@ export interface WeeklyPlanItemDto {
   targetPaceFormatted: string | null;
   description: string | null;
   status: WeeklyPlanStatus;
+  adaptationReason?: string | null;
+  adaptationReasons?: string[];
   matchedSessionId: string | null;
   matchedSession: TrainingSession | null;
 }
@@ -490,6 +492,7 @@ export interface WeeklyPlanItemDto {
 export interface WeeklyPlanAdherenceSummaryDto {
   totalPlanned: number;
   completed: number;
+  adapted: number;
   partial: number;
   planned: number;
   missed: number;
@@ -502,6 +505,7 @@ export interface WeeklyPlanRollingWeekDto {
   label: string;
   adherencePercent: number;
   completed: number;
+  adapted: number;
   partial: number;
   totalPlanned: number;
 }
@@ -522,6 +526,7 @@ export interface WeeklyPlanData {
   weekEnd: string;
   weekLabel: string;
   isCurrentWeek: boolean;
+  isSundayRolloverWindow?: boolean;
   hasNextPlannedWeek: boolean;
   items: WeeklyPlanItemDto[];
   summary: WeeklyPlanAdherenceSummaryDto;

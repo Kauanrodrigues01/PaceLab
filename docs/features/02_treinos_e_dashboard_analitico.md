@@ -17,21 +17,26 @@ flowchart TD
     Plan["Item do Plano_Semanal (YYYY-MM-DD)"] --> CheckType{"Atividade e Descanso?"}
     CheckType -->|"Sim"| RestSkip["Ignorado no pull/reconciliacao"]
     CheckType -->|"Nao"| Pass1["Passada 1: busca sessao livre no mesmo dia (America/Fortaleza)"]
-    Pass1 -->|"ratio >= 0.85 ou meta sem km"| Done["Status: Concluido (peso 1.0)"]
-    Pass1 -->|"0.40 <= ratio < 0.85"| Partial["Status: Parcial (peso 0.5)"]
-    Pass1 -->|"Sem match (ratio < 0.40)"| Pass2["Passada 2: tolerancia +/- 1 dia se dia da sessao nao tiver outro plano"]
-    Pass2 -->|"Match valido"| Match2["Vincula sessao (Concluido ou Parcial)"]
+    Pass1 -->|"0.40 <= ratio < 0.85"| Partial["Status: Parcial (peso 0.50)"]
+    Pass1 -->|"ratio >= 0.85 ou meta sem km"| Deviation{"Desvio >125%, pace +/-15s/km ou tipo?"}
+    Deviation -->|"Sim"| Adapted["Status: Adaptado (peso 0.75 + motivo)"]
+    Deviation -->|"Nao"| Done["Status: Concluido (peso 1.00)"]
+    Pass1 -->|"Sem match (ratio < 0.40)"| Pass2["Passada 2: tolerancia +/- 1 dia (mesma familia, dia livre)"]
+    Pass2 -->|"Match valido"| Match2["Vincula sessao (Concluido, Adaptado ou Parcial)"]
     Pass2 -->|"Sem sessao"| Cutoff{"plannedDate < ontem?"}
-    Cutoff -->|"Sim"| Missed["Status: Perdido"]
+    Cutoff -->|"Sim"| Missed["Status: Perdido (0%)"]
     Cutoff -->|"Nao (ontem, hoje ou futuro)"| Planned["Status: Planejado"]
 ```
 
-- **Elegibilidade (`evaluateWeeklyMatch`):** sessões com `ratio >= 0.85` da distância planejada (ou planos apenas por tempo sem `targetDistanceKm > 0`) recebem **`Concluído`**; sessões entre `0.40 <= ratio < 0.85` recebem **`Parcial`**; sessões abaixo de `0.40` são ignoradas para não vincular aquecimentos curtos por engano; atividades de descanso (`Descanso`/`Off`/`Rest`/`Folga`) são ignoradas durante o `pull` da planilha e na reconciliação automática.
+- **Elegibilidade e 5º status `"Adaptado"` (`evaluateWeeklyMatchDetailed`):**
+  - Sessões com `ratio < 0.40` são ignoradas para não vincular aquecimentos curtos por engano; atividades de descanso (`Descanso`/`Off`/`Rest`/`Folga`) são ignoradas no `pull` e na reconciliação.
+  - Sessões com `0.40 <= ratio < 0.85` recebem **`Parcial`** (`0.50`, precedência sobre `"Adaptado"`).
+  - Sessões com volume base cumprido (`ratio >= 0.85` ou planos apenas por tempo sem `targetDistanceKm > 0`) recebem **`Adaptado`** (`0.75`, badge índigo `variant="adapted"` + indicador visual do motivo do desvio) se houver: (a) `ratio > 1.25` (*"Volume acima do planejado"*), (b) `session.paceSeconds` fora de `±15 s/km` da faixa alvo (*"Ritmo mais forte que o alvo"* / *"Ritmo mais lento que o alvo"*), ou (c) choque entre alta intensidade (`corrida_intervalada`, `tempo_run`) e baixa intensidade (`rodagem_leve`, `caminhada`) ou troca `run ↔ walk` no mesmo dia (*"Tipo alterado"*). Sem desvios, recebem **`Concluído`** (`1.00`).
 - **Fórmula de aderência semanal (`calculateWeeklyAdherenceSummary`):**
 
-$$\text{Aderência (\%)} = \min\left(100,\ \text{round}\left(\frac{\text{Concluídos} + 0{,}5 \times \text{Parciais}}{\text{Total Planejado}} \times 100\right)\right)$$
+$$\text{Aderência (\%)} = \min\left(100,\ \text{round}\left(\frac{\text{Concluídos} \times 1{,}0 + \text{Adaptados} \times 0{,}75 + \text{Parciais} \times 0{,}5}{\text{Total Planejado}} \times 100\right)\right)$$
 
-- **Navegação e métricas complementares:** botões `Semana Anterior`, `Semana Atual` (quando fora da semana corrente) e `Próxima` (com `aria-label` `Próxima Semana`), cálculo de média móvel de até 4 semanas (`Média N sem` e delta `+X% / -X% vs. média`), além de cache temporário por semana em `sessionStorage`. Clicar em uma sessão vinculada ou extra abre o [`TrainingDetailModal`](../../components/treinos/TrainingDetailModal.tsx).
+- **Navegação, virada dominical 22h e sincronização rápida:** botões `Sincronizar` (no próprio header do card, integrado ao `handleSyncSheets` em `/treinos` ou autônomo na Home `/`), `Semana Anterior`, `Semana Atual` e `Próxima`, rótulos humanizados de modalidade (`getActivityLabel`), contagem de `adaptado(s)` no resumo, média móvel de até 4 semanas (`Média N sem` e delta `+X% / -X% vs. média`), atualização automática ao voltar o foco na aba (`focus`/`visibilitychange`) e virada automática no domingo `>= 22:00` (`America/Fortaleza`) quando a próxima semana já estiver planejada (`hasNextPlannedWeek === true`). Clicar em uma sessão vinculada ou extra abre o [`TrainingDetailModal`](../../components/treinos/TrainingDetailModal.tsx).
 
 ---
 

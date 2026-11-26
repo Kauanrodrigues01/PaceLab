@@ -27,10 +27,25 @@ import {
 } from "@/lib/api/sheetsSync";
 import { AppError } from "@/lib/api/response";
 import * as googleSheets from "@/lib/googleSheets";
+import * as envModule from "@/lib/env";
+import { prisma } from "@/lib/prisma";
 
 vi.mock("@/lib/googleSheets", () => ({
+  pullWeeklyPlanFromSheets: vi.fn(),
   reconcileWeeklyPlansWithSessions: vi.fn(),
   safeAutoSync: vi.fn(),
+}));
+
+vi.mock("@/lib/env", () => ({
+  isGoogleSheetsConfigured: vi.fn(() => false),
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    weeklyPlanItem: {
+      count: vi.fn(),
+    },
+  },
 }));
 
 describe("lib/api helpers (externalIdConflict, request, pagination, sheetsSync)", () => {
@@ -309,6 +324,32 @@ describe("lib/api helpers (externalIdConflict, request, pagination, sheetsSync)"
       });
       expect(googleSheets.safeAutoSync).toHaveBeenCalledTimes(2);
       expect(result.syncedToSheetsAt?.toISOString()).toBe("2026-10-14T10:00:00.000Z");
+    });
+
+    it("syncTrainingRecordWithPlanAndSheets puxa Plano_Semanal sob demanda quando banco não tem planos na semana da sessão", async () => {
+      vi.mocked(envModule.isGoogleSheetsConfigured).mockReturnValueOnce(true);
+      vi.mocked(prisma.weeklyPlanItem.count).mockResolvedValueOnce(0);
+      vi.mocked(googleSheets.reconcileWeeklyPlansWithSessions).mockResolvedValueOnce({} as never);
+      vi.mocked(googleSheets.safeAutoSync)
+        .mockResolvedValueOnce({ ok: true, skipped: false } as never) // pullWeeklyPlanFromSheets
+        .mockResolvedValueOnce({ ok: true, skipped: false, syncedAt: "2026-11-18T12:00:00.000Z" } as never) // syncSession
+        .mockResolvedValueOnce({ ok: true, skipped: false } as never); // pushWeeklyPlan
+
+      const record = {
+        id: "tr-2",
+        sessionDate: new Date("2026-11-18T10:00:00.000Z"),
+        syncedToSheetsAt: null as Date | null,
+      };
+      const result = await syncTrainingRecordWithPlanAndSheets(
+        record,
+        vi.fn(),
+        vi.fn(),
+        { skipSheetsSync: false }
+      );
+
+      expect(prisma.weeklyPlanItem.count).toHaveBeenCalledTimes(1);
+      expect(googleSheets.safeAutoSync).toHaveBeenCalledTimes(3);
+      expect(result.syncedToSheetsAt?.toISOString()).toBe("2026-11-18T12:00:00.000Z");
     });
   });
 });

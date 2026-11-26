@@ -88,9 +88,13 @@ describe("Documentação Swagger / OpenAPI 3.0 (/api/docs/spec)", () => {
     expect(paths["/api/profile/weight"]).toHaveProperty("post");
     expect(paths["/api/profile/weight/{id}"]).toHaveProperty("delete");
 
-    // Sync Google Sheets: GET e POST
+    // Sync Google Sheets: GET e POST + Cron semanal GET
     expect(paths["/api/sync/sheets"]).toHaveProperty("get");
     expect(paths["/api/sync/sheets"]).toHaveProperty("post");
+    expect(paths["/api/cron/sync-weekly-plan"]).toHaveProperty("get");
+    expect(paths["/api/cron/sync-weekly-plan"].get.responses).toHaveProperty("200");
+    expect(paths["/api/cron/sync-weekly-plan"].get.responses).toHaveProperty("401");
+    expect(paths["/api/cron/sync-weekly-plan"].get.responses).toHaveProperty("503");
 
     // Weekly Plan: GET
     expect(paths["/api/weekly-plan"]).toHaveProperty("get");

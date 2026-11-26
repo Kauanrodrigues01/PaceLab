@@ -820,6 +820,8 @@ export default function TreinosPage() {
           <WeeklyAdherenceCard
             refreshTrigger={weeklyRefreshTrigger}
             onOpenSession={(session) => setSelectedDetailTraining(session)}
+            onSyncSheets={handleSyncSheets}
+            isSyncingSheets={isSyncingSheets}
           />
 
           {/* Formulário de Registro / Importação / Edição (exibido quando aberto ou editando) */}

@@ -233,6 +233,37 @@ describe("Fase 5 — Endpoint /api/sync/sheets", () => {
       expect(json.data.forceFullResync).toBe(true);
     });
 
+    it("propaga weeklyPlan.adapted e warnings da aba Plano_Semanal no relatório de sync", async () => {
+      process.env.GOOGLE_SHEETS_SPREADSHEET_ID = "sheet-12345";
+      process.env.GOOGLE_CREDENTIALS_BASE64 = createTestCredentialsBase64();
+      mockSyncWithGoogleSheets.mockResolvedValueOnce({
+        ...sampleReport,
+        weeklyPlan: {
+          ...sampleReport.weeklyPlan,
+          adapted: 2,
+        },
+        warnings: [
+          {
+            tab: "Plano_Semanal",
+            rowNumber: 5,
+            message: "Linha 5 (Plano_Semanal): Data inválida",
+          },
+        ],
+      });
+
+      const res = await POST(createJsonRequest({ direction: "bidirectional" }));
+      const json = await res.json();
+      expect(res.status).toBe(200);
+      expect(json.data.weeklyPlan.adapted).toBe(2);
+      expect(json.data.warnings).toEqual([
+        {
+          tab: "Plano_Semanal",
+          rowNumber: 5,
+          message: "Linha 5 (Plano_Semanal): Data inválida",
+        },
+      ]);
+    });
+
     it("mapeia erros HTTP da API do Google (429 quota, 403 permissão, 404 not found, 503 indisponível)", async () => {
       process.env.GOOGLE_SHEETS_SPREADSHEET_ID = "sheet-12345";
       process.env.GOOGLE_CREDENTIALS_BASE64 = createTestCredentialsBase64();

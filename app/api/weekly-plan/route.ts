@@ -3,12 +3,21 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { apiSuccess, withApiHandler } from "@/lib/api/response";
 import { parseQueryParams } from "@/lib/api/request";
+import { safeReconcileWeeklyPlans } from "@/lib/api/sheetsSync";
+import { isGoogleSheetsConfigured } from "@/lib/env";
+import { pushWeeklyPlanStatusToSheets, safeAutoSync } from "@/lib/googleSheets";
 import { WeeklyPlanQuerySchema } from "@/lib/validations/taf";
 import {
   calculateRollingFourWeeksAdherence,
   calculateWeeklyAdherenceSummary,
+  computeWeeklyReconciliation,
+  evaluateLinkedSessionValidity,
+  evaluateWeeklyMatchDetailed,
+  getDefaultDisplayWeekStartFortaleza,
   getFortalezaWeekBounds,
+  isRealizedWeeklyPlanStatus,
   isRestPlanActivity,
+  isSundayPostRolloverFortaleza,
   normalizeWeeklyPlanStatus,
   shiftFortalezaDays,
   toFortalezaDateKey,
@@ -121,20 +130,142 @@ export async function GET(request: NextRequest | Request) {
   return withApiHandler(async () => {
     const parsedQuery = parseQueryParams(request, WeeklyPlanQuerySchema);
 
-    const currentWeekBounds = getFortalezaWeekBounds();
-    const targetBounds = parsedQuery.weekStart
-      ? getFortalezaWeekBounds(parsedQuery.weekStart)
-      : currentWeekBounds;
+    const now = new Date();
+    const todayKey = toFortalezaDateKey(now);
+    const currentWeekBounds = getFortalezaWeekBounds(now);
+    const isSundayRolloverWindow = isSundayPostRolloverFortaleza(now);
 
-    const { weekStart, weekEnd, label: weekLabel } = targetBounds;
-    const isCurrentWeek = weekStart === currentWeekBounds.weekStart;
-
-    const allPlanItems = await prisma.weeklyPlanItem.findMany({
+    let allPlanItems = await prisma.weeklyPlanItem.findMany({
       orderBy: [{ plannedDate: "asc" }, { planExternalId: "asc" }],
       include: {
         matchedSession: true,
       },
     });
+
+    const immediateNextWeekStart = shiftFortalezaDays(currentWeekBounds.weekStart, 7);
+    const immediateNextWeekEnd = shiftFortalezaDays(immediateNextWeekStart, 6);
+    const hasImmediateNextPlannedWeek = allPlanItems.some((item) => {
+      const itemDateKey = toFortalezaDateKey(item.plannedDate);
+      return Boolean(
+        itemDateKey &&
+          itemDateKey >= immediateNextWeekStart &&
+          itemDateKey <= immediateNextWeekEnd
+      );
+    });
+
+    const defaultWeekStart = getDefaultDisplayWeekStartFortaleza(
+      now,
+      hasImmediateNextPlannedWeek
+    );
+    const targetBounds = parsedQuery.weekStart
+      ? getFortalezaWeekBounds(parsedQuery.weekStart)
+      : getFortalezaWeekBounds(defaultWeekStart);
+
+    const { weekStart, weekEnd, label: weekLabel } = targetBounds;
+    const isCurrentWeek = weekStart === defaultWeekStart;
+
+    const rangeStartKey = shiftFortalezaDays(weekStart, -1);
+    const rangeEndKey = shiftFortalezaDays(weekEnd, 2);
+
+    const candidateSessionsQuery = {
+      where: {
+        sessionDate: {
+          gte: new Date(`${rangeStartKey}T00:00:00.000Z`),
+          lt: new Date(`${rangeEndKey}T23:59:59.999Z`),
+        },
+        weeklyPlanItem: {
+          is: null,
+        },
+      },
+      orderBy: [{ sessionDate: "asc" as const }],
+    };
+
+    let candidateSessions = await prisma.trainingSession.findMany(candidateSessionsQuery);
+
+    // Reconciliação sob demanda: só persiste e faz write-back quando houver mudança real
+    // (ex.: plano vencido, órfão pós-DELETE, sessão livre elegível ou status desatualizado).
+    if (todayKey && allPlanItems.length > 0) {
+      const initialMatchedIds = new Set(
+        allPlanItems
+          .map((item) => item.matchedSessionId)
+          .filter((id): id is string => Boolean(id))
+      );
+      const occupiedPlanDateKeys = new Set<string>();
+      for (const item of allPlanItems) {
+        if (isRestPlanActivity(item.activityType)) continue;
+        const k = toFortalezaDateKey(item.plannedDate);
+        if (k) occupiedPlanDateKeys.add(k);
+      }
+
+      const hasOrphanRealizedPlan = allPlanItems.some(
+        (item) =>
+          !isRestPlanActivity(item.activityType) &&
+          !item.matchedSessionId &&
+          isRealizedWeeklyPlanStatus(item.status)
+      );
+
+      const hasStaleLinkedPlanInWeek = allPlanItems.some((item) => {
+        if (isRestPlanActivity(item.activityType) || !item.matchedSession) {
+          return false;
+        }
+        const itemDateKey = toFortalezaDateKey(item.plannedDate);
+        if (!itemDateKey || itemDateKey < weekStart || itemDateKey > weekEnd) {
+          return false;
+        }
+        const validity = evaluateLinkedSessionValidity(
+          {
+            plannedDate: item.plannedDate,
+            activityType: item.activityType,
+            targetDistanceKm: item.targetDistanceKm,
+            targetPaceFormatted: item.targetPaceFormatted,
+          },
+          {
+            sessionDate: item.matchedSession.sessionDate,
+            activityType: item.matchedSession.activityType,
+            distanceKm: item.matchedSession.distanceKm,
+            durationSeconds: item.matchedSession.durationSeconds,
+            paceSeconds: item.matchedSession.paceSeconds,
+          },
+          { occupiedPlanDateKeys }
+        );
+        return (
+          !validity.valid ||
+          validity.nextStatus !== normalizeWeeklyPlanStatus(item.status)
+        );
+      });
+
+      const unlinkedCandidates = candidateSessions.filter(
+        (session) => !initialMatchedIds.has(session.id)
+      );
+      const preview = computeWeeklyReconciliation(
+        allPlanItems,
+        unlinkedCandidates,
+        todayKey
+      );
+
+      if (
+        hasOrphanRealizedPlan ||
+        hasStaleLinkedPlanInWeek ||
+        preview.matches.length > 0 ||
+        preview.unmatchedUpdates.length > 0
+      ) {
+        const reconciled = await safeReconcileWeeklyPlans();
+        if (reconciled && reconciled.updatedCount > 0) {
+          if (isGoogleSheetsConfigured()) {
+            await safeAutoSync(() => pushWeeklyPlanStatusToSheets());
+          }
+          [allPlanItems, candidateSessions] = await Promise.all([
+            prisma.weeklyPlanItem.findMany({
+              orderBy: [{ plannedDate: "asc" }, { planExternalId: "asc" }],
+              include: {
+                matchedSession: true,
+              },
+            }),
+            prisma.trainingSession.findMany(candidateSessionsQuery),
+          ]);
+        }
+      }
+    }
 
     const weekItemsRaw: typeof allPlanItems = [];
     const matchedSessionIds = new Set<string>();
@@ -157,22 +288,6 @@ export async function GET(request: NextRequest | Request) {
       }
     }
 
-    const rangeStartKey = shiftFortalezaDays(weekStart, -1);
-    const rangeEndKey = shiftFortalezaDays(weekEnd, 2);
-
-    const candidateSessions = await prisma.trainingSession.findMany({
-      where: {
-        sessionDate: {
-          gte: new Date(`${rangeStartKey}T00:00:00.000Z`),
-          lt: new Date(`${rangeEndKey}T23:59:59.999Z`),
-        },
-        weeklyPlanItem: {
-          is: null,
-        },
-      },
-      orderBy: [{ sessionDate: "asc" }],
-    });
-
     const extraSessions: TrainingSession[] = [];
     for (const session of candidateSessions) {
       if (matchedSessionIds.has(session.id)) {
@@ -185,22 +300,47 @@ export async function GET(request: NextRequest | Request) {
       extraSessions.push(serializeTrainingSession(session));
     }
 
-    const items: WeeklyPlanItemDto[] = weekItemsRaw.map((item) => ({
-      id: item.id,
-      planExternalId: item.planExternalId,
-      plannedDate: toFortalezaDateKey(item.plannedDate) || toIsoString(item.plannedDate),
-      dayOfWeek: item.dayOfWeek,
-      activityType: item.activityType,
-      isRestDay: isRestPlanActivity(item.activityType),
-      targetDistanceKm: item.targetDistanceKm ?? null,
-      targetPaceFormatted: item.targetPaceFormatted ?? null,
-      description: item.description ?? null,
-      status: normalizeWeeklyPlanStatus(item.status),
-      matchedSessionId: item.matchedSessionId ?? null,
-      matchedSession: item.matchedSession
+    const items: WeeklyPlanItemDto[] = weekItemsRaw.map((item) => {
+      const normalizedStatus = normalizeWeeklyPlanStatus(item.status);
+      const serializedSession = item.matchedSession
         ? serializeTrainingSession(item.matchedSession)
-        : null,
-    }));
+        : null;
+
+      let adaptationReasons: string[] = [];
+      if (normalizedStatus === "Adaptado" && serializedSession) {
+        adaptationReasons = evaluateWeeklyMatchDetailed(
+          {
+            activityType: item.activityType,
+            targetDistanceKm: item.targetDistanceKm ?? null,
+            targetPaceFormatted: item.targetPaceFormatted ?? null,
+          },
+          {
+            activityType: serializedSession.activityType,
+            distanceKm: serializedSession.distanceKm,
+            durationSeconds: serializedSession.durationSeconds,
+            paceSeconds: serializedSession.paceSeconds,
+          }
+        ).reasons;
+      }
+
+      return {
+        id: item.id,
+        planExternalId: item.planExternalId,
+        plannedDate: toFortalezaDateKey(item.plannedDate) || toIsoString(item.plannedDate),
+        dayOfWeek: item.dayOfWeek,
+        activityType: item.activityType,
+        isRestDay: isRestPlanActivity(item.activityType),
+        targetDistanceKm: item.targetDistanceKm ?? null,
+        targetPaceFormatted: item.targetPaceFormatted ?? null,
+        description: item.description ?? null,
+        status: normalizedStatus,
+        adaptationReason:
+          adaptationReasons.length > 0 ? adaptationReasons.join(" · ") : null,
+        adaptationReasons,
+        matchedSessionId: item.matchedSessionId ?? null,
+        matchedSession: serializedSession,
+      };
+    });
 
     const summary = calculateWeeklyAdherenceSummary(items);
     const rollingFourWeeksAverage = calculateRollingFourWeeksAdherence(
@@ -225,6 +365,7 @@ export async function GET(request: NextRequest | Request) {
       weekEnd,
       weekLabel,
       isCurrentWeek,
+      isSundayRolloverWindow,
       hasNextPlannedWeek,
       items,
       summary,

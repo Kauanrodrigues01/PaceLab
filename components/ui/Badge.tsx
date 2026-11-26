@@ -4,6 +4,7 @@ export type BadgeVariant =
   | "default"
   | "primary"
   | "success"
+  | "adapted"
   | "warning"
   | "danger"
   | "info"
@@ -24,6 +25,8 @@ const variantStyles: Record<BadgeVariant, string> = {
     "bg-[#B7F34A]/15 text-[#B7F34A] border-[#B7F34A]/30",
   success:
     "bg-emerald-950/60 text-emerald-300 border-emerald-800",
+  adapted:
+    "bg-indigo-950/60 text-indigo-300 border-indigo-700/80",
   warning:
     "bg-amber-950/60 text-amber-300 border-amber-800",
   danger:

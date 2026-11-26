@@ -13,6 +13,7 @@ export interface WeeklyPlanSyncStats {
   updated: number;
   removed: number;
   matched: number;
+  adapted?: number;
   missed: number;
   pushed: number;
   sheetMissingOrEmpty: boolean;

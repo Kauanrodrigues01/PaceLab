@@ -1798,6 +1798,7 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
       fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
         data: {
           values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
             ["plan-new-1", "2026-11-17", "Terça", "Corrida Contínua", "6,5", "5:10", "Rodagem aeróbica"],
             ["plan-done-1", "2026-11-16", "Segunda", "Tempo Run", "8", "4:40", "Prescrição ajustada para 8km"],
             ["plan-off-1", "2026-11-18", "Quarta", "Descanso", "-", "-", "Recuperação passiva"],
@@ -2093,6 +2094,7 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
       fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
         data: {
           values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
             ["plan-1", "2026-11-14", "Sábado", "Corrida Contínua", "5", "", "", "Concluído", "trn-1"],
             ["plan-2", "2026-11-13", "Sexta", "Tempo Run", "8", "", "", "Planejado", ""],
           ],
@@ -2105,7 +2107,7 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
       expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: "spreadsheet-123",
         requestBody: {
-          valueInputOption: "USER_ENTERED",
+          valueInputOption: "RAW",
           data: [
             {
               range: "Plano_Semanal!H3:I3",
@@ -2127,7 +2129,10 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
       ]);
       fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
         data: {
-          values: [["plan-1", "2026-11-14", "Sábado", "Corrida Contínua", "5", "", "", "Concluído", "trn-1"]],
+          values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
+            ["plan-1", "2026-11-14", "Sábado", "Corrida Contínua", "5", "", "", "Concluído", "trn-1"],
+          ],
         },
       });
 
@@ -2137,10 +2142,11 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
     });
 
     it("orquestra syncWeeklyPlanFromSheets e syncWithGoogleSheets em pull e push corretamente", async () => {
-      // 1) syncWeeklyPlanFromSheets reutiliza snapshot sem ler Plano_Semanal!A2:I duas vezes
+      // 1) syncWeeklyPlanFromSheets reutiliza snapshot sem ler Plano_Semanal!A1:I duas vezes
       fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
         data: {
           values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
             ["plan-s1", "2026-11-14", "Sábado", "Corrida Contínua", "5", "5:00", "Treino alvo", "Planejado", ""],
           ],
         },
@@ -2209,6 +2215,7 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
       fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
         data: {
           values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
             ["plan-p1", "2026-11-11", "Quarta", "Rodagem Leve", "5", "", "Sessão perdida"],
           ],
         },
@@ -2246,7 +2253,7 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
       expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: "spreadsheet-123",
         requestBody: {
-          valueInputOption: "USER_ENTERED",
+          valueInputOption: "RAW",
           data: [{ range: "Plano_Semanal!H2:I2", values: [["Perdido", ""]] }],
         },
       });
@@ -2276,6 +2283,7 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
       fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
         data: {
           values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
             ["plan-s1", "2026-11-14", "Sábado", "Corrida Contínua", "5", "5:00", "Treino alvo", "Planejado", ""],
           ],
         },
@@ -2360,13 +2368,14 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
       });
     });
 
-    it("pullWeeklyPlanFromSheets ignora duplicata com data inválida no snapshot, propaga warnings e reporta aba vazia sem erro", async () => {
+    it("pullWeeklyPlanFromSheets auto-gera ID na coluna A, ignora duplicata com data inválida no snapshot, resolve título flexível e suporta linha 1 sem cabeçalho", async () => {
       fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
         data: {
           values: [
-            ["", "2026-11-18", "Quarta", "corrida_continua", "5"], // aviso sem ID
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
+            ["", "2026-11-18", "Quarta", "corrida_continua", "5", "~5:30/km", "Sem ID manual"], // auto-ID PLAN-2026-11-18-1 + write-back A2
             ["plan-dup-bad", "31/02/2026", "Quinta", "tempo_run", "8"], // aviso data inválida
-            ["plan-ok", "2026-11-18", "Quarta", "rodagem_leve", "5", "5:30", "Leve", "Concluído", "trn-x"],
+            ["'plan-ok", "2026-11-18", "Quarta", "rodagem_leve", "5", "5:30", "Leve", "Concluído", "'trn-x"],
           ],
         },
       });
@@ -2385,14 +2394,24 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
         },
       ]);
 
-      const pullWithWarnings = await pullWeeklyPlanFromSheets();
-      expect(pullWithWarnings.stats).toEqual({
-        imported: 0,
+      const pullWithAutoId = await pullWeeklyPlanFromSheets({ now: () => fixedNow });
+      expect(pullWithAutoId.stats).toEqual({
+        imported: 1,
         updated: 0,
         removed: 0,
         sheetMissingOrEmpty: false,
       });
-      expect(pullWithWarnings.warnings).toHaveLength(2);
+      expect(pullWithAutoId.warnings).toHaveLength(1);
+      expect(pullWithAutoId.sheetSnapshots.has("PLAN-2026-11-18-1")).toBe(true);
+      expect(pullWithAutoId.sheetSnapshots.get("plan-ok")?.matchedSessionIdText).toBe("trn-x");
+      expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            valueInputOption: "RAW",
+            data: [{ range: "Plano_Semanal!A2", values: [["PLAN-2026-11-18-1"]] }],
+          }),
+        })
+      );
       expect(mockPrisma.weeklyPlanItem.update).not.toHaveBeenCalled();
 
       // Aba vazia retorna sheetMissingOrEmpty: true sem erros
@@ -2415,8 +2434,9 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
       fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
         data: {
           values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
             ["plan-dup", "data-ruim", "Quarta", "corrida_continua", "5", "", "", "Planejado", ""],
-            ["plan-dup", "2026-11-18", "Quarta", "corrida_continua", "5", "", "", "Planejado", ""],
+            ["'plan-dup", "2026-11-18", "Quarta", "corrida_continua", "5", "", "", "Planejado", ""],
           ],
         },
       });
@@ -2430,6 +2450,300 @@ describe("Google Sheets Sync Service (lib/googleSheets/syncService.ts)", () => {
           }),
         })
       );
+
+      // Descoberta resiliente quando aba se chama "Plano Semanal" e dados começam na linha 1 sem cabeçalho
+      vi.clearAllMocks();
+      fakeSheets.spreadsheets.values.get
+        .mockRejectedValueOnce({ status: 400, message: "Unable to parse range: Plano_Semanal!A1:I" })
+        .mockResolvedValueOnce({
+          data: {
+            values: [
+              ["plan-no-hdr", "18/11/26", "Quarta", "rodagem_leve", "5", "~5:30/km", "Sem cabeçalho", "Planejado", ""],
+            ],
+          },
+        });
+      fakeSheets.spreadsheets.get.mockResolvedValueOnce({
+        data: {
+          sheets: [{ properties: { sheetId: 9, title: "Plano Semanal" } }],
+        },
+      });
+      mockPrisma.weeklyPlanItem.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            id: "wp-nh",
+            planExternalId: "plan-no-hdr",
+            plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+            activityType: "rodagem_leve",
+            targetDistanceKm: 5,
+            status: "Concluído",
+            matchedSessionId: "trn-nh",
+          },
+        ]);
+
+      const pullFlex = await pullWeeklyPlanFromSheets({ now: () => fixedNow });
+      expect(pullFlex.sheetMissing).toBe(false);
+      expect(pullFlex.sheetTitle).toBe("Plano Semanal");
+      expect(pullFlex.stats.imported).toBe(1);
+
+      const pushFlex = await pushWeeklyPlanStatusToSheets(
+        { now: () => fixedNow },
+        {
+          sheetMissing: pullFlex.sheetMissing,
+          sheetTitle: pullFlex.sheetTitle,
+          sheetSnapshots: pullFlex.sheetSnapshots,
+        }
+      );
+      expect(pushFlex.pushed).toBe(1);
+      expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            data: [{ range: "'Plano Semanal'!H1:I1", values: [["Concluído", "trn-nh"]] }],
+          }),
+        })
+      );
+    });
+
+    it("classifica Adaptado via paceSeconds, grava H:I, protege Adaptado no pull e revalida quando prescrição muda", async () => {
+      const fixedNow = new Date("2026-11-18T15:00:00.000Z");
+
+      // 1) Reconciliação usa paceSeconds + targetPaceFormatted -> Adaptado + write-back H:I
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
+            ["plan-pace-adp", "2026-11-18", "Quarta", "Rodagem Leve", "8", "5:45-6:00", "Rodagem Z2", "Planejado", ""],
+          ],
+        },
+      });
+      const planRow = {
+        id: "wp-adp-1",
+        planExternalId: "plan-pace-adp",
+        plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+        dayOfWeek: "Quarta",
+        activityType: "rodagem_leve",
+        targetDistanceKm: 8,
+        targetPaceFormatted: "5:45-6:00",
+        description: "Rodagem Z2",
+        status: "Planejado",
+        matchedSessionId: null,
+      };
+      mockPrisma.weeklyPlanItem.findMany
+        .mockResolvedValueOnce([]) // pull
+        .mockResolvedValueOnce([planRow]) // reconcile
+        .mockResolvedValueOnce([
+          { ...planRow, status: "Adaptado", matchedSessionId: "trn-fast" },
+        ]); // push
+      mockPrisma.trainingSession.findMany.mockResolvedValueOnce([
+        {
+          id: "trn-fast",
+          sessionDate: new Date("2026-11-18T10:00:00.000Z"),
+          activityType: "rodagem_leve",
+          distanceKm: 8.1,
+          durationSeconds: 2511,
+          paceSeconds: 310, // 5:10/km -> 35s mais rápido que 5:45 (345s - 15s = 330s)
+          paceFormatted: "5:10",
+        },
+      ]);
+
+      const syncRes = await syncWeeklyPlanFromSheets({
+        now: () => fixedNow,
+        generateId: () => "wp-adp-1",
+      });
+      expect(syncRes).toEqual({
+        imported: 1,
+        updated: 0,
+        removed: 0,
+        matched: 1,
+        adapted: 1,
+        missed: 0,
+        pushed: 1,
+        sheetMissingOrEmpty: false,
+        syncedPlans: 1,
+      });
+      expect(mockPrisma.weeklyPlanItem.update).toHaveBeenCalledWith({
+        where: { id: "wp-adp-1" },
+        data: { status: "Adaptado", matchedSessionId: "trn-fast" },
+      });
+      expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            data: [{ range: "Plano_Semanal!H2:I2", values: [["Adaptado", "trn-fast"]] }],
+          }),
+        })
+      );
+
+      // 2) Pull protege item Adaptado ausente da planilha contra exclusão E reavalia vínculo quando prescrição muda
+      vi.clearAllMocks();
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
+            ["plan-reval", "2026-11-18", "Quarta", "Rodagem Leve", "8", "5:45-6:00", "Coach ajustou pace", "Concluído", "trn-linked"],
+          ],
+        },
+      });
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wp-protected-adp",
+          planExternalId: "plan-old-adp",
+          plannedDate: new Date("2026-11-17T12:00:00.000Z"),
+          dayOfWeek: "Terça",
+          activityType: "rodagem_leve",
+          targetDistanceKm: 6,
+          targetPaceFormatted: "5:50",
+          description: "Histórico adaptado sem vínculo",
+          status: "Adaptado",
+          matchedSessionId: null,
+        },
+        {
+          id: "wp-reval",
+          planExternalId: "plan-reval",
+          plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+          dayOfWeek: "Quarta",
+          activityType: "rodagem_leve",
+          targetDistanceKm: 8,
+          targetPaceFormatted: "5:00-5:20",
+          description: "Antigo pace",
+          status: "Concluído",
+          matchedSessionId: "trn-linked",
+        },
+      ]);
+
+      const pullRes = await pullWeeklyPlanFromSheets({ now: () => fixedNow });
+      expect(pullRes.stats.updated).toBe(1);
+      expect(pullRes.stats.removed).toBe(0);
+      expect(mockPrisma.weeklyPlanItem.deleteMany).not.toHaveBeenCalled();
+
+      // Reconciliação após atualização da prescrição reclassifica Concluído -> Adaptado
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wp-reval",
+          planExternalId: "plan-reval",
+          plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+          dayOfWeek: "Quarta",
+          activityType: "rodagem_leve",
+          targetDistanceKm: 8,
+          targetPaceFormatted: "5:45-6:00",
+          description: "Coach ajustou pace",
+          status: "Concluído",
+          matchedSessionId: "trn-linked",
+        },
+      ]);
+      mockPrisma.trainingSession.findMany.mockResolvedValueOnce([
+        {
+          id: "trn-linked",
+          sessionDate: new Date("2026-11-18T10:00:00.000Z"),
+          activityType: "rodagem_leve",
+          distanceKm: 8.0,
+          durationSeconds: 2480,
+          paceSeconds: 310,
+          paceFormatted: "5:10",
+        },
+      ]);
+
+      const revalRes = await reconcileWeeklyPlansWithSessions(undefined, { now: () => fixedNow });
+      expect(revalRes).toEqual({
+        matched: 0,
+        adapted: 1,
+        missed: 0,
+        updatedCount: 1,
+      });
+      expect(mockPrisma.weeklyPlanItem.update).toHaveBeenCalledWith({
+        where: { id: "wp-reval" },
+        data: { status: "Adaptado", matchedSessionId: "trn-linked" },
+      });
+    });
+
+    it("regressão auditoria: recalcula ID determinístico no snapshot sem col A, propaga 429 ao resolver aba e faz bootstrap no push com banco vazio", async () => {
+      const fixedNow = new Date("2026-11-18T15:00:00.000Z");
+
+      // 1) pushWeeklyPlanStatusToSheets encontra linha cujo col A ficou vazio (falha prévia no backfill)
+      mockPrisma.weeklyPlanItem.findMany.mockResolvedValueOnce([
+        {
+          id: "wp-noid",
+          planExternalId: "PLAN-2026-11-18-1",
+          status: "Concluído",
+          matchedSessionId: "trn-noid",
+        },
+      ]);
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
+            ["", "2026-11-18", "Quarta", "Rodagem Leve", "6", "5:45", "Sem col A", "Planejado", ""],
+          ],
+        },
+      });
+
+      const pushNoColA = await pushWeeklyPlanStatusToSheets({ now: () => fixedNow });
+      expect(pushNoColA).toEqual({ pushed: 1, sheetMissingOrEmpty: false });
+      expect(fakeSheets.spreadsheets.values.batchUpdate).toHaveBeenCalledWith({
+        spreadsheetId: "spreadsheet-123",
+        requestBody: {
+          valueInputOption: "RAW",
+          data: [{ range: "Plano_Semanal!H2:I2", values: [["Concluído", "trn-noid"]] }],
+        },
+      });
+
+      // 2) resolveWeeklyPlanTabTitle propaga 403/429/500 em vez de mascarar como sheetMissing
+      vi.clearAllMocks();
+      fakeSheets.spreadsheets.values.get.mockRejectedValueOnce({
+        status: 400,
+        message: "Unable to parse range: Plano_Semanal!A1:I",
+      });
+      fakeSheets.spreadsheets.get.mockRejectedValueOnce({
+        status: 403,
+        message: "Forbidden",
+      });
+
+      await expect(pullWeeklyPlanFromSheets({ now: () => fixedNow })).rejects.toMatchObject({
+        status: 403,
+      });
+
+      // 3) direction: "push" com weekly_plan_items vazio faz bootstrap pullWeeklyPlanFromSheets
+      vi.clearAllMocks();
+      (mockPrisma.weeklyPlanItem as unknown as { count: ReturnType<typeof vi.fn> }).count =
+        vi.fn().mockResolvedValueOnce(0);
+      mockPrisma.trainingSession.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      mockPrisma.tafAttempt.findMany.mockResolvedValue([]);
+      mockPrisma.tafGoal.findFirst.mockResolvedValue(null);
+      mockPrisma.userProfile.findFirst.mockResolvedValue(null);
+      fakeSheets.spreadsheets.values.batchGet.mockResolvedValueOnce({
+        data: { valueRanges: [{ values: [] }, { values: [] }, { values: [] }] },
+      });
+      fakeSheets.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          values: [
+            ["ID", "Data", "Dia da Semana", "Tipo", "Distância Alvo (km)", "Pace Alvo (min/km)", "Descrição / Observação", "Status", "ID Treino Realizado"],
+            ["plan-boot-1", "2026-11-18", "Quarta", "Rodagem Leve", "6", "5:45", "Bootstrap push", "Planejado", ""],
+          ],
+        },
+      });
+      const bootPlan = {
+        id: "wp-boot-1",
+        planExternalId: "plan-boot-1",
+        plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+        dayOfWeek: "Quarta",
+        activityType: "rodagem_leve",
+        targetDistanceKm: 6,
+        targetPaceFormatted: "5:45",
+        description: "Bootstrap push",
+        status: "Planejado",
+        matchedSessionId: null,
+      };
+      mockPrisma.weeklyPlanItem.findMany
+        .mockResolvedValueOnce([]) // bootstrap pull
+        .mockResolvedValueOnce([bootPlan]) // reconcile
+        .mockResolvedValueOnce([bootPlan]); // push
+
+      const pushBootReport = await syncWithGoogleSheets(
+        { direction: "push" },
+        { now: () => fixedNow, generateId: () => "wp-boot-1" }
+      );
+      expect(pushBootReport.weeklyPlan?.imported).toBe(1);
     });
   });
 });

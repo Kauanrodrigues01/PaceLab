@@ -8,8 +8,47 @@ const FORTALEZA_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
+const FORTALEZA_WEEKDAY_HOUR_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Fortaleza",
+  weekday: "short",
+  hour: "2-digit",
+  hourCycle: "h23",
+});
+
 const MS_PER_DAY = 86_400_000;
 const RATIO_EPSILON = 1e-9;
+
+export const WEEKLY_PACE_TOLERANCE_SECONDS = 15;
+export const WEEKLY_VOLUME_OVER_RATIO = 1.25;
+
+const MIN_VALID_PACE_SECONDS = 120; // 2:00/km
+const MAX_VALID_PACE_SECONDS = 1500; // 25:00/km
+
+const HIGH_INTENSITY_ACTIVITIES = new Set<ActivityType>([
+  "corrida_intervalada",
+  "tempo_run",
+]);
+
+const LOW_INTENSITY_ACTIVITIES = new Set<ActivityType>([
+  "rodagem_leve",
+  "caminhada",
+]);
+
+export type WeeklyAdaptationReasonCode =
+  | "volume_above"
+  | "pace_faster"
+  | "pace_slower"
+  | "type_changed";
+
+export const WEEKLY_ADAPTATION_REASON_LABELS: Record<
+  WeeklyAdaptationReasonCode,
+  string
+> = {
+  volume_above: "Volume acima do planejado",
+  pace_faster: "Ritmo mais forte que o alvo",
+  pace_slower: "Ritmo mais lento que o alvo",
+  type_changed: "Tipo alterado",
+};
 
 const WEEKDAY_LABELS_PT_BR = [
   "Domingo",
@@ -238,6 +277,42 @@ export function shiftFortalezaWeek(
 }
 
 /**
+ * Indica se o instante informado está na janela de virada semanal dominical em `America/Fortaleza`
+ * (domingo com hora local >= `cutoffHour`, padrão 22h — após revisão do Gemini e Cron das 22h).
+ */
+export function isSundayPostRolloverFortaleza(
+  referenceDate: Date = new Date(),
+  cutoffHour = 22
+): boolean {
+  if (!(referenceDate instanceof Date) || Number.isNaN(referenceDate.getTime())) {
+    return false;
+  }
+  const parts = FORTALEZA_WEEKDAY_HOUR_FORMATTER.formatToParts(referenceDate);
+  const weekday = parts.find((part) => part.type === "weekday")?.value;
+  const hourRaw = parts.find((part) => part.type === "hour")?.value;
+  const hour = hourRaw !== undefined ? Number(hourRaw) : Number.NaN;
+  return weekday === "Sun" && Number.isFinite(hour) && hour >= cutoffHour;
+}
+
+/**
+ * Retorna a segunda-feira (`YYYY-MM-DD`) que deve ser exibida por padrão no `WeeklyAdherenceCard`:
+ * - Por padrão, retorna a semana corrente (`Segunda..Domingo`) em `America/Fortaleza`.
+ * - Quando for domingo `>= 22:00` em Fortaleza **e** já houver planejamento para a próxima semana
+ *   (`hasNextPlannedWeek === true`), antecipa o foco para a segunda-feira seguinte.
+ */
+export function getDefaultDisplayWeekStartFortaleza(
+  referenceDate: Date = new Date(),
+  hasNextPlannedWeek = false,
+  cutoffHour = 22
+): string {
+  const currentWeekStart = getFortalezaWeekBounds(referenceDate).weekStart;
+  if (hasNextPlannedWeek && isSundayPostRolloverFortaleza(referenceDate, cutoffHour)) {
+    return shiftFortalezaDays(currentWeekStart, 7);
+  }
+  return currentWeekStart;
+}
+
+/**
  * Indica se o texto da coluna `Tipo` representa dia de descanso (`Descanso`, `Off`, `Rest`, `Folga`).
  */
 export function isRestPlanActivity(raw: unknown): boolean {
@@ -332,6 +407,9 @@ export function normalizeWeeklyPlanStatus(raw: unknown): WeeklyPlanStatus {
   if (key === "concluido" || key === "concluida" || key === "completed" || key === "done") {
     return "Concluído";
   }
+  if (key === "adaptado" || key === "adaptada" || key === "adapted") {
+    return "Adaptado";
+  }
   if (key === "parcial" || key === "partial") {
     return "Parcial";
   }
@@ -342,37 +420,271 @@ export function normalizeWeeklyPlanStatus(raw: unknown): WeeklyPlanStatus {
 }
 
 /**
- * Avalia elegibilidade e status do cruzamento com base na distância executada frente à meta:
- * - Meta ausente ou `<= 0` (treino por tempo): `"Concluído"`
- * - `ratio >= 0.85`: `"Concluído"`
+ * Indica se o status representa um treino já realizado/vinculado (`Concluído`, `Adaptado` ou `Parcial`).
+ */
+export function isRealizedWeeklyPlanStatus(
+  status: unknown
+): status is "Concluído" | "Adaptado" | "Parcial" {
+  const normalized = normalizeWeeklyPlanStatus(status);
+  return (
+    normalized === "Concluído" ||
+    normalized === "Adaptado" ||
+    normalized === "Parcial"
+  );
+}
+
+export interface TargetPaceRangeSeconds {
+  minPaceSeconds: number;
+  maxPaceSeconds: number;
+}
+
+/**
+ * Extrai a faixa de pace alvo em segundos/km a partir de `targetPaceFormatted`.
+ * Suporta faixas (`'5:45-6:00`, `5:45–6:00`, `5:45 a 6:00`, `5'45"-6'00"`, `05:45:00 - 06:00:00`),
+ * valor único (`5:13`, `05:13:00`, `~5:30/km`) e texto com pace embutido (`Z2 (5:50-6:10/km)`).
+ * Normaliza ordem crescente (`minPaceSeconds <= maxPaceSeconds`).
+ */
+export function parseTargetPaceRangeSeconds(
+  raw?: string | null
+): TargetPaceRangeSeconds | null {
+  if (typeof raw !== "string") return null;
+  const cleaned = raw.trim().replace(/^'+/, "").trim();
+  if (!cleaned || /^[-—–]+$/.test(cleaned)) {
+    return null;
+  }
+
+  const paceRegex =
+    /(?:^|[^\d])(?:(\d{1,2}):(\d{2}):(\d{2})|(\d{1,2})\s*[:'’]\s*(\d{2})(?:"|''|”)?)(?=$|[^\d:])/g;
+
+  const parsedPaces: number[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = paceRegex.exec(cleaned)) !== null) {
+    let minutes: number;
+    let seconds: number;
+
+    if (match[1] !== undefined && match[2] !== undefined && match[3] !== undefined) {
+      const h = Number(match[1]);
+      const m = Number(match[2]);
+      const s = Number(match[3]);
+      if (h === 0 && m >= 2 && m <= 25 && s >= 0 && s < 60) {
+        minutes = m;
+        seconds = s;
+      } else if (s === 0 && h >= 2 && h <= 25 && m >= 0 && m < 60) {
+        minutes = h;
+        seconds = m;
+      } else {
+        continue;
+      }
+    } else if (match[4] !== undefined && match[5] !== undefined) {
+      minutes = Number(match[4]);
+      seconds = Number(match[5]);
+      if (seconds < 0 || seconds >= 60) {
+        continue;
+      }
+    } else {
+      continue;
+    }
+
+    const totalSeconds = minutes * 60 + seconds;
+    if (
+      totalSeconds >= MIN_VALID_PACE_SECONDS &&
+      totalSeconds <= MAX_VALID_PACE_SECONDS
+    ) {
+      parsedPaces.push(totalSeconds);
+    }
+  }
+
+  if (parsedPaces.length === 1) {
+    return {
+      minPaceSeconds: parsedPaces[0],
+      maxPaceSeconds: parsedPaces[0],
+    };
+  }
+  if (parsedPaces.length === 2) {
+    return {
+      minPaceSeconds: Math.min(parsedPaces[0], parsedPaces[1]),
+      maxPaceSeconds: Math.max(parsedPaces[0], parsedPaces[1]),
+    };
+  }
+  return null;
+}
+
+/**
+ * Identifica incompatibilidade de intensidade/família entre atividade planejada e realizada:
+ * - Troca entre alta intensidade (`corrida_intervalada`, `tempo_run`) e baixa intensidade (`rodagem_leve`, `caminhada`);
+ * - Ou troca de família biomecânica (`run ↔ walk`).
+ */
+export function classifyActivityIntensityMismatch(
+  planType: string,
+  sessionType: string
+): boolean {
+  if (isRestPlanActivity(planType) || isRestPlanActivity(sessionType)) {
+    return false;
+  }
+  const normalizedPlan = normalizePlanActivityType(planType);
+  const normalizedSession = normalizePlanActivityType(sessionType);
+  if (!normalizedPlan || !normalizedSession) {
+    return false;
+  }
+
+  if (getActivityFamily(normalizedPlan) !== getActivityFamily(normalizedSession)) {
+    return true;
+  }
+
+  const planHigh = HIGH_INTENSITY_ACTIVITIES.has(normalizedPlan);
+  const planLow = LOW_INTENSITY_ACTIVITIES.has(normalizedPlan);
+  const sessionHigh = HIGH_INTENSITY_ACTIVITIES.has(normalizedSession);
+  const sessionLow = LOW_INTENSITY_ACTIVITIES.has(normalizedSession);
+
+  return (planHigh && sessionLow) || (planLow && sessionHigh);
+}
+
+export interface WeeklyMatchPlanInput {
+  activityType?: string | null;
+  targetDistanceKm?: number | null;
+  targetPaceFormatted?: string | null;
+}
+
+export interface WeeklyMatchSessionInput {
+  activityType?: string | null;
+  distanceKm: number;
+  durationSeconds?: number | null;
+  paceSeconds?: number | null;
+}
+
+export interface WeeklyMatchEvaluationResult {
+  status: "Concluído" | "Adaptado" | "Parcial" | null;
+  reasonCodes: WeeklyAdaptationReasonCode[];
+  reasons: string[];
+}
+
+function resolveSessionPaceSeconds(
+  session: WeeklyMatchSessionInput
+): number | null {
+  if (
+    typeof session.paceSeconds === "number" &&
+    Number.isFinite(session.paceSeconds) &&
+    session.paceSeconds > 0
+  ) {
+    return session.paceSeconds;
+  }
+  if (
+    typeof session.durationSeconds === "number" &&
+    Number.isFinite(session.durationSeconds) &&
+    session.durationSeconds > 0 &&
+    Number.isFinite(session.distanceKm) &&
+    session.distanceKm > 0
+  ) {
+    return Math.round(session.durationSeconds / session.distanceKm);
+  }
+  return null;
+}
+
+/**
+ * Avaliação detalhada do pareamento entre prescrição e sessão realizada:
+ * 1. `distanceKm <= 0` ou (`targetDistanceKm > 0` e `ratio < 0.40`) -> `null` (inelegível)
+ * 2. `targetDistanceKm > 0` e `0.40 <= ratio < 0.85` -> `"Parcial"` (0.50 — não infla para 0.75)
+ * 3. Volume base atingido (`ratio >= 0.85` ou sem meta de distância):
+ *    - `"Adaptado"` (0.75) se `ratio > 1.25` OR pace fora de `±15 s/km` da faixa alvo OR choque de intensidade/família
+ *    - `"Concluído"` (1.00) caso contrário
+ */
+export function evaluateWeeklyMatchDetailed(
+  plan: WeeklyMatchPlanInput,
+  session: WeeklyMatchSessionInput
+): WeeklyMatchEvaluationResult {
+  if (!Number.isFinite(session.distanceKm) || session.distanceKm <= 0) {
+    return { status: null, reasonCodes: [], reasons: [] };
+  }
+
+  const hasTargetDistance =
+    plan.targetDistanceKm !== null &&
+    plan.targetDistanceKm !== undefined &&
+    Number.isFinite(plan.targetDistanceKm) &&
+    plan.targetDistanceKm > 0;
+
+  let ratio = 1;
+  if (hasTargetDistance) {
+    ratio = session.distanceKm / (plan.targetDistanceKm as number);
+    if (ratio + RATIO_EPSILON < 0.4) {
+      return { status: null, reasonCodes: [], reasons: [] };
+    }
+    if (ratio + RATIO_EPSILON < 0.85) {
+      return { status: "Parcial", reasonCodes: [], reasons: [] };
+    }
+  }
+
+  const reasonCodes: WeeklyAdaptationReasonCode[] = [];
+
+  if (hasTargetDistance && ratio - RATIO_EPSILON > WEEKLY_VOLUME_OVER_RATIO) {
+    reasonCodes.push("volume_above");
+  }
+
+  const paceRange = parseTargetPaceRangeSeconds(plan.targetPaceFormatted);
+  const sessionPaceSeconds = resolveSessionPaceSeconds(session);
+  if (paceRange && sessionPaceSeconds !== null) {
+    if (sessionPaceSeconds < paceRange.minPaceSeconds - WEEKLY_PACE_TOLERANCE_SECONDS) {
+      reasonCodes.push("pace_faster");
+    } else if (
+      sessionPaceSeconds >
+      paceRange.maxPaceSeconds + WEEKLY_PACE_TOLERANCE_SECONDS
+    ) {
+      reasonCodes.push("pace_slower");
+    }
+  }
+
+  if (
+    plan.activityType &&
+    session.activityType &&
+    classifyActivityIntensityMismatch(plan.activityType, session.activityType)
+  ) {
+    reasonCodes.push("type_changed");
+  }
+
+  if (reasonCodes.length > 0) {
+    return {
+      status: "Adaptado",
+      reasonCodes,
+      reasons: reasonCodes.map((code) => WEEKLY_ADAPTATION_REASON_LABELS[code]),
+    };
+  }
+
+  return { status: "Concluído", reasonCodes: [], reasons: [] };
+}
+
+export interface EvaluateWeeklyMatchOptions {
+  planActivityType?: string | null;
+  sessionActivityType?: string | null;
+  targetPaceFormatted?: string | null;
+  sessionPaceSeconds?: number | null;
+  sessionDurationSeconds?: number | null;
+}
+
+/**
+ * Avalia elegibilidade e status do cruzamento com base na distância, pace alvo e tipo de atividade:
+ * - Meta ausente ou `<= 0` (treino por tempo): `"Concluído"` ou `"Adaptado"` (se houver desvio de pace/tipo)
+ * - `ratio > 1.25`, pace fora de `±15 s/km` ou incompatibilidade de intensidade/tipo (com volume base): `"Adaptado"`
+ * - `0.85 <= ratio <= 1.25` sem desvios: `"Concluído"`
  * - `0.40 <= ratio < 0.85`: `"Parcial"`
  * - `ratio < 0.40`: `null` (inelegível — evita falso vínculo com aquecimentos curtos)
  */
 export function evaluateWeeklyMatch(
   targetDistanceKm: number | null | undefined,
-  sessionDistanceKm: number
-): "Concluído" | "Parcial" | null {
-  if (!Number.isFinite(sessionDistanceKm) || sessionDistanceKm <= 0) {
-    return null;
-  }
-
-  if (
-    targetDistanceKm === null ||
-    targetDistanceKm === undefined ||
-    !Number.isFinite(targetDistanceKm) ||
-    targetDistanceKm <= 0
-  ) {
-    return "Concluído";
-  }
-
-  const ratio = sessionDistanceKm / targetDistanceKm;
-  if (ratio + RATIO_EPSILON >= 0.85) {
-    return "Concluído";
-  }
-  if (ratio + RATIO_EPSILON >= 0.4) {
-    return "Parcial";
-  }
-  return null;
+  sessionDistanceKm: number,
+  options?: EvaluateWeeklyMatchOptions
+): "Concluído" | "Adaptado" | "Parcial" | null {
+  return evaluateWeeklyMatchDetailed(
+    {
+      activityType: options?.planActivityType,
+      targetDistanceKm,
+      targetPaceFormatted: options?.targetPaceFormatted,
+    },
+    {
+      activityType: options?.sessionActivityType,
+      distanceKm: sessionDistanceKm,
+      durationSeconds: options?.sessionDurationSeconds,
+      paceSeconds: options?.sessionPaceSeconds,
+    }
+  ).status;
 }
 
 /**
@@ -397,6 +709,7 @@ export interface ReconcilablePlanItem {
   plannedDate: Date | string;
   activityType: string;
   targetDistanceKm: number | null;
+  targetPaceFormatted?: string | null;
   status?: WeeklyPlanStatus | string;
   matchedSessionId?: string | null;
 }
@@ -407,13 +720,14 @@ export interface ReconcilableSessionItem {
   activityType: ActivityType | string;
   distanceKm: number;
   durationSeconds?: number;
+  paceSeconds?: number | null;
 }
 
 export interface WeeklyReconciliationMatch {
   planId: string;
   planExternalId: string;
   sessionId: string;
-  status: "Concluído" | "Parcial";
+  status: "Concluído" | "Adaptado" | "Parcial";
   pass: 1 | 2;
   dayDiff: number;
 }
@@ -442,9 +756,11 @@ export interface ComputeWeeklyReconciliationOptions {
 interface CandidatePair {
   plan: ReconcilablePlanItem;
   session: ReconcilableSessionItem;
-  status: "Concluído" | "Parcial";
+  status: "Concluído" | "Adaptado" | "Parcial";
   dayDiff: number;
+  isSameFamily: boolean;
   isExactActivity: boolean;
+  hasTypeMismatch: boolean;
   distanceDelta: number;
   negativeEffortScore: number;
   planDateKey: string;
@@ -456,9 +772,25 @@ function toTimestampMs(value: Date | string): number {
   return Number.isFinite(ms) ? ms : 0;
 }
 
+const MATCH_STATUS_PRIORITY: Record<"Concluído" | "Adaptado" | "Parcial", number> = {
+  Concluído: 0,
+  Adaptado: 1,
+  Parcial: 2,
+};
+
 function compareCandidatePairs(a: CandidatePair, b: CandidatePair): number {
+  if (a.isSameFamily !== b.isSameFamily) {
+    return a.isSameFamily ? -1 : 1;
+  }
   if (a.isExactActivity !== b.isExactActivity) {
     return a.isExactActivity ? -1 : 1;
+  }
+  if (a.hasTypeMismatch !== b.hasTypeMismatch) {
+    return a.hasTypeMismatch ? 1 : -1;
+  }
+  const statusDiff = MATCH_STATUS_PRIORITY[a.status] - MATCH_STATUS_PRIORITY[b.status];
+  if (statusDiff !== 0) {
+    return statusDiff;
   }
   if (a.distanceDelta !== b.distanceDelta) {
     return a.distanceDelta - b.distanceDelta;
@@ -475,6 +807,16 @@ function compareCandidatePairs(a: CandidatePair, b: CandidatePair): number {
   const planIdCmp = a.plan.id.localeCompare(b.plan.id);
   if (planIdCmp !== 0) return planIdCmp;
   return a.session.id.localeCompare(b.session.id);
+}
+
+function hasValidNonRestActivityPair(planType: string, sessionType: string): boolean {
+  if (isRestPlanActivity(planType) || isRestPlanActivity(sessionType)) {
+    return false;
+  }
+  return (
+    normalizePlanActivityType(planType) !== null &&
+    normalizePlanActivityType(sessionType) !== null
+  );
 }
 
 function buildPassCandidates(
@@ -506,12 +848,32 @@ function buildPassCandidates(
         if (occupiedPlanDateKeys.has(sessionDateKey)) continue;
       }
 
-      if (!arePlanActivitiesCompatible(plan.activityType, session.activityType)) {
+      if (!hasValidNonRestActivityPair(plan.activityType, session.activityType)) {
         continue;
       }
 
-      const matchStatus = evaluateWeeklyMatch(plan.targetDistanceKm, session.distanceKm);
-      if (!matchStatus) {
+      const isSameFamily = arePlanActivitiesCompatible(
+        plan.activityType,
+        session.activityType
+      );
+      if (pass === 2 && !isSameFamily) {
+        continue;
+      }
+
+      const evaluation = evaluateWeeklyMatchDetailed(
+        {
+          activityType: plan.activityType,
+          targetDistanceKm: plan.targetDistanceKm,
+          targetPaceFormatted: plan.targetPaceFormatted,
+        },
+        {
+          activityType: session.activityType,
+          distanceKm: session.distanceKm,
+          durationSeconds: session.durationSeconds,
+          paceSeconds: session.paceSeconds,
+        }
+      );
+      if (!evaluation.status) {
         continue;
       }
 
@@ -524,9 +886,14 @@ function buildPassCandidates(
       candidates.push({
         plan,
         session,
-        status: matchStatus,
+        status: evaluation.status,
         dayDiff,
+        isSameFamily,
         isExactActivity: isExactPlanActivityMatch(plan.activityType, session.activityType),
+        hasTypeMismatch: classifyActivityIntensityMismatch(
+          plan.activityType,
+          session.activityType
+        ),
         distanceDelta: hasDistanceTarget
           ? Math.abs(session.distanceKm - (plan.targetDistanceKm as number))
           : 0,
@@ -547,8 +914,9 @@ function buildPassCandidates(
 
 /**
  * Executa o motor puro de reconciliação em 2 passadas entre metas do `Plano_Semanal` e sessões livres:
- * - Passada 1: mesmo dia em `America/Fortaleza` (`dayDiff === 0`), com corte `ratio >= 0.40` antes do ranking.
- * - Passada 2: tolerância de `±1 dia` somente se o dia da sessão não possuir outro plano ativo registrado.
+ * - Passada 1: mesmo dia em `America/Fortaleza` (`dayDiff === 0`), com corte `ratio >= 0.40` antes do ranking
+ *   (aceitando troca `run ↔ walk` com prioridade menor e classificação `"Adaptado"`).
+ * - Passada 2: tolerância de `±1 dia` somente se o dia da sessão não possuir outro plano ativo registrado e for da mesma família.
  * - Planos restantes sem vínculo recebem `"Perdido"` estritamente para `plannedDate < ontem` ou `"Planejado"`.
  */
 export function computeWeeklyReconciliation(
@@ -567,12 +935,7 @@ export function computeWeeklyReconciliation(
       occupiedPlanDateKeys.add(planDateKey);
     }
 
-    const currentStatus = normalizeWeeklyPlanStatus(plan.status);
-    if (
-      !plan.matchedSessionId &&
-      currentStatus !== "Concluído" &&
-      currentStatus !== "Parcial"
-    ) {
+    if (!plan.matchedSessionId && !isRealizedWeeklyPlanStatus(plan.status)) {
       pendingPlans.push(plan);
     }
   }
@@ -639,16 +1002,23 @@ export function computeWeeklyReconciliation(
 
 /**
  * Verifica se uma sessão já vinculada a um plano continua atendendo integralmente às regras
- * após edição (`PUT`) da sessão, ou se deve ser desvinculada antes de re-reconciliar.
+ * após edição (`PUT`) da sessão ou mudança da prescrição no `Plano_Semanal`,
+ * ou se deve ser desvinculada antes de re-reconciliar.
  */
 export function evaluateLinkedSessionValidity(
-  plan: Pick<ReconcilablePlanItem, "plannedDate" | "activityType" | "targetDistanceKm">,
-  session: Pick<ReconcilableSessionItem, "sessionDate" | "activityType" | "distanceKm">,
+  plan: Pick<
+    ReconcilablePlanItem,
+    "plannedDate" | "activityType" | "targetDistanceKm" | "targetPaceFormatted"
+  >,
+  session: Pick<
+    ReconcilableSessionItem,
+    "sessionDate" | "activityType" | "distanceKm" | "durationSeconds" | "paceSeconds"
+  >,
   options?: {
     occupiedPlanDateKeys?: ReadonlySet<string>;
     hasSameDayPlanAtSessionDate?: boolean;
   }
-): { valid: boolean; nextStatus: "Concluído" | "Parcial" | null } {
+): { valid: boolean; nextStatus: "Concluído" | "Adaptado" | "Parcial" | null } {
   const planDateKey = toFortalezaDateKey(plan.plannedDate);
   const sessionDateKey = toFortalezaDateKey(session.sessionDate);
   if (!planDateKey || !sessionDateKey) {
@@ -660,6 +1030,10 @@ export function evaluateLinkedSessionValidity(
     return { valid: false, nextStatus: null };
   }
 
+  if (!hasValidNonRestActivityPair(plan.activityType, session.activityType)) {
+    return { valid: false, nextStatus: null };
+  }
+
   if (Math.abs(dayDiff) === 1) {
     const blockedBySameDayPlan =
       options?.hasSameDayPlanAtSessionDate ||
@@ -667,23 +1041,35 @@ export function evaluateLinkedSessionValidity(
     if (blockedBySameDayPlan) {
       return { valid: false, nextStatus: null };
     }
+    if (!arePlanActivitiesCompatible(plan.activityType, session.activityType)) {
+      return { valid: false, nextStatus: null };
+    }
   }
 
-  if (!arePlanActivitiesCompatible(plan.activityType, session.activityType)) {
+  const evaluation = evaluateWeeklyMatchDetailed(
+    {
+      activityType: plan.activityType,
+      targetDistanceKm: plan.targetDistanceKm,
+      targetPaceFormatted: plan.targetPaceFormatted,
+    },
+    {
+      activityType: session.activityType,
+      distanceKm: session.distanceKm,
+      durationSeconds: session.durationSeconds,
+      paceSeconds: session.paceSeconds,
+    }
+  );
+  if (!evaluation.status) {
     return { valid: false, nextStatus: null };
   }
 
-  const nextStatus = evaluateWeeklyMatch(plan.targetDistanceKm, session.distanceKm);
-  if (!nextStatus) {
-    return { valid: false, nextStatus: null };
-  }
-
-  return { valid: true, nextStatus };
+  return { valid: true, nextStatus: evaluation.status };
 }
 
 export interface WeeklyAdherenceSummary {
   totalPlanned: number;
   completed: number;
+  adapted: number;
   partial: number;
   planned: number;
   missed: number;
@@ -691,13 +1077,14 @@ export interface WeeklyAdherenceSummary {
 }
 
 /**
- * Calcula o resumo de aderência semanal (`Concluído = 1.0`, `Parcial = 0.5`),
+ * Calcula o resumo de aderência semanal (`Concluído = 1.0`, `Adaptado = 0.75`, `Parcial = 0.5`),
  * retornando `adherencePercent: null` quando não há plano cadastrado (nunca `NaN`).
  */
 export function calculateWeeklyAdherenceSummary(
   items: ReadonlyArray<{ status: string }>
 ): WeeklyAdherenceSummary {
   let completed = 0;
+  let adapted = 0;
   let partial = 0;
   let planned = 0;
   let missed = 0;
@@ -705,6 +1092,7 @@ export function calculateWeeklyAdherenceSummary(
   for (const item of items) {
     const normalized = normalizeWeeklyPlanStatus(item.status);
     if (normalized === "Concluído") completed += 1;
+    else if (normalized === "Adaptado") adapted += 1;
     else if (normalized === "Parcial") partial += 1;
     else if (normalized === "Perdido") missed += 1;
     else planned += 1;
@@ -715,6 +1103,7 @@ export function calculateWeeklyAdherenceSummary(
     return {
       totalPlanned: 0,
       completed: 0,
+      adapted: 0,
       partial: 0,
       planned: 0,
       missed: 0,
@@ -724,12 +1113,15 @@ export function calculateWeeklyAdherenceSummary(
 
   const adherencePercent = Math.min(
     100,
-    Math.round(((completed + 0.5 * partial) / totalPlanned) * 100)
+    Math.round(
+      ((completed * 1.0 + adapted * 0.75 + partial * 0.5) / totalPlanned) * 100
+    )
   );
 
   return {
     totalPlanned,
     completed,
+    adapted,
     partial,
     planned,
     missed,
@@ -743,6 +1135,7 @@ export interface RollingWeekAdherenceItem {
   label: string;
   adherencePercent: number;
   completed: number;
+  adapted: number;
   partial: number;
   totalPlanned: number;
 }
@@ -792,6 +1185,7 @@ export function calculateRollingFourWeeksAdherence(
         label: group.bounds.label,
         adherencePercent: summary.adherencePercent ?? 0,
         completed: summary.completed,
+        adapted: summary.adapted,
         partial: summary.partial,
         totalPlanned: summary.totalPlanned,
       };

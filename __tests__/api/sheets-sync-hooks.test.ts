@@ -690,7 +690,7 @@ describe("Fase 4 — Hooks de Sincronização em Tempo Real nas Rotas REST", () 
       expect(mockPushWeeklyPlanStatusToSheets).toHaveBeenCalledTimes(1);
       warnSpy.mockRestore();
 
-      // 3) PUT desvincula plano ao trocar para caminhada e respeita ?skipSheetsSync=true
+      // 3) PUT reclassifica plano no mesmo dia para Adaptado ao trocar para caminhada e respeita ?skipSheetsSync=true
       vi.clearAllMocks();
       vi.useFakeTimers();
       try {
@@ -726,7 +726,7 @@ describe("Fase 4 — Hooks de Sincronização em Tempo Real nas Rotas REST", () 
         expect(putSkipRes.status).toBe(200);
         expect(prisma.weeklyPlanItem.update).toHaveBeenCalledWith({
           where: { id: "plan-walk-check" },
-          data: { status: "Planejado", matchedSessionId: null },
+          data: { status: "Adaptado", matchedSessionId: "trn-walk-edit" },
         });
         expect(mockSyncTrainingSessionToSheet).not.toHaveBeenCalled();
         expect(mockPushWeeklyPlanStatusToSheets).not.toHaveBeenCalled();

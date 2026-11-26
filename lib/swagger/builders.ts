@@ -243,7 +243,7 @@ type StandardErrorRefStatus = keyof typeof ERROR_COMPONENT_REFS;
  * Monta mapa de respostas de erro padronizadas para operações OpenAPI.
  */
 export function createErrorResponses(
-  statuses: Array<400 | 404 | 409 | 413 | 422 | 429 | 500 | 502 | 503>,
+  statuses: Array<400 | 401 | 404 | 409 | 413 | 422 | 429 | 500 | 502 | 503>,
   inlineDescriptions: Partial<Record<number, string>> = {}
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};

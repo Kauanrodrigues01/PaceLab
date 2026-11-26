@@ -1139,6 +1139,7 @@ describe("tafService (Persistência Direta no Supabase via Prisma API)", () => {
         summary: {
           totalPlanned: 0,
           completed: 0,
+          adapted: 0,
           partial: 0,
           planned: 0,
           missed: 0,

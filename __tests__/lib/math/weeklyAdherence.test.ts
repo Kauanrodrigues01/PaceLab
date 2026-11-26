@@ -3,17 +3,23 @@ import {
   arePlanActivitiesCompatible,
   calculateRollingFourWeeksAdherence,
   calculateWeeklyAdherenceSummary,
+  classifyActivityIntensityMismatch,
   computeUnmatchedPlanStatus,
   computeWeeklyReconciliation,
   diffFortalezaDays,
   evaluateLinkedSessionValidity,
   evaluateWeeklyMatch,
+  evaluateWeeklyMatchDetailed,
+  getDefaultDisplayWeekStartFortaleza,
   getFortalezaWeekBounds,
   getFortalezaWeekdayLabel,
   isExactPlanActivityMatch,
+  isRealizedWeeklyPlanStatus,
   isRestPlanActivity,
+  isSundayPostRolloverFortaleza,
   normalizePlanActivityType,
   normalizeWeeklyPlanStatus,
+  parseTargetPaceRangeSeconds,
   shiftFortalezaDays,
   shiftFortalezaWeek,
   toFortalezaDateKey,
@@ -65,6 +71,32 @@ describe("Motor Puro de Aderência e Reconciliação Semanal (lib/math/weeklyAdh
       expect(getFortalezaWeekdayLabel("2026-11-18")).toBe("Quarta");
       expect(getFortalezaWeekdayLabel("2026-11-22")).toBe("Domingo");
       expect(getFortalezaWeekdayLabel("invalida")).toBe("");
+    });
+
+    it("detecta corretamente a virada dominical >= 22h em America/Fortaleza (independente do fuso do host)", () => {
+      // Domingo 2026-11-22 21:59 BRT === 2026-11-23 00:59Z
+      const sun2159 = new Date("2026-11-23T00:59:59.000Z");
+      // Domingo 2026-11-22 22:00 BRT === 2026-11-23 01:00Z
+      const sun2200 = new Date("2026-11-23T01:00:00.000Z");
+      // Domingo 2026-11-22 23:59 BRT === 2026-11-23 02:59Z
+      const sun2359 = new Date("2026-11-23T02:59:59.000Z");
+      // Segunda 2026-11-23 00:05 BRT === 2026-11-23 03:05Z
+      const mon0005 = new Date("2026-11-23T03:05:00.000Z");
+      // Sábado 2026-11-21 22:30 BRT === 2026-11-22 01:30Z
+      const sat2230 = new Date("2026-11-22T01:30:00.000Z");
+
+      expect(isSundayPostRolloverFortaleza(sun2159)).toBe(false);
+      expect(isSundayPostRolloverFortaleza(sun2200)).toBe(true);
+      expect(isSundayPostRolloverFortaleza(sun2359)).toBe(true);
+      expect(isSundayPostRolloverFortaleza(mon0005)).toBe(false);
+      expect(isSundayPostRolloverFortaleza(sat2230)).toBe(false);
+      expect(isSundayPostRolloverFortaleza(new Date("invalid"))).toBe(false);
+
+      // Semana padrão exibida: só antecipa no domingo >= 22h quando hasNextPlannedWeek=true
+      expect(getDefaultDisplayWeekStartFortaleza(sun2159, true)).toBe("2026-11-16");
+      expect(getDefaultDisplayWeekStartFortaleza(sun2200, false)).toBe("2026-11-16");
+      expect(getDefaultDisplayWeekStartFortaleza(sun2200, true)).toBe("2026-11-23");
+      expect(getDefaultDisplayWeekStartFortaleza(mon0005, false)).toBe("2026-11-23");
     });
   });
 
@@ -409,10 +441,18 @@ describe("Motor Puro de Aderência e Reconciliação Semanal (lib/math/weeklyAdh
         )
       ).toEqual({ valid: false, nextStatus: null });
 
-      // Atividade incompatível (caminhada) ou volume abaixo de 40% invalidam vínculo após edição
+      // Troca de família (caminhada) no mesmo dia vira Adaptado; em ±1 dia invalida o vínculo
       expect(
         evaluateLinkedSessionValidity(plan, {
           sessionDate: "2026-11-16T18:00:00-03:00",
+          activityType: "caminhada",
+          distanceKm: 10,
+        })
+      ).toEqual({ valid: true, nextStatus: "Adaptado" });
+
+      expect(
+        evaluateLinkedSessionValidity(plan, {
+          sessionDate: "2026-11-17T18:00:00-03:00",
           activityType: "caminhada",
           distanceKm: 10,
         })
@@ -428,11 +468,251 @@ describe("Motor Puro de Aderência e Reconciliação Semanal (lib/math/weeklyAdh
     });
   });
 
+  describe("5º Status Adaptado (Volume, Pace ±15s/km, Intensidade e Precedência)", () => {
+    it("normaliza status Adaptado e identifica todos os status realizados via isRealizedWeeklyPlanStatus", () => {
+      expect(normalizeWeeklyPlanStatus("Adaptado")).toBe("Adaptado");
+      expect(normalizeWeeklyPlanStatus("'Adaptado")).toBe("Adaptado");
+      expect(normalizeWeeklyPlanStatus("adaptada")).toBe("Adaptado");
+      expect(normalizeWeeklyPlanStatus("ADAPTED")).toBe("Adaptado");
+
+      expect(isRealizedWeeklyPlanStatus("Concluído")).toBe(true);
+      expect(isRealizedWeeklyPlanStatus("Adaptado")).toBe(true);
+      expect(isRealizedWeeklyPlanStatus("Parcial")).toBe(true);
+      expect(isRealizedWeeklyPlanStatus("Planejado")).toBe(false);
+      expect(isRealizedWeeklyPlanStatus("Perdido")).toBe(false);
+    });
+
+    it("extrai faixas e valores únicos de pace em parseTargetPaceRangeSeconds", () => {
+      expect(parseTargetPaceRangeSeconds("'5:45-6:00")).toEqual({
+        minPaceSeconds: 345,
+        maxPaceSeconds: 360,
+      });
+      expect(parseTargetPaceRangeSeconds("5:45–6:00")).toEqual({
+        minPaceSeconds: 345,
+        maxPaceSeconds: 360,
+      });
+      expect(parseTargetPaceRangeSeconds("5:45 a 6:00/km")).toEqual({
+        minPaceSeconds: 345,
+        maxPaceSeconds: 360,
+      });
+      expect(parseTargetPaceRangeSeconds("5'45\" até 6'00\"")).toEqual({
+        minPaceSeconds: 345,
+        maxPaceSeconds: 360,
+      });
+      expect(parseTargetPaceRangeSeconds("05:45:00 - 06:00:00")).toEqual({
+        minPaceSeconds: 345,
+        maxPaceSeconds: 360,
+      });
+      expect(parseTargetPaceRangeSeconds("6:00-5:45")).toEqual({
+        minPaceSeconds: 345,
+        maxPaceSeconds: 360,
+      });
+      expect(parseTargetPaceRangeSeconds("5:13")).toEqual({
+        minPaceSeconds: 313,
+        maxPaceSeconds: 313,
+      });
+      expect(parseTargetPaceRangeSeconds("00:05:13")).toEqual({
+        minPaceSeconds: 313,
+        maxPaceSeconds: 313,
+      });
+      expect(parseTargetPaceRangeSeconds("Z2 (5:50-6:10/km)")).toEqual({
+        minPaceSeconds: 350,
+        maxPaceSeconds: 370,
+      });
+      expect(parseTargetPaceRangeSeconds("-")).toBeNull();
+      expect(parseTargetPaceRangeSeconds("Livre")).toBeNull();
+      expect(parseTargetPaceRangeSeconds("5:65")).toBeNull();
+      expect(parseTargetPaceRangeSeconds("05:45:30")).toBeNull();
+      expect(parseTargetPaceRangeSeconds("5:10-5:20-5:30")).toBeNull();
+      expect(parseTargetPaceRangeSeconds(null)).toBeNull();
+    });
+
+    it("detecta choque de intensidade/família em classifyActivityIntensityMismatch", () => {
+      expect(classifyActivityIntensityMismatch("corrida_intervalada", "rodagem_leve")).toBe(true);
+      expect(classifyActivityIntensityMismatch("tempo_run", "caminhada")).toBe(true);
+      expect(classifyActivityIntensityMismatch("rodagem_leve", "tempo_run")).toBe(true);
+      expect(classifyActivityIntensityMismatch("rodagem_leve", "caminhada")).toBe(true);
+      expect(classifyActivityIntensityMismatch("caminhada", "corrida_continua")).toBe(true);
+
+      expect(classifyActivityIntensityMismatch("rodagem_leve", "corrida_continua")).toBe(false);
+      expect(classifyActivityIntensityMismatch("corrida_intervalada", "tempo_run")).toBe(false);
+      expect(classifyActivityIntensityMismatch("longao", "corrida_continua")).toBe(false);
+      expect(classifyActivityIntensityMismatch("Descanso", "rodagem_leve")).toBe(false);
+      expect(classifyActivityIntensityMismatch("Natacao", "rodagem_leve")).toBe(false);
+    });
+
+    it("classifica Adaptado nos desvios de volume (>1.25), pace (±15s/km), tipo e preserva precedência Parcial", () => {
+      // Limite exato de volume: 1.25 -> Concluído; 1.26 -> Adaptado
+      expect(evaluateWeeklyMatch(10, 12.5)).toBe("Concluído");
+      expect(
+        evaluateWeeklyMatchDetailed(
+          { activityType: "rodagem_leve", targetDistanceKm: 10, targetPaceFormatted: "5:45-6:00" },
+          { activityType: "rodagem_leve", distanceKm: 12.6, paceSeconds: 350 }
+        )
+      ).toEqual({
+        status: "Adaptado",
+        reasonCodes: ["volume_above"],
+        reasons: ["Volume acima do planejado"],
+      });
+
+      // Tolerância inclusiva de pace ±15s/km em '5:45-6:00 (345..360 -> 330..375 aceito)
+      expect(
+        evaluateWeeklyMatchDetailed(
+          { activityType: "rodagem_leve", targetDistanceKm: 10, targetPaceFormatted: "'5:45-6:00" },
+          { activityType: "rodagem_leve", distanceKm: 10, paceSeconds: 330 }
+        ).status
+      ).toBe("Concluído");
+      expect(
+        evaluateWeeklyMatchDetailed(
+          { activityType: "rodagem_leve", targetDistanceKm: 10, targetPaceFormatted: "'5:45-6:00" },
+          { activityType: "rodagem_leve", distanceKm: 10, paceSeconds: 375 }
+        ).status
+      ).toBe("Concluído");
+
+      // 16s mais rápido -> pace_faster; 16s mais lento -> pace_slower (usando fallback durationSeconds)
+      expect(
+        evaluateWeeklyMatchDetailed(
+          { activityType: "rodagem_leve", targetDistanceKm: 10, targetPaceFormatted: "'5:45-6:00" },
+          { activityType: "rodagem_leve", distanceKm: 10, paceSeconds: 329 }
+        )
+      ).toEqual({
+        status: "Adaptado",
+        reasonCodes: ["pace_faster"],
+        reasons: ["Ritmo mais forte que o alvo"],
+      });
+      expect(
+        evaluateWeeklyMatchDetailed(
+          { activityType: "rodagem_leve", targetDistanceKm: 10, targetPaceFormatted: "'5:45-6:00" },
+          { activityType: "rodagem_leve", distanceKm: 10, durationSeconds: 3760 }
+        )
+      ).toEqual({
+        status: "Adaptado",
+        reasonCodes: ["pace_slower"],
+        reasons: ["Ritmo mais lento que o alvo"],
+      });
+
+      // Precedência: 0.40 <= ratio < 0.85 continua Parcial (0.50) mesmo com pace/tipo desviados
+      expect(
+        evaluateWeeklyMatchDetailed(
+          { activityType: "corrida_intervalada", targetDistanceKm: 10, targetPaceFormatted: "4:30" },
+          { activityType: "rodagem_leve", distanceKm: 6.0, paceSeconds: 380 }
+        )
+      ).toEqual({
+        status: "Parcial",
+        reasonCodes: [],
+        reasons: [],
+      });
+
+      // Múltiplos motivos simultâneos
+      expect(
+        evaluateWeeklyMatchDetailed(
+          { activityType: "rodagem_leve", targetDistanceKm: 8, targetPaceFormatted: "5:45-6:00" },
+          { activityType: "corrida_intervalada", distanceKm: 11, paceSeconds: 290 }
+        )
+      ).toEqual({
+        status: "Adaptado",
+        reasonCodes: ["volume_above", "pace_faster", "type_changed"],
+        reasons: [
+          "Volume acima do planejado",
+          "Ritmo mais forte que o alvo",
+          "Tipo alterado",
+        ],
+      });
+    });
+
+    it("permite fallback run ↔ walk na Passada 1 com menor prioridade que mesma família e protege Adaptado no computeWeeklyReconciliation", () => {
+      // No mesmo dia, caminhada de 6 km casa com rodagem_leve de 6 km como Adaptado quando não há corrida
+      const swapSameDay = computeWeeklyReconciliation(
+        [
+          {
+            id: "p-1",
+            planExternalId: "PLAN-SWAP",
+            plannedDate: "2026-11-17",
+            activityType: "rodagem_leve",
+            targetDistanceKm: 6,
+            status: "Planejado",
+          },
+        ],
+        [
+          {
+            id: "s-walk",
+            sessionDate: "2026-11-17T09:00:00-03:00",
+            activityType: "caminhada",
+            distanceKm: 6,
+            paceSeconds: 600,
+          },
+        ],
+        "2026-11-17"
+      );
+      expect(swapSameDay.matches).toEqual([
+        {
+          planId: "p-1",
+          planExternalId: "PLAN-SWAP",
+          sessionId: "s-walk",
+          status: "Adaptado",
+          pass: 1,
+          dayDiff: 0,
+        },
+      ]);
+
+      // Quando há corrida E caminhada no mesmo dia, corrida (mesma família) vence caminhada
+      const sameFamilyWins = computeWeeklyReconciliation(
+        [
+          {
+            id: "p-1",
+            planExternalId: "PLAN-RUN",
+            plannedDate: "2026-11-17",
+            activityType: "rodagem_leve",
+            targetDistanceKm: 6,
+            status: "Planejado",
+          },
+        ],
+        [
+          {
+            id: "s-walk-exact-dist",
+            sessionDate: "2026-11-17T08:00:00-03:00",
+            activityType: "caminhada",
+            distanceKm: 6.0,
+          },
+          {
+            id: "s-run-slight-diff",
+            sessionDate: "2026-11-17T09:00:00-03:00",
+            activityType: "corrida_continua",
+            distanceKm: 5.8,
+          },
+        ],
+        "2026-11-17"
+      );
+      expect(sameFamilyWins.matches[0]?.sessionId).toBe("s-run-slight-diff");
+      expect(sameFamilyWins.matches[0]?.status).toBe("Concluído");
+
+      // Plano já Adaptado não entra novamente como pendente
+      const alreadyAdapted = computeWeeklyReconciliation(
+        [
+          {
+            id: "p-adp",
+            planExternalId: "PLAN-ADP",
+            plannedDate: "2026-11-10",
+            activityType: "rodagem_leve",
+            targetDistanceKm: 6,
+            status: "Adaptado",
+            matchedSessionId: null,
+          },
+        ],
+        [],
+        "2026-11-17"
+      );
+      expect(alreadyAdapted.unmatchedUpdates).toEqual([]);
+      expect(alreadyAdapted.missedCount).toBe(0);
+    });
+  });
+
   describe("Resumo de Aderência Semanal e Média das 4 Semanas", () => {
-    it("retorna null em semanas vazias (sem NaN) e calcula Math.round + teto de 100%", () => {
+    it("retorna null em semanas vazias (sem NaN) e calcula fórmula 1.0 / 0.75 / 0.50 com Math.round + teto de 100%", () => {
       expect(calculateWeeklyAdherenceSummary([])).toEqual({
         totalPlanned: 0,
         completed: 0,
+        adapted: 0,
         partial: 0,
         planned: 0,
         missed: 0,
@@ -449,10 +729,28 @@ describe("Motor Puro de Aderência e Reconciliação Semanal (lib/math/weeklyAdh
       expect(summary).toEqual({
         totalPlanned: 4,
         completed: 1,
+        adapted: 0,
         partial: 1,
         planned: 1,
         missed: 1,
         adherencePercent: 38,
+      });
+
+      const withAdapted = calculateWeeklyAdherenceSummary([
+        { status: "Concluído" },
+        { status: "Adaptado" },
+        { status: "Parcial" },
+        { status: "Perdido" },
+      ]);
+      // (1.0 + 0.75 + 0.50) / 4 = 2.25 / 4 = 56.25% -> Math.round = 56%
+      expect(withAdapted).toEqual({
+        totalPlanned: 4,
+        completed: 1,
+        adapted: 1,
+        partial: 1,
+        planned: 0,
+        missed: 1,
+        adherencePercent: 56,
       });
 
       const full = calculateWeeklyAdherenceSummary([
@@ -508,6 +806,38 @@ describe("Motor Puro de Aderência e Reconciliação Semanal (lib/math/weeklyAdh
         weeksCount: 0,
         weeks: [],
       });
+
+      // Semanas com itens Adaptado aplicam peso 0.75 e contabilizam week.adapted corretamente
+      const rollingWithAdapted = calculateRollingFourWeeksAdherence(
+        [
+          // Semana A (2026-11-09): 1 Concluído (1.0) + 1 Adaptado (0.75) => 88%
+          { plannedDate: "2026-11-09", status: "Concluído" },
+          { plannedDate: "2026-11-11", status: "Adaptado" },
+          // Semana B (2026-11-16): 1 Adaptado (0.75) + 1 Parcial (0.50) => 63%
+          { plannedDate: "2026-11-16", status: "Adaptado" },
+          { plannedDate: "2026-11-18", status: "Parcial" },
+        ],
+        "2026-11-16"
+      );
+      expect(rollingWithAdapted.weeksCount).toBe(2);
+      expect(rollingWithAdapted.weeks).toEqual([
+        expect.objectContaining({
+          weekStart: "2026-11-09",
+          completed: 1,
+          adapted: 1,
+          partial: 0,
+          adherencePercent: 88,
+        }),
+        expect.objectContaining({
+          weekStart: "2026-11-16",
+          completed: 0,
+          adapted: 1,
+          partial: 1,
+          adherencePercent: 63,
+        }),
+      ]);
+      // Média (88 + 63) / 2 = 75.5 -> 76%
+      expect(rollingWithAdapted.averagePercent).toBe(76);
     });
 
     it("cobre competição multi-plano/multi-sessão na mesma passada, datas inválidas em evaluateLinkedSessionValidity e edge cases de helpers", () => {
@@ -606,6 +936,51 @@ describe("Motor Puro de Aderência e Reconciliação Semanal (lib/math/weeklyAdh
       expect(computeUnmatchedPlanStatus("invalida", "2026-11-17")).toBe("Planejado");
       expect(arePlanActivitiesCompatible("corrida_continua", "Descanso")).toBe(false);
       expect(arePlanActivitiesCompatible("Atividade Alienígena", "corrida_continua")).toBe(false);
+
+      // Apóstrofo tipográfico U+2019 e prioridade de Concluído sobre Adaptado no mesmo dia
+      expect(parseTargetPaceRangeSeconds("5’45”-6’00”")).toEqual({
+        minPaceSeconds: 345,
+        maxPaceSeconds: 360,
+      });
+
+      const rankingRes = computeWeeklyReconciliation(
+        [
+          {
+            id: "p-rank",
+            planExternalId: "PLAN-2026-11-18-1",
+            plannedDate: new Date("2026-11-18T12:00:00.000Z"),
+            activityType: "rodagem_leve",
+            targetDistanceKm: 8,
+            targetPaceFormatted: "5:45-6:00",
+          },
+        ],
+        [
+          {
+            id: "s-exact-dist-fast-pace",
+            sessionDate: new Date("2026-11-18T09:00:00.000Z"),
+            activityType: "rodagem_leve",
+            distanceKm: 8.0, // delta 0, mas pace 5:00 -> Adaptado
+            durationSeconds: 2400,
+            paceSeconds: 300,
+          },
+          {
+            id: "s-slight-delta-on-pace",
+            sessionDate: new Date("2026-11-18T10:00:00.000Z"),
+            activityType: "rodagem_leve",
+            distanceKm: 8.2, // delta 0.2, pace 5:50 -> Concluído
+            durationSeconds: 2870,
+            paceSeconds: 350,
+          },
+        ],
+        "2026-11-18"
+      );
+      expect(rankingRes.matches).toEqual([
+        expect.objectContaining({
+          planId: "p-rank",
+          sessionId: "s-slight-delta-on-pace",
+          status: "Concluído",
+        }),
+      ]);
     });
   });
 });

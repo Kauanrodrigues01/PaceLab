@@ -870,12 +870,40 @@ describe("Google Sheets Mapper Bidirecional (lib/googleSheets/mapper.ts)", () =>
       }
     });
 
-    it("gera warning estruturado para linhas sem ID ou sem Data válida e tolera distância/tipo incomuns", () => {
+    it("gera auto-ID determinístico para linhas sem ID, normaliza apóstrofos e rejeita data inválida", () => {
       const noId = parseWeeklyPlanRowFromSheet(["", "2026-11-16", "Segunda", "rodagem_leve", "5"], 2);
-      expect(noId).toEqual({
-        valid: false,
-        warning: "Linha 2 (Plano_Semanal): ID ausente.",
-      });
+      expect(noId.valid).toBe(true);
+      if (noId.valid && noId.kind === "item") {
+        expect(noId.data.needsGeneratedId).toBe(true);
+        expect(noId.data.planExternalId).toBe("PLAN-2026-11-16-1");
+        expect(noId.data.activityType).toBe("rodagem_leve");
+      }
+
+      const apostropheId = parseWeeklyPlanRowFromSheet(
+        ["'PLAN-2026-11-16-9", "16/11/26", "Segunda", "rodagem_leve", "5", "~5:40/km"],
+        3
+      );
+      expect(apostropheId.valid).toBe(true);
+      if (apostropheId.valid && apostropheId.kind === "item") {
+        expect(apostropheId.data.planExternalId).toBe("PLAN-2026-11-16-9");
+        expect(apostropheId.data.needsGeneratedId).toBeUndefined();
+        expect(apostropheId.data.targetPaceFormatted).toBe("5:40");
+        expect(formatDateFortaleza(apostropheId.data.plannedDate)).toBe("2026-11-16");
+      }
+
+      // Formatos adicionais de data e pace (Plano 18 — Fase 1)
+      const refNow = new Date("2026-11-25T15:00:00.000Z");
+      expect(formatDateFortaleza(parseSheetDate("25/11/26", refNow))).toBe("2026-11-25");
+      expect(formatDateFortaleza(parseSheetDate("25-11-2026", refNow))).toBe("2026-11-25");
+      expect(formatDateFortaleza(parseSheetDate("2026/11/25", refNow))).toBe("2026-11-25");
+      expect(formatDateFortaleza(parseSheetDate("25/11", refNow))).toBe("2026-11-25");
+      expect(formatDateFortaleza(parseSheetDate("2026-11-25T00:00:00Z", refNow))).toBe("2026-11-25");
+      expect(formatDateFortaleza(parseSheetDate("2026-11-25T23:30:00-03:00", refNow))).toBe("2026-11-25");
+
+      expect(parseWeeklyPlanTargetPace("~5:40/km")).toBe("5:40");
+      expect(parseWeeklyPlanTargetPace("5'45\"-6'00\"")).toBe("5:45-6:00");
+      expect(parseWeeklyPlanTargetPace("Z2 (5:50-6:10/km)")).toBe("5:50-6:10");
+      expect(parseWeeklyPlanTargetPace("Ritmo alvo 5:13/km")).toBe("5:13");
 
       const badDate = parseWeeklyPlanRowFromSheet(["PLAN-X", "31/02/2026", "Segunda", "rodagem_leve"], 3);
       expect(badDate).toEqual({
@@ -929,6 +957,21 @@ describe("Google Sheets Mapper Bidirecional (lib/googleSheets/mapper.ts)", () =>
 
       expect(parseWeeklyPlanTargetPace(5.3)).toBeNull();
       expect(parseWeeklyPlanTargetPace("N/A")).toBeNull();
+
+      // Regressões de virada de ano DD/MM, datas ISO inválidas e faixas de pace com ~ e /
+      const decRef = new Date("2026-12-28T15:00:00.000Z");
+      const janRef = new Date("2027-01-02T15:00:00.000Z");
+      expect(formatDateFortaleza(parseSheetDate("02/01", decRef))).toBe("2027-01-02");
+      expect(formatDateFortaleza(parseSheetDate("28/12", janRef))).toBe("2026-12-28");
+      expect(parseSheetDate("2026-02-30T10:00:00-03:00", refNow)).toBeNull();
+      expect(parseSheetDate("2026-11-25T25:99:00", refNow)).toBeNull();
+      expect(formatDateFortaleza(parseSheetDate("2026-11-25T00:00:00+00:00", refNow))).toBe(
+        "2026-11-25"
+      );
+
+      expect(parseWeeklyPlanTargetPace("~5:45 - ~6:00")).toBe("5:45-6:00");
+      expect(parseWeeklyPlanTargetPace("Z2 (~5:50 - ~6:10/km)")).toBe("5:50-6:10");
+      expect(parseWeeklyPlanTargetPace("5:45 / 6:00")).toBe("5:45–6:00");
     });
   });
 });

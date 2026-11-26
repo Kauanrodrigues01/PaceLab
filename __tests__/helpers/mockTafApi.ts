@@ -270,6 +270,7 @@ export function setupMockTafApi(initialState?: Partial<MockTafStore>) {
           summary: {
             totalPlanned: 0,
             completed: 0,
+            adapted: 0,
             partial: 0,
             planned: 0,
             missed: 0,

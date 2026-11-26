@@ -18,6 +18,9 @@ describe("Badge Component", () => {
     rerender(<Badge variant="success">Sucesso</Badge>);
     expect(screen.getByText("Sucesso")).toHaveClass("bg-emerald-950/60");
 
+    rerender(<Badge variant="adapted">Adaptado</Badge>);
+    expect(screen.getByText("Adaptado")).toHaveClass("bg-indigo-950/60", "text-indigo-300");
+
     rerender(<Badge variant="warning">Aviso</Badge>);
     expect(screen.getByText("Aviso")).toHaveClass("bg-amber-950/60");
 

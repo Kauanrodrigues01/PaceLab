@@ -11,6 +11,7 @@ import {
   Dumbbell,
   RefreshCw,
   RotateCcw,
+  SlidersHorizontal,
   Target,
   TrendingDown,
   TrendingUp,
@@ -19,10 +20,16 @@ import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { TrainingDetailModal } from "@/components/treinos/TrainingDetailModal";
 import { tafService } from "@/lib/services/tafService";
-import { CROSS_PAGE_SHEETS_CACHE_KEYS } from "@/lib/sheetsSyncUi";
+import {
+  CROSS_PAGE_SHEETS_CACHE_KEYS,
+  clearCrossPageSheetsCaches,
+  formatSheetsSyncReportSummary,
+  getSheetsSyncErrorMessage,
+} from "@/lib/sheetsSyncUi";
 import { formatTime } from "@/lib/formatting/time";
 import {
   getFortalezaWeekBounds,
+  isSundayPostRolloverFortaleza,
   shiftFortalezaDays,
   toFortalezaDateKey,
 } from "@/lib/math/weeklyAdherence";
@@ -39,6 +46,8 @@ export interface WeeklyAdherenceCardProps {
   refreshTrigger?: number;
   onOpenSession?: (session: TrainingSession) => void;
   onEditSession?: (session: TrainingSession) => void;
+  onSyncSheets?: () => void | Promise<void>;
+  isSyncingSheets?: boolean;
   className?: string;
 }
 
@@ -47,6 +56,7 @@ const STATUS_META: Record<
   { label: string; variant: BadgeVariant }
 > = {
   Concluído: { label: "Concluído", variant: "success" },
+  Adaptado: { label: "Adaptado", variant: "adapted" },
   Parcial: { label: "Parcial", variant: "warning" },
   Planejado: { label: "Planejado", variant: "info" },
   Perdido: { label: "Perdido", variant: "danger" },
@@ -114,8 +124,10 @@ function readWeeklyPlanCache(expectedWeekStart: string): WeeklyPlanData | null {
       parsed &&
       typeof parsed === "object" &&
       parsed.weekStart === expectedWeekStart &&
+      parsed.isCurrentWeek === true &&
       Array.isArray(parsed.items) &&
-      parsed.summary
+      parsed.summary &&
+      typeof parsed.summary.adapted === "number"
     ) {
       return parsed;
     }
@@ -246,6 +258,13 @@ interface PlanDayRowProps {
 
 function PlanDayRow({ item, onSelectSession }: PlanDayRowProps) {
   const statusMeta = STATUS_META[item.status] ?? STATUS_META.Planejado;
+  const adaptationReasonText =
+    item.status === "Adaptado"
+      ? item.adaptationReason?.trim() ||
+        (item.adaptationReasons && item.adaptationReasons.length > 0
+          ? item.adaptationReasons.join(" · ")
+          : "")
+      : "";
 
   return (
     <div
@@ -258,11 +277,24 @@ function PlanDayRow({ item, onSelectSession }: PlanDayRowProps) {
             {item.dayOfWeek} · {formatShortDateBr(item.plannedDate)}
           </span>
           <span className="text-sm font-semibold text-white break-words">
-            {item.activityType}
+            {getActivityLabel(item.activityType)}
           </span>
         </div>
         <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
       </div>
+
+      {adaptationReasonText && (
+        <div
+          data-testid={`weekly-plan-adaptation-reason-${item.id}`}
+          className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-indigo-700/60 bg-indigo-950/40 px-2.5 py-1 text-xs font-medium text-indigo-200"
+        >
+          <SlidersHorizontal
+            className="w-3.5 h-3.5 text-indigo-300 shrink-0"
+            aria-hidden="true"
+          />
+          <span>{adaptationReasonText}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Coluna Planejado */}
@@ -332,35 +364,77 @@ export function WeeklyAdherenceCard({
   refreshTrigger = 0,
   onOpenSession,
   onEditSession,
+  onSyncSheets,
+  isSyncingSheets = false,
   className = "",
 }: WeeklyAdherenceCardProps) {
-  const currentWeekStart = useMemo(
-    () => getFortalezaWeekBounds().weekStart,
-    []
+  const [currentWeekStart, setCurrentWeekStart] = useState<string>(
+    () => getFortalezaWeekBounds().weekStart
   );
-  const maxAllowedNextWeek = useMemo(
-    () => shiftFortalezaDays(currentWeekStart, 7),
-    [currentWeekStart]
-  );
-
-  const [selectedWeekStart, setSelectedWeekStart] =
-    useState<string>(currentWeekStart);
+  const [selectedWeekStart, setSelectedWeekStart] = useState<string | null>(null);
   const [data, setData] = useState<WeeklyPlanData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryCounter, setRetryCounter] = useState<number>(0);
+  const [isInternalSyncing, setIsInternalSyncing] = useState<boolean>(false);
+  const [syncFeedback, setSyncFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [internalModalTraining, setInternalModalTraining] =
     useState<TrainingSession | null>(null);
   const latestRequestRef = useRef<number>(0);
+  const currentWeekStartRef = useRef<string>(currentWeekStart);
+  const lastTodayKeyRef = useRef<string>(toFortalezaDateKey(new Date()));
+  const lastRolloverRef = useRef<boolean>(isSundayPostRolloverFortaleza());
+
+  // Recalcula a semana/dia ativo ao voltar o foco para a aba (ex.: virada de dia ou domingo 22h)
+  useEffect(() => {
+    const checkDateRollover = () => {
+      const now = new Date();
+      const freshWeekStart = getFortalezaWeekBounds(now).weekStart;
+      const freshTodayKey = toFortalezaDateKey(now);
+      const freshRollover = isSundayPostRolloverFortaleza(now);
+
+      if (
+        freshWeekStart !== currentWeekStartRef.current ||
+        freshTodayKey !== lastTodayKeyRef.current ||
+        freshRollover !== lastRolloverRef.current
+      ) {
+        currentWeekStartRef.current = freshWeekStart;
+        lastTodayKeyRef.current = freshTodayKey;
+        lastRolloverRef.current = freshRollover;
+        setCurrentWeekStart(freshWeekStart);
+        clearCrossPageSheetsCaches({ includeGoal: false });
+        setRetryCounter((c) => c + 1);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkDateRollover();
+      }
+    };
+
+    window.addEventListener("focus", checkDateRollover);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", checkDateRollover);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     const requestId = ++latestRequestRef.current;
 
-    const cached =
-      selectedWeekStart === currentWeekStart && refreshTrigger === 0
-        ? readWeeklyPlanCache(currentWeekStart)
-        : null;
+    const isAutoDefaultWeek = selectedWeekStart === null;
+    const canUseCache =
+      isAutoDefaultWeek &&
+      refreshTrigger === 0 &&
+      retryCounter === 0 &&
+      !isSundayPostRolloverFortaleza();
+    const cached = canUseCache ? readWeeklyPlanCache(currentWeekStart) : null;
 
     if (cached) {
       setData(cached);
@@ -372,12 +446,14 @@ export function WeeklyAdherenceCard({
 
     const fetchWeeklyPlan = async () => {
       try {
-        const result = await tafService.getWeeklyPlan(selectedWeekStart);
+        const result = await tafService.getWeeklyPlan(
+          selectedWeekStart ?? undefined
+        );
         if (cancelled || latestRequestRef.current !== requestId) return;
         setData(result);
         setErrorMessage(null);
         setIsLoading(false);
-        if (selectedWeekStart === currentWeekStart) {
+        if (result.isCurrentWeek) {
           writeWeeklyPlanCache(result);
         }
       } catch {
@@ -394,36 +470,96 @@ export function WeeklyAdherenceCard({
     };
   }, [selectedWeekStart, currentWeekStart, refreshTrigger, retryCounter]);
 
-  const fallbackBounds = useMemo(
-    () => getFortalezaWeekBounds(selectedWeekStart),
-    [selectedWeekStart]
+  const visibleData =
+    data &&
+    (selectedWeekStart === null
+      ? Boolean(data.isCurrentWeek) && data.weekStart >= currentWeekStart
+      : data.weekStart === selectedWeekStart)
+      ? data
+      : null;
+
+  const effectiveWeekStart =
+    selectedWeekStart ?? visibleData?.weekStart ?? currentWeekStart;
+
+  const activeAnchorWeekStart =
+    visibleData?.isCurrentWeek && visibleData.weekStart > currentWeekStart
+      ? visibleData.weekStart
+      : currentWeekStart;
+
+  const maxAllowedNextWeek = useMemo(
+    () => shiftFortalezaDays(activeAnchorWeekStart, 7),
+    [activeAnchorWeekStart]
   );
 
-  const visibleData =
-    data && data.weekStart === selectedWeekStart ? data : null;
+  const fallbackBounds = useMemo(
+    () => getFortalezaWeekBounds(effectiveWeekStart),
+    [effectiveWeekStart]
+  );
 
-  const isCurrentWeek =
-    selectedWeekStart === currentWeekStart || Boolean(visibleData?.isCurrentWeek);
+  const isCurrentWeek = visibleData
+    ? Boolean(visibleData.isCurrentWeek)
+    : selectedWeekStart === null ||
+      (selectedWeekStart === currentWeekStart && !isSundayPostRolloverFortaleza());
   const weekLabel = visibleData?.weekLabel ?? fallbackBounds.label;
   const headerWeekTitle = isCurrentWeek
     ? `Semana Atual (${weekLabel})`
     : `Semana (${weekLabel})`;
 
   const canGoNext =
-    selectedWeekStart < maxAllowedNextWeek ||
+    effectiveWeekStart < maxAllowedNextWeek ||
     Boolean(visibleData?.hasNextPlannedWeek);
 
   const handlePrevWeek = () => {
-    setSelectedWeekStart((prev) => shiftFortalezaDays(prev, -7));
+    setSelectedWeekStart(shiftFortalezaDays(effectiveWeekStart, -7));
   };
 
   const handleNextWeek = () => {
     if (!canGoNext) return;
-    setSelectedWeekStart((prev) => shiftFortalezaDays(prev, 7));
+    setSelectedWeekStart(shiftFortalezaDays(effectiveWeekStart, 7));
   };
 
   const handleResetToCurrentWeek = () => {
-    setSelectedWeekStart(currentWeekStart);
+    setSelectedWeekStart(null);
+  };
+
+  const isSyncing = isSyncingSheets || isInternalSyncing;
+
+  const handleSyncClick = async () => {
+    if (isSyncing) return;
+    if (onSyncSheets) {
+      setIsInternalSyncing(true);
+      try {
+        await onSyncSheets();
+      } finally {
+        setIsInternalSyncing(false);
+      }
+      return;
+    }
+
+    setIsInternalSyncing(true);
+    setSyncFeedback(null);
+    try {
+      const report = await tafService.syncGoogleSheets({
+        direction: "bidirectional",
+        forceFullResync: false,
+      });
+      clearCrossPageSheetsCaches();
+      setSyncFeedback({
+        type: "success",
+        message: formatSheetsSyncReportSummary(report),
+      });
+      setRetryCounter((c) => c + 1);
+    } catch (err) {
+      setSyncFeedback({
+        type: "error",
+        message: getSheetsSyncErrorMessage(
+          err,
+          "Erro ao sincronizar planilha Google Sheets."
+        ),
+      });
+    } finally {
+      setIsInternalSyncing(false);
+    }
   };
 
   const handleSelectSession = (session: TrainingSession) => {
@@ -467,6 +603,24 @@ export function WeeklyAdherenceCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleSyncClick()}
+            disabled={isSyncing}
+            aria-busy={isSyncing}
+            icon={
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
+            }
+            aria-label={isSyncing ? "Sincronizando Planilha" : "Sincronizar Planilha"}
+            data-testid="weekly-sync-btn"
+          >
+            {isSyncing ? "Sincronizando..." : "Sincronizar"}
+          </Button>
           {!isCurrentWeek && (
             <Button
               type="button"
@@ -505,6 +659,27 @@ export function WeeklyAdherenceCard({
           </Button>
         </div>
       </div>
+
+      {syncFeedback && (
+        <div
+          role={syncFeedback.type === "error" ? "alert" : "status"}
+          data-testid="weekly-sync-feedback"
+          className={`mt-3 rounded-xl border px-3 py-2 text-xs flex items-center justify-between gap-2 ${
+            syncFeedback.type === "error"
+              ? "border-amber-900/60 bg-amber-950/30 text-amber-200"
+              : "border-emerald-900/60 bg-emerald-950/30 text-emerald-200"
+          }`}
+        >
+          <span>{syncFeedback.message}</span>
+          <button
+            type="button"
+            onClick={() => setSyncFeedback(null)}
+            className="font-semibold underline shrink-0 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B7F34A]"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
 
       {/* Corpo do Card */}
       <div className="pt-4">
@@ -594,7 +769,12 @@ export function WeeklyAdherenceCard({
                   <span className="text-xs sm:text-sm text-[#8E9BB0]">
                     de aderência na semana ({summary.completed} concluído
                     {summary.completed === 1 ? "" : "s"}
-                    {summary.partial > 0 ? ` · ${summary.partial} parcial` : ""}
+                    {summary.adapted > 0
+                      ? ` · ${summary.adapted} adaptado${summary.adapted === 1 ? "" : "s"}`
+                      : ""}
+                    {summary.partial > 0
+                      ? ` · ${summary.partial} ${summary.partial === 1 ? "parcial" : "parciais"}`
+                      : ""}
                     {summary.planned > 0
                       ? ` · ${summary.planned} pendente${summary.planned === 1 ? "" : "s"}`
                       : ""}

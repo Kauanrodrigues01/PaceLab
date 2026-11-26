@@ -1,7 +1,7 @@
 # Modelo de Dados, Persistência Híbrida e Contratos de API
 
 > **Documentação Técnica de Arquitetura — PaceLab**  
-> Referência canônica pós-Plano 17 cobrindo persistência no navegador, schema relacional PostgreSQL/Prisma, regras de fuso horário (`America/Fortaleza`), envelopes REST padronizados (`code` top-level, helpers `lib/api/*`) e catálogo OpenAPI (`/docs`) derivado de Zod.
+> Referência canônica pós-Plano 18 cobrindo persistência no navegador, schema relacional PostgreSQL/Prisma, regras de fuso horário (`America/Fortaleza`) com virada dominical 22h, envelopes REST padronizados (`code` top-level, helpers `lib/api/*`) e catálogo OpenAPI (`/docs`) derivado de Zod.
 
 ---
 
@@ -167,7 +167,7 @@ O PaceLab resolve isso por meio de quatro regras padronizadas:
 2. **Semana Segunda a Domingo (`getFortalezaWeekBounds` & `shiftFortalezaDays`):**
    - Toda semana no módulo `Plano_Semanal` e em `GET /api/weekly-plan` é delimitada de **Segunda-feira (`weekStart`)** a **Domingo (`weekEnd`)** no calendário de Fortaleza, com aritmética puramente civil em UTC meio-dia para ser independente do fuso do servidor Node.js.
 3. **Datas Vindas da Planilha (`parseSheetDate`) e Datas Puras de Perfil (`formatCalendarDateForSheet`):**
-   - Ao ler datas civis do Google Sheets (`YYYY-MM-DD` ou `DD/MM/YYYY`), `parseSheetDate` ancora em **meio-dia UTC (`12:00:00.000Z`)**, garantindo que o mesmo dia civil seja preservado tanto em UTC quanto em `UTC-3`.
+   - Ao ler datas civis do Google Sheets (`YYYY-MM-DD`, `YYYY/MM/DD`, `DD/MM/YYYY`, `DD-MM-YYYY`, `DD/MM/YY`, `DD-MM-YY`, `DD/MM` e timestamps ISO), `parseSheetDate` valida o calendário real e ancora em **meio-dia UTC (`12:00:00.000Z`)**, garantindo que o mesmo dia civil seja preservado tanto em UTC quanto em `UTC-3`.
    - Campos de calendário civil sem hora útil (`UserProfile.birthDate` e `TafGoal.targetExamDate`) usam `formatCalendarDateForSheet`, evitando que valores armazenados como `00:00:00.000Z` recuem 1 dia na exportação para `Perfil_e_Metas`.
 4. **Validação Estrita em Zod (`lib/validations/taf.ts`):**
    - `isValidCalendarDateString` valida datas reais de calendário no formato `YYYY-MM-DD` (aplicada em `WeeklyPlanQuerySchema`, `birthDate`, `targetExamDate` e timestamps ISO via `isValidDateInput` / `createDefaultIsoDateSchema`), retornando **HTTP 400** em entradas inválidas antes de atingir `Date.toISOString()` ou queries do Prisma.
@@ -224,7 +224,7 @@ O wrapper central `withApiHandler` (apoiado por `lib/api/request.ts`, `lib/api/p
   - Parâmetros: `limit` (`1..100`, padrão `50`), `cursor` (ID do último item retornado), além de filtro opcional `activityType` em `/api/taf/trainings`.
   - A query busca `take: limit + 1` e devolve `meta: { limit, nextCursor, hasMore }`.
 - **Auto-Sync Síncrono vs. `?skipSheetsSync=true` ([`lib/api/sheetsSync.ts`](../../lib/api/sheetsSync.ts)):**
-  - Em mutações individuais, as rotas aguardam (`await`) a reconciliação local (`safeReconcileWeeklyPlans`) e a sincronização pontual (`syncRecordWithSheets` + `pushWeeklyPlanStatusToSheets`) **antes** de encerrar a resposta HTTP — requisito essencial para que funções serverless não sejam congeladas antes da chamada à Google API.
+  - Em mutações individuais, as rotas aguardam (`await`) a sincronização pontual (`syncRecordWithSheets` / `safeAutoSync`) **antes** de encerrar a resposta HTTP — requisito essencial para que funções serverless não sejam congeladas antes da chamada à Google API. Nas mutações de **treinos** (`POST`/`PUT`/`DELETE /api/taf/trainings`), as rotas também aguardam `ensureWeeklyPlanLoadedForSession` (em `POST`/`PUT`), `safeReconcileWeeklyPlans` e `pushWeeklyPlanStatusToSheets`.
   - Operações em lote (importação múltipla no `GpxImportPanel.tsx` e restauração de backup JSON em `GoalAndBackupSettings.tsx`) enviam `?skipSheetsSync=true` (`shouldSkipSheetsSync`) em cada item e executam um único `POST /api/sync/sheets` consolidado ao final, prevenindo HTTP `429` no Google Sheets. Mesmo com `?skipSheetsSync=true`, a reconciliação local `safeReconcileWeeklyPlans` no PostgreSQL continua executando normalmente.
 
 ---
@@ -245,8 +245,9 @@ A documentação interativa Swagger UI está disponível em `/docs` (`app/docs/p
 | `/api/profile` | `GET`, `PUT` | `GET`, `PUT` | Consulta ou cria perfil único do atleta e atualiza biometria (gerando `WeightRecord` quando `currentWeightKg` muda) + sync de `Perfil_e_Metas`. |
 | `/api/profile/weight` | `GET`, `POST` | `GET`, `POST` | Lista histórico de pesagens em ordem decrescente (com `?limit=1..365`) e registra nova pesagem (atualizando `UserProfile.currentWeightKg` caso seja a mais recente). |
 | `/api/profile/weight/[id]` | `DELETE` | `DELETE` | Remove registro de pesagem (`apiDeleted`, `404` se inexistente, `400 INVALID_PATH_ID` se inválido) e recalcula `UserProfile.currentWeightKg` pela pesagem remanescente mais recente (ou `null`). |
-| `/api/sync/sheets` | `GET`, `POST` | `GET`, `POST` | `GET` informa `configured`, contadores de pendências locais (`pendingTrainingsCount`, `pendingAttemptsCount`, `totalPendingCount`) sem consumir quota Google; `POST` dispara `syncWithGoogleSheets` (`direction`: `"bidirectional"` \| `"push"` \| `"pull"`, `forceFullResync`), incluindo a 4ª aba opcional `Plano_Semanal`. |
-| `/api/weekly-plan` | `GET` | `GET` | *(Plano 15)* Retorna o snapshot semanal (`WeeklyPlanResponse`) para `?weekStart=YYYY-MM-DD` (ou semana atual em `America/Fortaleza`), itens conciliados, `summary`, `rollingFourWeeksAverage` (até 4 semanas com plano) e `extraSessions` / `extraSummary`. |
+| `/api/sync/sheets` | `GET`, `POST` | `GET`, `POST` | `GET` informa `configured`, contadores de pendências locais (`pendingTrainingsCount`, `pendingAttemptsCount`, `totalPendingCount`) sem consumir quota Google; `POST` dispara `syncWithGoogleSheets` (`direction`: `"bidirectional"` \| `"push"` \| `"pull"`, `forceFullResync`), incluindo a 4ª aba opcional `Plano_Semanal` (com `weeklyPlan.adapted` opcional). |
+| `/api/cron/sync-weekly-plan` | `GET` | `GET` | *(Plano 18)* Endpoint protegido por `Authorization: Bearer <CRON_SECRET>` (`401` / `503` / `200`), acionado pelo Vercel Cron (`0 1 * * 1` UTC = domingo 22h BRT em `vercel.json`) para executar `syncWithGoogleSheets({ direction: "bidirectional", forceFullResync: false })`. |
+| `/api/weekly-plan` | `GET` | `GET` | *(Planos 15 & 18)* Executa reconciliação sob demanda + write-back `H:I` quando detecta pendências reais; retorna `WeeklyPlanResponse` para `?weekStart=YYYY-MM-DD` (ou semana padrão com virada dominical `>= 22h` BRT quando há plano na próxima semana imediata, sinalizado por `isSundayRolloverWindow`), itens com 5 status (`WEEKLY_PLAN_STATUSES`: `Planejado`, `Concluído`, `Adaptado`, `Parcial`, `Perdido`) e `adaptationReason`/`adaptationReasons`, `summary` (com `adapted` e pesos `1.0 / 0.75 / 0.50`), `rollingFourWeeksAverage` e `extraSessions` / `extraSummary`. |
 | `/api/taf/health` | `GET` | `GET` | Executa `SELECT 1` no PostgreSQL (Prisma), mede latência em ms e reporta `sheetsConfigured` (`200` conectado, `503` desconectado). |
 | `/api/docs/spec` | `GET` | — *(Meta)* | Serve o JSON bruto do objeto `swaggerSpec` com cache HTTP (`public, max-age=3600`). |
 

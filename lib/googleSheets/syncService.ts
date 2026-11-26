@@ -50,6 +50,7 @@ import {
   computeWeeklyReconciliation,
   evaluateLinkedSessionValidity,
   getFortalezaWeekBounds,
+  isRealizedWeeklyPlanStatus,
   isRestPlanActivity,
   toFortalezaDateKey,
 } from "@/lib/math/weeklyAdherence";
@@ -164,6 +165,46 @@ function normalizeCellString(cell: unknown): string {
   return String(cell).trim();
 }
 
+function normalizeSheetIdValue(cell: unknown): string {
+  const raw = normalizeCellString(cell);
+  return raw.replace(/^'+/, "").trim();
+}
+
+function normalizeTabLookupKey(title: string): string {
+  return title
+    .trim()
+    .replace(/^'+/, "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
+function formatSheetRange(sheetTitle: string, a1Range: string): string {
+  if (/^[A-Za-z0-9_]+$/.test(sheetTitle)) {
+    return `${sheetTitle}!${a1Range}`;
+  }
+  const escaped = sheetTitle.replace(/'/g, "''");
+  return `'${escaped}'!${a1Range}`;
+}
+
+function isWeeklyPlanHeaderRow(row: unknown[] | undefined): boolean {
+  if (!row || row.length === 0) return false;
+  const col0 = normalizeTabLookupKey(normalizeCellString(row[0]));
+  const col1 = normalizeTabLookupKey(normalizeCellString(row[1]));
+  const col2 = normalizeTabLookupKey(normalizeCellString(row[2]));
+  const col3 = normalizeTabLookupKey(normalizeCellString(row[3]));
+  return (
+    col0 === "id" ||
+    col1 === "data" ||
+    col2 === "diadasemana" ||
+    (col2 === "dia" && col3 === "tipo") ||
+    (col0 === "idplano" && col1 === "data") ||
+    (col1 === "data" && col3 === "tipo")
+  );
+}
+
 function buildRowIndexMapFromColumn(
   rows: unknown[][] | null | undefined,
   startRow = 2
@@ -172,7 +213,7 @@ function buildRowIndexMapFromColumn(
   if (!rows) return rowMap;
 
   for (let i = 0; i < rows.length; i += 1) {
-    const id = normalizeCellString(rows[i]?.[0]);
+    const id = normalizeSheetIdValue(rows[i]?.[0]);
     if (id && !rowMap.has(id)) {
       rowMap.set(id, startRow + i);
     }
@@ -190,7 +231,7 @@ function findMatchedRowNumbersDesc(
   const matches: number[] = [];
 
   for (let i = 0; i < rows.length; i += 1) {
-    if (normalizeCellString(rows[i]?.[0]) === targetId) {
+    if (normalizeSheetIdValue(rows[i]?.[0]) === targetId) {
       matches.push(startRow + i);
     }
   }
@@ -1142,7 +1183,7 @@ async function pullTrainingSheetRows<T extends SheetTrainingSessionInput & { id:
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i] ?? [];
     if (isHeaderRow(row, i + 1) || isBlankSheetRow(row)) continue;
-    const rawId = normalizeCellString(row[0]);
+    const rawId = normalizeSheetIdValue(row[0]);
     if (rawId && ctx.byId.has(rawId)) {
       ctx.linkedIds.add(rawId);
     }
@@ -1155,7 +1196,7 @@ async function pullTrainingSheetRows<T extends SheetTrainingSessionInput & { id:
     if (isHeaderRow(row, rowNumber) || isBlankSheetRow(row)) {
       continue;
     }
-    if (ctx.onlyUnlinkedRows && normalizeCellString(row[0]).length > 0) {
+    if (ctx.onlyUnlinkedRows && normalizeSheetIdValue(row[0]).length > 0) {
       continue;
     }
 
@@ -1287,7 +1328,7 @@ async function pullTafSheetRows<T extends SheetTafAttemptInput & { id: string }>
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i] ?? [];
     if (isHeaderRow(row, i + 1) || isBlankSheetRow(row)) continue;
-    const rawId = normalizeCellString(row[0]);
+    const rawId = normalizeSheetIdValue(row[0]);
     if (rawId && ctx.byId.has(rawId)) {
       ctx.linkedIds.add(rawId);
     }
@@ -1300,7 +1341,7 @@ async function pullTafSheetRows<T extends SheetTafAttemptInput & { id: string }>
     if (isHeaderRow(row, rowNumber) || isBlankSheetRow(row)) {
       continue;
     }
-    if (ctx.onlyUnlinkedRows && normalizeCellString(row[0]).length > 0) {
+    if (ctx.onlyUnlinkedRows && normalizeSheetIdValue(row[0]).length > 0) {
       continue;
     }
 
@@ -1487,12 +1528,14 @@ export interface PullWeeklyPlanResult {
   stats: Pick<WeeklyPlanSyncStats, "imported" | "updated" | "removed" | "sheetMissingOrEmpty">;
   parsedCount: number;
   sheetMissing: boolean;
+  sheetTitle: string;
   warnings: SheetRowWarning[];
   sheetSnapshots: Map<string, WeeklyPlanRowSnapshot>;
 }
 
 export interface ReconcileWeeklyPlanResult {
   matched: number;
+  adapted?: number;
   missed: number;
   updatedCount: number;
 }
@@ -1502,37 +1545,133 @@ export interface PushWeeklyPlanResult {
   sheetMissingOrEmpty: boolean;
 }
 
+async function resolveWeeklyPlanTabTitle(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string
+): Promise<string | null> {
+  if (typeof sheets?.spreadsheets?.get !== "function") {
+    return null;
+  }
+
+  try {
+    const metaRes = await withSheetsRetry(() =>
+      sheets.spreadsheets.get({
+        spreadsheetId,
+        fields: "sheets(properties(sheetId,title))",
+      })
+    );
+    const allSheets = metaRes?.data?.sheets;
+    if (!Array.isArray(allSheets)) {
+      return null;
+    }
+
+    const expectedKey = normalizeTabLookupKey(SHEET_TABS.PLANO_SEMANAL);
+    for (const sheet of allSheets) {
+      const title = sheet.properties?.title;
+      if (title && normalizeTabLookupKey(title) === expectedKey) {
+        return title;
+      }
+    }
+    return null;
+  } catch (error) {
+    const status = extractGoogleApiStatus(error);
+    if (status === 401 || status === 403 || status === 429 || (status !== undefined && status >= 500)) {
+      throw error;
+    }
+    return null;
+  }
+}
+
+function extractWeeklyPlanDataRows(rawValues: unknown[][]): {
+  rows: unknown[][];
+  firstDataRowNumber: number;
+} {
+  if (rawValues.length > 0 && isWeeklyPlanHeaderRow(rawValues[0])) {
+    return {
+      rows: rawValues.slice(1),
+      firstDataRowNumber: 2,
+    };
+  }
+  return {
+    rows: rawValues,
+    firstDataRowNumber: 1,
+  };
+}
+
 async function readWeeklyPlanSheetRows(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string
-): Promise<{ sheetMissing: boolean; rows: unknown[][] }> {
+): Promise<{
+  sheetMissing: boolean;
+  sheetTitle: string;
+  rows: unknown[][];
+  firstDataRowNumber: number;
+}> {
   try {
     const res = await withSheetsRetry(() =>
       sheets.spreadsheets.values.get({
         spreadsheetId,
-        range: SHEET_RANGES.PLANO_SEMANAL_DATA,
+        range: SHEET_RANGES.PLANO_SEMANAL_ALL,
         valueRenderOption: "FORMATTED_VALUE",
       })
     );
+    const { rows, firstDataRowNumber } = extractWeeklyPlanDataRows(res.data.values ?? []);
     return {
       sheetMissing: false,
-      rows: res.data.values ?? [],
+      sheetTitle: SHEET_TABS.PLANO_SEMANAL,
+      rows,
+      firstDataRowNumber,
     };
   } catch (error) {
-    if (isMissingTabError(error)) {
+    if (!isMissingTabError(error)) {
+      throw error;
+    }
+
+    // Fallback: tenta localizar aba com variação de caixa/espaço (ex.: "Plano Semanal", "plano_semanal")
+    const resolvedTitle = await resolveWeeklyPlanTabTitle(sheets, spreadsheetId);
+    if (!resolvedTitle) {
       return {
         sheetMissing: true,
+        sheetTitle: SHEET_TABS.PLANO_SEMANAL,
         rows: [],
+        firstDataRowNumber: 2,
       };
     }
-    throw error;
+
+    const fallbackRes = await withSheetsRetry(() =>
+      sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: formatSheetRange(resolvedTitle, "A1:I"),
+        valueRenderOption: "FORMATTED_VALUE",
+      })
+    );
+    const { rows, firstDataRowNumber } = extractWeeklyPlanDataRows(
+      fallbackRes.data.values ?? []
+    );
+    return {
+      sheetMissing: false,
+      sheetTitle: resolvedTitle,
+      rows,
+      firstDataRowNumber,
+    };
   }
 }
 
 function collectWeeklyPlanSheetSnapshots(
-  rows: unknown[][]
+  rows: unknown[][],
+  firstDataRowNumber = 2,
+  referenceNow: Date = new Date()
 ): Map<string, WeeklyPlanRowSnapshot> {
   const snapshots = new Map<string, WeeklyPlanRowSnapshot>();
+  const explicitIds = new Set<string>();
+  for (const row of rows) {
+    if (!row || isBlankSheetRow(row)) continue;
+    const rawId = normalizeSheetIdValue(row[0]);
+    if (rawId) {
+      explicitIds.add(rawId);
+    }
+  }
+  const generatedSeqByDate = new Map<string, number>();
 
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i] ?? [];
@@ -1540,20 +1679,33 @@ function collectWeeklyPlanSheetSnapshots(
       continue;
     }
 
-    const planExternalId = normalizeCellString(row[0]);
-    if (!planExternalId || snapshots.has(planExternalId)) {
+    // Alinha com pullWeeklyPlanFromSheets para que linhas duplicadas com 1ª ocorrência de data inválida não capturem o snapshot.
+    const plannedDate = parseSheetDate(row[1], referenceNow);
+    if (!plannedDate) {
       continue;
     }
 
-    // Alinha com pullWeeklyPlanFromSheets para que linhas duplicadas com 1ª ocorrência de data inválida não capturem o snapshot.
-    if (!parseSheetDate(row[1])) {
+    let planExternalId = normalizeSheetIdValue(row[0]);
+    if (!planExternalId) {
+      const dateKey = toFortalezaDateKey(plannedDate);
+      let seq = generatedSeqByDate.get(dateKey) ?? 0;
+      let candidate = "";
+      do {
+        seq += 1;
+        candidate = `PLAN-${dateKey}-${seq}`;
+      } while (explicitIds.has(candidate) || snapshots.has(candidate));
+      generatedSeqByDate.set(dateKey, seq);
+      planExternalId = candidate;
+    }
+
+    if (snapshots.has(planExternalId)) {
       continue;
     }
 
     snapshots.set(planExternalId, {
-      rowNumber: i + 2,
-      statusText: normalizeCellString(row[7]),
-      matchedSessionIdText: normalizeCellString(row[8]),
+      rowNumber: firstDataRowNumber + i,
+      statusText: normalizeSheetIdValue(row[7]),
+      matchedSessionIdText: normalizeSheetIdValue(row[8]),
     });
   }
 
@@ -1609,9 +1761,11 @@ function hasWeeklyPlanPrescriptionDivergence(
 export async function pullWeeklyPlanFromSheets(
   deps?: SheetsSyncDependencies
 ): Promise<PullWeeklyPlanResult> {
-  const { generateId } = resolveDeps(deps);
+  const { generateId, now } = resolveDeps(deps);
+  const referenceNow = now();
   const { sheets, spreadsheetId } = getGoogleSheetsClient();
-  const { sheetMissing, rows } = await readWeeklyPlanSheetRows(sheets, spreadsheetId);
+  const { sheetMissing, sheetTitle, rows, firstDataRowNumber } =
+    await readWeeklyPlanSheetRows(sheets, spreadsheetId);
 
   if (sheetMissing) {
     return {
@@ -1623,6 +1777,7 @@ export async function pullWeeklyPlanFromSheets(
       },
       parsedCount: 0,
       sheetMissing: true,
+      sheetTitle,
       warnings: [],
       sheetSnapshots: new Map(),
     };
@@ -1633,17 +1788,29 @@ export async function pullWeeklyPlanFromSheets(
   const seenPlanIds = new Set<string>();
   const pulledWeekStarts = new Set<string>();
   const sheetSnapshots = new Map<string, WeeklyPlanRowSnapshot>();
+  const idBackfillEntries: SheetUpdateEntry[] = [];
   let nonBlankRowsCount = 0;
+
+  // Pré-coleta IDs explícitos presentes na planilha (inclusive linhas de descanso) para evitar colisão
+  const explicitIds = new Set<string>();
+  for (const row of rows) {
+    if (!row || isBlankSheetRow(row)) continue;
+    const rawId = normalizeSheetIdValue(row[0]);
+    if (rawId) {
+      explicitIds.add(rawId);
+    }
+  }
+  const generatedSeqByDate = new Map<string, number>();
 
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i] ?? [];
-    const rowNumber = i + 2;
+    const rowNumber = firstDataRowNumber + i;
     if (isBlankSheetRow(row)) {
       continue;
     }
 
     nonBlankRowsCount += 1;
-    const parsed = parseWeeklyPlanRowFromSheet(row, rowNumber);
+    const parsed = parseWeeklyPlanRowFromSheet(row, rowNumber, { referenceNow });
 
     if (!parsed.valid) {
       warnings.push({
@@ -1655,7 +1822,7 @@ export async function pullWeeklyPlanFromSheets(
     }
 
     if (parsed.kind === "rest") {
-      const restDate = parseSheetDate(row[1]);
+      const restDate = parseSheetDate(row[1], referenceNow);
       if (restDate) {
         pulledWeekStarts.add(getFortalezaWeekBounds(restDate).weekStart);
       }
@@ -1670,23 +1837,60 @@ export async function pullWeeklyPlanFromSheets(
       });
     }
 
-    if (seenPlanIds.has(parsed.data.planExternalId)) {
+    let resolvedPlanId = parsed.data.planExternalId;
+    if (parsed.data.needsGeneratedId) {
+      const dateKey = toFortalezaDateKey(parsed.data.plannedDate);
+      let seq = generatedSeqByDate.get(dateKey) ?? 0;
+      let candidate = "";
+      do {
+        seq += 1;
+        candidate = `PLAN-${dateKey}-${seq}`;
+      } while (explicitIds.has(candidate) || seenPlanIds.has(candidate));
+      generatedSeqByDate.set(dateKey, seq);
+      resolvedPlanId = candidate;
+      parsed.data.planExternalId = resolvedPlanId;
+      idBackfillEntries.push({
+        range: formatSheetRange(sheetTitle, `A${rowNumber}`),
+        values: [[resolvedPlanId]],
+      });
+    }
+
+    if (seenPlanIds.has(resolvedPlanId)) {
       warnings.push({
         tab: SHEET_TABS.PLANO_SEMANAL,
         rowNumber,
-        message: `Linha ${rowNumber} (Plano_Semanal): ID "${parsed.data.planExternalId}" duplicado na planilha; cópia ignorada.`,
+        message: `Linha ${rowNumber} (Plano_Semanal): ID "${resolvedPlanId}" duplicado na planilha; cópia ignorada.`,
       });
       continue;
     }
 
-    seenPlanIds.add(parsed.data.planExternalId);
+    seenPlanIds.add(resolvedPlanId);
     pulledWeekStarts.add(getFortalezaWeekBounds(parsed.data.plannedDate).weekStart);
-    sheetSnapshots.set(parsed.data.planExternalId, {
+    sheetSnapshots.set(resolvedPlanId, {
       rowNumber,
-      statusText: normalizeCellString(row[7]),
-      matchedSessionIdText: normalizeCellString(row[8]),
+      statusText: normalizeSheetIdValue(row[7]),
+      matchedSessionIdText: normalizeSheetIdValue(row[8]),
     });
     parsedItems.push(parsed.data);
+  }
+
+  // Write-back idempotente na coluna A para linhas que vieram sem ID na planilha
+  if (idBackfillEntries.length > 0) {
+    try {
+      for (const chunk of chunkArray(idBackfillEntries, BATCH_CHUNK_SIZE)) {
+        await withSheetsRetry(() =>
+          sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+              valueInputOption: "RAW",
+              data: chunk,
+            },
+          })
+        );
+      }
+    } catch (err) {
+      console.error("[SheetsSync] Falha não bloqueante ao gravar IDs auto-gerados em Plano_Semanal!A:", err);
+    }
   }
 
   const existingPlans = await prisma.weeklyPlanItem.findMany();
@@ -1741,7 +1945,7 @@ export async function pullWeeklyPlanFromSheets(
     for (const existing of existingPlans) {
       if (seenPlanIds.has(existing.planExternalId)) continue;
       if (existing.matchedSessionId !== null) continue;
-      if (existing.status === "Concluído" || existing.status === "Parcial") continue;
+      if (isRealizedWeeklyPlanStatus(existing.status)) continue;
 
       const existingWeekKey = getFortalezaWeekBounds(existing.plannedDate).weekStart;
       const isPlannedUnlinked = existing.status === "Planejado";
@@ -1770,6 +1974,7 @@ export async function pullWeeklyPlanFromSheets(
     },
     parsedCount: parsedItems.length,
     sheetMissing: false,
+    sheetTitle,
     warnings,
     sheetSnapshots,
   };
@@ -1845,6 +2050,8 @@ async function runReconcileWeeklyPlansOnce(
       activityType: true,
       distanceKm: true,
       durationSeconds: true,
+      paceSeconds: true,
+      paceFormatted: true,
     },
     orderBy: { sessionDate: "asc" },
   });
@@ -1869,6 +2076,7 @@ async function runReconcileWeeklyPlansOnce(
     plannedDate: plan.plannedDate,
     activityType: plan.activityType,
     targetDistanceKm: plan.targetDistanceKm,
+    targetPaceFormatted: plan.targetPaceFormatted,
     status: plan.status,
     matchedSessionId: plan.matchedSessionId,
   }));
@@ -1881,7 +2089,7 @@ async function runReconcileWeeklyPlansOnce(
     }
 
     if (plan.matchedSessionId === null) {
-      if (plan.status === "Concluído" || plan.status === "Parcial") {
+      if (isRealizedWeeklyPlanStatus(plan.status)) {
         plan.status = computeUnmatchedPlanStatus(plan.plannedDate, todayFortalezaKey);
       }
       continue;
@@ -2005,8 +2213,13 @@ async function runReconcileWeeklyPlansOnce(
     });
   }
 
+  const adaptedCount = changedPairs.filter(
+    ({ next }) => next.status === "Adaptado" && next.matchedSessionId !== null
+  ).length;
+
   return {
     matched: reconciliation.matches.length,
+    ...(adaptedCount > 0 ? { adapted: adaptedCount } : {}),
     missed: reconciliation.missedCount,
     updatedCount: changedPairs.length,
   };
@@ -2020,6 +2233,7 @@ export async function pushWeeklyPlanStatusToSheets(
   deps?: SheetsSyncDependencies,
   cachedSheetContext?: {
     sheetMissing: boolean;
+    sheetTitle?: string;
     sheetSnapshots: Map<string, WeeklyPlanRowSnapshot>;
   }
 ): Promise<PushWeeklyPlanResult> {
@@ -2027,6 +2241,7 @@ export async function pushWeeklyPlanStatusToSheets(
     return { pushed: 0, sheetMissingOrEmpty: true };
   }
 
+  const { now } = resolveDeps(deps);
   const plans = await prisma.weeklyPlanItem.findMany({
     orderBy: [{ plannedDate: "asc" }, { planExternalId: "asc" }],
   });
@@ -2040,15 +2255,18 @@ export async function pushWeeklyPlanStatusToSheets(
 
   const { sheets, spreadsheetId } = getGoogleSheetsClient();
   let snapshots: Map<string, WeeklyPlanRowSnapshot>;
+  let resolvedSheetTitle = cachedSheetContext?.sheetTitle ?? SHEET_TABS.PLANO_SEMANAL;
 
   if (cachedSheetContext) {
     snapshots = cachedSheetContext.sheetSnapshots;
   } else {
-    const { sheetMissing, rows } = await readWeeklyPlanSheetRows(sheets, spreadsheetId);
+    const { sheetMissing, sheetTitle, rows, firstDataRowNumber } =
+      await readWeeklyPlanSheetRows(sheets, spreadsheetId);
     if (sheetMissing) {
       return { pushed: 0, sheetMissingOrEmpty: true };
     }
-    snapshots = collectWeeklyPlanSheetSnapshots(rows);
+    resolvedSheetTitle = sheetTitle;
+    snapshots = collectWeeklyPlanSheetSnapshots(rows, firstDataRowNumber, now());
   }
 
   if (snapshots.size === 0) {
@@ -2070,7 +2288,10 @@ export async function pushWeeklyPlanStatusToSheets(
     }
 
     updateEntries.push({
-      range: `${SHEET_TABS.PLANO_SEMANAL}!H${snapshot.rowNumber}:I${snapshot.rowNumber}`,
+      range: formatSheetRange(
+        resolvedSheetTitle,
+        `H${snapshot.rowNumber}:I${snapshot.rowNumber}`
+      ),
       values: [[desiredStatus, desiredMatchedId]],
     });
   }
@@ -2080,7 +2301,7 @@ export async function pushWeeklyPlanStatusToSheets(
       sheets.spreadsheets.values.batchUpdate({
         spreadsheetId,
         requestBody: {
-          valueInputOption: "USER_ENTERED",
+          valueInputOption: "RAW",
           data: chunk,
         },
       })
@@ -2104,6 +2325,7 @@ export async function syncWeeklyPlanFromSheets(
   const reconcileRes = await reconcileWeeklyPlansWithSessions(undefined, deps);
   const pushRes = await pushWeeklyPlanStatusToSheets(deps, {
     sheetMissing: pullRes.sheetMissing,
+    sheetTitle: pullRes.sheetTitle,
     sheetSnapshots: pullRes.sheetSnapshots,
   });
 
@@ -2112,6 +2334,7 @@ export async function syncWeeklyPlanFromSheets(
     updated: pullRes.stats.updated,
     removed: pullRes.stats.removed,
     matched: reconcileRes.matched,
+    ...(reconcileRes.adapted ? { adapted: reconcileRes.adapted } : {}),
     missed: reconcileRes.missed,
     pushed: pushRes.pushed,
     sheetMissingOrEmpty: pullRes.stats.sheetMissingOrEmpty,
@@ -2205,6 +2428,7 @@ export async function syncWithGoogleSheets(
     const weeklyReconcile = await reconcileWeeklyPlansWithSessions(undefined, deps);
     const weeklyPush = await pushWeeklyPlanStatusToSheets(deps, {
       sheetMissing: weeklyPull.sheetMissing,
+      sheetTitle: weeklyPull.sheetTitle,
       sheetSnapshots: weeklyPull.sheetSnapshots,
     });
     pullResult.warnings.push(...weeklyPull.warnings);
@@ -2213,22 +2437,43 @@ export async function syncWithGoogleSheets(
       updated: weeklyPull.stats.updated,
       removed: weeklyPull.stats.removed,
       matched: weeklyReconcile.matched,
+      ...(weeklyReconcile.adapted ? { adapted: weeklyReconcile.adapted } : {}),
       missed: weeklyReconcile.missed,
       pushed: weeklyPush.pushed,
       sheetMissingOrEmpty: weeklyPull.stats.sheetMissingOrEmpty,
     };
   } else if (direction === "push") {
     pushResult = await syncHistoricalDataToSheets({ forceFullResync }, deps);
+    let bootstrapPull: PullWeeklyPlanResult | null = null;
+    if (typeof prisma?.weeklyPlanItem?.count === "function") {
+      const existingPlansCount = await prisma.weeklyPlanItem.count();
+      if (existingPlansCount === 0) {
+        bootstrapPull = await pullWeeklyPlanFromSheets(deps);
+        pullResult.warnings.push(...bootstrapPull.warnings);
+      }
+    }
     const weeklyReconcile = await reconcileWeeklyPlansWithSessions(undefined, deps);
-    const weeklyPush = await pushWeeklyPlanStatusToSheets(deps);
+    const weeklyPush = await pushWeeklyPlanStatusToSheets(
+      deps,
+      bootstrapPull
+        ? {
+            sheetMissing: bootstrapPull.sheetMissing,
+            sheetTitle: bootstrapPull.sheetTitle,
+            sheetSnapshots: bootstrapPull.sheetSnapshots,
+          }
+        : undefined
+    );
     weeklyPlanStats = {
-      imported: 0,
-      updated: 0,
-      removed: 0,
+      imported: bootstrapPull?.stats.imported ?? 0,
+      updated: bootstrapPull?.stats.updated ?? 0,
+      removed: bootstrapPull?.stats.removed ?? 0,
       matched: weeklyReconcile.matched,
+      ...(weeklyReconcile.adapted ? { adapted: weeklyReconcile.adapted } : {}),
       missed: weeklyReconcile.missed,
       pushed: weeklyPush.pushed,
-      sheetMissingOrEmpty: weeklyPush.sheetMissingOrEmpty,
+      sheetMissingOrEmpty: bootstrapPull
+        ? bootstrapPull.stats.sheetMissingOrEmpty
+        : weeklyPush.sheetMissingOrEmpty,
     };
   } else {
     pullResult = await pullChangesFromSheets(deps, {
@@ -2239,6 +2484,7 @@ export async function syncWithGoogleSheets(
     pushResult = await syncHistoricalDataToSheets({ forceFullResync }, deps);
     const weeklyPush = await pushWeeklyPlanStatusToSheets(deps, {
       sheetMissing: weeklyPull.sheetMissing,
+      sheetTitle: weeklyPull.sheetTitle,
       sheetSnapshots: weeklyPull.sheetSnapshots,
     });
     pullResult.warnings.push(...weeklyPull.warnings);
@@ -2247,6 +2493,7 @@ export async function syncWithGoogleSheets(
       updated: weeklyPull.stats.updated,
       removed: weeklyPull.stats.removed,
       matched: weeklyReconcile.matched,
+      ...(weeklyReconcile.adapted ? { adapted: weeklyReconcile.adapted } : {}),
       missed: weeklyReconcile.missed,
       pushed: weeklyPush.pushed,
       sheetMissingOrEmpty: weeklyPull.stats.sheetMissingOrEmpty,

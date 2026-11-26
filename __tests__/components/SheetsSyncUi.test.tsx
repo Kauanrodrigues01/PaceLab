@@ -934,7 +934,45 @@ describe("Fase 6 — Frontend & UX: Sincronização Google Sheets", () => {
             warnings: [{ tab: "Log_Treinos", rowNumber: 4, message: "Aviso" }],
           })
         )
-      ).toBe("Planilha já estava atualizada (nenhuma pendência encontrada) (1 aviso(s))");
+      ).toBe(
+        "Planilha já estava atualizada (nenhuma pendência encontrada) (1 aviso(s)) — Aviso"
+      );
+
+      // Prioriza avisos de Plano_Semanal e inclui contagem de adaptados + truncamento > 2 avisos
+      expect(
+        formatSheetsSyncReportSummary(
+          makeSyncReport({
+            pushedAppended: 0,
+            pushedUpdated: 0,
+            pulledUpdated: 0,
+            pulledLinked: 0,
+            pulledCreated: 0,
+            tafPushedAppended: 0,
+            tafPushedUpdated: 0,
+            tafPulledUpdated: 0,
+            tafPulledLinked: 0,
+            tafPulledCreated: 0,
+            profileSynced: false,
+            weeklyPlan: {
+              imported: 1,
+              updated: 0,
+              removed: 0,
+              matched: 1,
+              adapted: 1,
+              missed: 0,
+              pushed: 1,
+              sheetMissingOrEmpty: false,
+            },
+            warnings: [
+              { tab: "Log_Treinos", rowNumber: 2, message: "Log ignorado" },
+              { tab: "Plano_Semanal", rowNumber: 4, message: "Linha 4 (Plano_Semanal): Data inválida" },
+              { tab: "Plano_Semanal", rowNumber: 7, message: "Linha 7 (Plano_Semanal): Tipo ausente" },
+            ],
+          })
+        )
+      ).toBe(
+        "Planilha sincronizada (Plano Semanal: 1 plano(s) importado(s), 1 treino(s) conciliado(s), 1 adaptado(s), 1 status enviado(s)) (3 aviso(s)) — Linha 4 (Plano_Semanal): Data inválida; Linha 7 (Plano_Semanal): Tipo ausente (+1)"
+      );
 
       expect(
         formatSheetsSyncReportSummary(
@@ -1214,6 +1252,21 @@ describe("Fase 6 — Frontend & UX: Sincronização Google Sheets", () => {
         type: "error",
         message: expect.stringContaining("2 falha(s)"),
       });
+
+      // Avisos vazios antes de avisos válidos não ocultam previews reais
+      const summaryWithBlankWarnings = formatSheetsSyncReportSummary(
+        makeSyncReport({
+          warnings: [
+            { tab: "Plano_Semanal", rowNumber: 2, message: "   " },
+            { tab: "Plano_Semanal", rowNumber: 3, message: "Aviso válido 1" },
+            { tab: "Plano_Semanal", rowNumber: 4, message: "Aviso válido 2" },
+            { tab: "Plano_Semanal", rowNumber: 5, message: "Aviso válido 3" },
+          ],
+        })
+      );
+      expect(summaryWithBlankWarnings).toContain("Aviso válido 1");
+      expect(summaryWithBlankWarnings).toContain("Aviso válido 2");
+      expect(summaryWithBlankWarnings).toContain("(+1)");
     });
   });
 });
